@@ -143,15 +143,15 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .aar-btn{display:block;background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:500;padding:2px 5px;border-radius:3px;line-height:1.4;margin-top:3px;font-family:var(--font);letter-spacing:.03em;white-space:nowrap}
 .aar-btn:hover{background:var(--border2);color:var(--text1)}
 .aar-btn.aar-has{color:var(--accent);font-weight:600}
-#aar-editor hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
-#aar-editor ul,#aar-editor ol{padding-left:22px;margin:4px 0}
-#aar-editor li{margin:2px 0}
-#aar-editor ul{list-style-type:disc}
-#aar-editor ul ul{list-style-type:circle}
-#aar-editor ul ul ul{list-style-type:square}
-#aar-editor ol{list-style-type:decimal}
-#aar-editor ol ol{list-style-type:lower-alpha}
-#aar-editor ol ol ol{list-style-type:lower-roman}
+#aar-editor hr,.quote-ta hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
+#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol{padding-left:22px;margin:4px 0}
+#aar-editor li,.quote-ta li{margin:2px 0}
+#aar-editor ul,.quote-ta ul{list-style-type:disc}
+#aar-editor ul ul,.quote-ta ul ul{list-style-type:circle}
+#aar-editor ul ul ul,.quote-ta ul ul ul{list-style-type:square}
+#aar-editor ol,.quote-ta ol{list-style-type:decimal}
+#aar-editor ol ol,.quote-ta ol ol{list-style-type:lower-alpha}
+#aar-editor ol ol ol,.quote-ta ol ol ol{list-style-type:lower-roman}
 /* Richtext contenteditable */
 .quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text2);font-style:italic;line-height:1.6;word-break:break-word;min-height:1.4em}
 .quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
@@ -1669,8 +1669,8 @@ function richtextKD(e){
     if(e.key==='i'){e.preventDefault();document.execCommand('italic',false,null)}
     if(e.key==='u'){e.preventDefault();document.execCommand('underline',false,null)}
   }
-  // "---" + Enter → horizontal rule separator (AAR editor only)
-  if(e.key==='Enter'&&!e.shiftKey&&e.target.id==='aar-editor'){
+  // "---" + Enter → horizontal rule separator
+  if(e.key==='Enter'&&!e.shiftKey){
     const sel2=window.getSelection();
     if(sel2&&sel2.rangeCount){
       const rng=sel2.getRangeAt(0);
@@ -1686,18 +1686,19 @@ function richtextKD(e){
       }
     }
   }
-  // Tab / Shift+Tab → indent / outdent (AAR editor only)
-  if(e.key==='Tab'&&e.target.id==='aar-editor'){
+  // Tab / Shift+Tab → indent / outdent
+  if(e.key==='Tab'){
     e.preventDefault();
     document.execCommand(e.shiftKey?'outdent':'indent');
     return;
   }
-  // Backspace on empty list item → outdent instead of merge up (AAR editor only)
-  if(e.key==='Backspace'&&e.target.id==='aar-editor'){
+  // Backspace on empty list item → outdent instead of merge up
+  if(e.key==='Backspace'){
     const sel=window.getSelection();
     if(sel&&sel.rangeCount&&sel.getRangeAt(0).collapsed){
       let n=sel.getRangeAt(0).startContainer;
-      while(n&&n.nodeName!=='LI'&&n.id!=='aar-editor') n=n.parentNode;
+      const root=e.target;
+      while(n&&n.nodeName!=='LI'&&n!==root) n=n.parentNode;
       if(n&&n.nodeName==='LI'&&n.textContent.trim()===''){
         e.preventDefault();
         document.execCommand('outdent');
