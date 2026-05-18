@@ -1297,6 +1297,11 @@ function mkTide(){
       <div id="tide-gp-${g.id}" style="font-size:11px;color:var(--text3);margin-top:5px">${gp}%</div>
     </div>`;
   }).join('');
+  const {pct:fPct,hasData:fHas}=fathomMonthStats();
+  const fGrade=fHas?fathomGrade(fPct):null;
+  const fTideLine=fGrade
+    ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:${fgColor(fGrade)};margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em">Fathom &middot; ${fGrade.label} &middot; ${fPct}%</div>`
+    :'<div id="tide-fathom-line" style="display:none"></div>';
   const d=document.createElement('div');
   d.className='notes-card';
   d.innerHTML=`<div class="card-title">TIDE · ${MON[CM]} ${CY}</div>
@@ -1304,6 +1309,7 @@ function mkTide(){
       <div id="tide-letter" style="font-size:72px;font-weight:700;line-height:1;color:${grade.color};letter-spacing:-.02em">${grade.letter}</div>
       <div id="tide-name" style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${grade.color};margin-top:8px">${grade.name}</div>
       <div id="tide-pct" style="font-size:14px;font-weight:500;color:var(--text3);margin-top:10px">${pct}% Compound Rate</div>
+      ${fTideLine}
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px">
       <div style="display:flex;gap:8px;flex-wrap:wrap">${grpCards}</div>
@@ -1320,6 +1326,8 @@ function updTide(){
   if(letterEl){letterEl.textContent=grade.letter;letterEl.style.color=grade.color;}
   if(nameEl){nameEl.textContent=grade.name;nameEl.style.color=grade.color;}
   if(pctEl) pctEl.textContent=`${pct}% Compound Rate`;
+  const fEl=document.getElementById('tide-fathom-line');
+  if(fEl){const{pct:fp,hasData:fh}=fathomMonthStats();const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`Fathom &middot; ${fg.label} &middot; ${fp}%`;}else fEl.style.display='none';}
   D.groups.forEach(g=>{
     const gp=grpTideScore(g);
     const gg=TIDE_GRADES.find(x=>gp>=x.min);
@@ -1345,9 +1353,23 @@ function mkAnnual(){
 
   // ── Quarterly scores ──
   const QLabels=['Q1 · Jan – Mar','Q2 · Apr – Jun','Q3 · Jul – Sep','Q4 · Oct – Dec'];
+  const fItems=D.fathom?.items||[];
   const quarters=[0,1,2,3].map(qi=>{
     const s=quarterStats(qi);
-    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi]};
+    let fLabel=null;
+    if(fItems.length){
+      let fc=0,fp=0;
+      for(let qm=qi*3;qm<qi*3+3;qm++){
+        const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&qm<=now.getMonth());
+        if(!isPast) continue;
+        const isCurQMo=CY===now.getFullYear()&&qm===now.getMonth();
+        const qmo=D.months[mk(CY,qm)];
+        const lastD=isCurQMo?now.getDate():dim(CY,qm);
+        for(let dd=1;dd<=lastD;dd++) fItems.forEach(it=>{fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;});
+      }
+      if(fp>0) fLabel=fathomGrade(Math.floor(fc/fp*100)).label;
+    }
+    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fLabel};
   });
 
   const qHtml=quarters.map(q=>`
@@ -1363,6 +1385,7 @@ function mkAnnual(){
         <div style="font-size:24px;font-weight:600;color:var(--border);margin-top:2px">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:5px">Not started</div>
       `}
+      ${q.fLabel?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fLabel}</div>`:''}
     </div>`).join('');
 
   d.innerHTML=`
@@ -1409,6 +1432,16 @@ function mkAnnual(){
           }
           if(tp>0) tideGrade=TIDE_GRADES.find(g=>Math.floor(tc/tp*100)>=g.min);
         }
+        let fGradeLabel=null;
+        if(fItems.length){
+          const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
+          if(isPast){
+            const daysToCount=isCur?now.getDate():days;
+            let fc=0,fp=0;
+            for(let dd=1;dd<=daysToCount;dd++) fItems.forEach(it=>{fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;});
+            if(fp>0) fGradeLabel=fathomGrade(Math.floor(fc/fp*100)).label;
+          }
+        }
         return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
             <div style="font-size:13px;font-weight:600">${name}${isCur?' <span style="font-size:10px;color:var(--accent)">← Now</span>':''}</div>
@@ -1416,6 +1449,7 @@ function mkAnnual(){
           </div>
           <div class="mo-bar"><div class="mo-fill" style="width:${rate}%;background:${barC}"></div></div>
           <div class="mo-stat">${rate}% · ${comp}/${poss||'—'}</div>
+          ${fGradeLabel?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">${fGradeLabel}</div>`:''}
         </div>`;
       }).join('')}
     </div>`;
@@ -1790,6 +1824,18 @@ function _dropHabit(targetGid,targetHid,insertBefore=true){
   save();render();
 }
 
+function _dropFathomItem(targetId,insertBefore=true){
+  if(!_dg||_dg.type!=='fathom'||_dg.fid===targetId) return;
+  const items=D.fathom.items;
+  const fi=items.findIndex(i=>i.id===_dg.fid);
+  if(fi===-1) return;
+  const [item]=items.splice(fi,1);
+  const ti=items.findIndex(i=>i.id===targetId);
+  if(ti===-1) items.push(item);
+  else items.splice(insertBefore?ti:ti+1,0,item);
+  save();render();
+}
+
 function _dropHabitOnGroup(targetGid){
   if(!_dg||_dg.type!=='habit') return;
   const srcG=D.groups.find(g=>g.id===_dg.gid);
@@ -1878,7 +1924,7 @@ function buildHzTable(){
 
   // colgroup: habit col fixed, day cols share remaining space equally, done + % fixed
   const cg=document.createElement('colgroup');
-  const cHabit=document.createElement('col');cHabit.style.width='100px';cg.appendChild(cHabit);
+  const cHabit=document.createElement('col');cHabit.style.width=editMode?'180px':'100px';cg.appendChild(cHabit);
   const cDays=document.createElement('col');cDays.span=days;cg.appendChild(cDays);
   const cDone=document.createElement('col');cDone.style.width='56px';cg.appendChild(cDone);
   const cPct=document.createElement('col');cPct.style.width='56px';cg.appendChild(cPct);
@@ -2192,22 +2238,13 @@ function mkFathomGrid(){
   bar.className='grid-bar';
   bar.innerHTML=`
     <span class="grid-bar-l" style="display:flex;align-items:center;gap:8px">
-      <span style="font-weight:700;color:var(--text1)">Fathom</span>
-      <span style="font-size:10px;color:var(--text3);font-weight:400">Inner Scorecard</span>
+      <span style="font-weight:800;letter-spacing:.14em;color:var(--text1)">Fathom</span>
     </span>
     <div style="display:flex;align-items:center;gap:8px">
       ${mGrade?`<span style="font-size:11px;font-weight:600;color:${fgColor(mGrade)}">${mGrade.label} &middot; ${mPct}%</span>`:''}
       ${editMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
     </div>`;
   card.appendChild(bar);
-
-  if(!items.length&&!editMode){
-    const empty=document.createElement('div');
-    empty.style.cssText='padding:32px 20px;text-align:center;color:var(--text3);font-size:13px';
-    empty.textContent='No items yet — enter Edit mode to add Fathom items.';
-    card.appendChild(empty);
-    return card;
-  }
 
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
@@ -2217,7 +2254,7 @@ function mkFathomGrid(){
   t.id='fathom-tbl';
 
   const cg=document.createElement('colgroup');
-  const cH=document.createElement('col');cH.style.width='100px';cg.appendChild(cH);
+  const cH=document.createElement('col');cH.style.width=editMode?'180px':'100px';cg.appendChild(cH);
   const cD=document.createElement('col');cD.span=days;cg.appendChild(cD);
   const cDn=document.createElement('col');cDn.style.width='56px';cg.appendChild(cDn);
   const cP=document.createElement('col');cP.style.width='56px';cg.appendChild(cP);
@@ -2282,9 +2319,28 @@ function mkFathomGrid(){
     nameTd.className='sl hz-habit-td';
     if(editMode){
       nameTd.innerHTML=`<div style="display:flex;align-items:center;gap:2px;overflow:hidden">
+        <span class="dnd-grip" style="margin-right:1px">⠿</span>
         <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(item.name)}" onchange="renameFathomItem('${item.id}',this.value)" onclick="event.stopPropagation()"/>
         <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteFathomItem('${item.id}')" title="Remove">&#10005;</button>
       </div>`;
+      tr.draggable=true;
+      tr.ondragstart=e=>{_dg={type:'fathom',fid:item.id};tr.classList.add('dnd-drag');e.dataTransfer.effectAllowed='move';e.stopPropagation()};
+      tr.ondragend=()=>{tr.classList.remove('dnd-drag');_dg=null};
+      tr.ondragover=e=>{
+        if(_dg?.type==='fathom'&&_dg.fid!==item.id){
+          e.preventDefault();
+          const{top,height}=tr.getBoundingClientRect();
+          tr.classList.remove('dnd-ins-t','dnd-ins-b');
+          tr.classList.add(e.clientY<top+height/2?'dnd-ins-t':'dnd-ins-b');
+        }
+      };
+      tr.ondragleave=()=>{tr.classList.remove('dnd-ins-t','dnd-ins-b')};
+      tr.ondrop=e=>{
+        e.preventDefault();
+        const{top,height}=tr.getBoundingClientRect();
+        tr.classList.remove('dnd-ins-t','dnd-ins-b');
+        _dropFathomItem(item.id,e.clientY<top+height/2);
+      };
     } else {
       nameTd.innerHTML=`<div class="hz-habit-name">${esc(item.name)}</div>`;
     }
