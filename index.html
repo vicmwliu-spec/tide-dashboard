@@ -2412,7 +2412,7 @@ function mkFathomGrid(){
   const cornerA=document.createElement('th');
   cornerA.className='sl st';cornerA.rowSpan=3;
   cornerA.style.cssText='padding:6px 8px;border-bottom:2px solid var(--border);vertical-align:bottom';
-  cornerA.innerHTML=`<div style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Item</div>`;
+  cornerA.innerHTML='';
   rA.appendChild(cornerA);
   for(let d=1;d<=days;d++){
     const dow=new Date(CY,CM,d).getDay();
