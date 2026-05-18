@@ -1238,24 +1238,35 @@ function annualStats(){ return _periodStats([0,1,2,3,4,5,6,7,8,9,10,11]); }
 // ── Fathom helpers ──
 function fathomMd(){
   const k=mk(CY,CM);
-  if(!D.months[k]) D.months[k]={completions:{},fathomCompletions:{}};
+  if(!D.months[k]) D.months[k]={completions:{},fathomCompletions:{},fathomSkips:{}};
   if(!D.months[k].fathomCompletions) D.months[k].fathomCompletions={};
+  if(!D.months[k].fathomSkips) D.months[k].fathomSkips={};
   return D.months[k];
 }
 function isChkFathom(iid,day){
   const mo=D.months[mk(CY,CM)];
   return !!(mo?.fathomCompletions?.[iid]?.[day]);
 }
+function isSkipFathom(iid,day){
+  const mo=D.months[mk(CY,CM)];
+  return !!(mo?.fathomSkips?.[iid]?.[day]);
+}
 function toggleFathom(iid,day){
   const mo=fathomMd();
   if(!mo.fathomCompletions[iid]) mo.fathomCompletions[iid]={};
-  mo.fathomCompletions[iid][day]=!mo.fathomCompletions[iid][day];
+  if(!mo.fathomSkips[iid]) mo.fathomSkips[iid]={};
+  const done=!!mo.fathomCompletions[iid][day];
+  const skip=!!mo.fathomSkips[iid][day];
+  if(!done&&!skip){mo.fathomCompletions[iid][day]=true;}
+  else if(done){mo.fathomCompletions[iid][day]=false;mo.fathomSkips[iid][day]=true;}
+  else{mo.fathomSkips[iid][day]=false;}
   save();
 }
 function fathomDayProg(day){
   const items=D.fathom?.items||[];
-  const done=items.filter(it=>isChkFathom(it.id,day)).length;
-  return {done,total:items.length,pct:items.length?Math.floor(done/items.length*100):0};
+  let done=0,total=0;
+  items.forEach(it=>{if(!isSkipFathom(it.id,day)){total++;if(isChkFathom(it.id,day))done++;}});
+  return {done,total,pct:total?Math.floor(done/total*100):0};
 }
 function fathomMonthStats(){
   const items=D.fathom?.items||[];
@@ -1264,16 +1275,17 @@ function fathomMonthStats(){
   const isCur=CY===today.getFullYear()&&CM===today.getMonth();
   const lastDay=isCur?today.getDate():dim(CY,CM);
   let comp=0,poss=0;
-  for(let d=1;d<=lastDay;d++) items.forEach(it=>{poss++;if(isChkFathom(it.id,d))comp++;});
+  for(let d=1;d<=lastDay;d++) items.forEach(it=>{if(!isSkipFathom(it.id,d)){poss++;if(isChkFathom(it.id,d))comp++;}});
   return {pct:poss?Math.floor(comp/poss*100):0,done:comp,poss,hasData:poss>0};
 }
 function fathomTodayStats(){
   const items=D.fathom?.items||[];
   const t=new Date();
-  if(t.getFullYear()!==CY||t.getMonth()!==CM) return {pct:0,done:0,total:items.length,hasData:false};
+  if(t.getFullYear()!==CY||t.getMonth()!==CM) return {pct:0,done:0,total:0,hasData:false};
   const day=t.getDate();
-  const done=items.filter(it=>isChkFathom(it.id,day)).length;
-  return {done,total:items.length,pct:items.length?Math.floor(done/items.length*100):0,hasData:items.length>0};
+  let done=0,total=0;
+  items.forEach(it=>{if(!isSkipFathom(it.id,day)){total++;if(isChkFathom(it.id,day))done++;}});
+  return {done,total,pct:total?Math.floor(done/total*100):0,hasData:total>0};
 }
 
 function grpTideScore(g){
@@ -1382,7 +1394,7 @@ function mkAnnual(){
         const isCurQMo=CY===now.getFullYear()&&qm===now.getMonth();
         const qmo=D.months[mk(CY,qm)];
         const lastD=isCurQMo?now.getDate():dim(CY,qm);
-        for(let dd=1;dd<=lastD;dd++) fItems.forEach(it=>{fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;});
+        for(let dd=1;dd<=lastD;dd++) fItems.forEach(it=>{if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});
       }
       if(fc>0) fLabel=fathomGrade(Math.floor(fc/fp*100)).label;
     }
@@ -1455,7 +1467,7 @@ function mkAnnual(){
           if(isPast){
             const daysToCount=isCur?now.getDate():days;
             let fc=0,fp=0;
-            for(let dd=1;dd<=daysToCount;dd++) fItems.forEach(it=>{fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;});
+            for(let dd=1;dd<=daysToCount;dd++) fItems.forEach(it=>{if(!m?.fathomSkips?.[it.id]?.[dd]){fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;}});
             if(fc>0) fGradeLabel=fathomGrade(Math.floor(fc/fp*100)).label;
           }
         }
@@ -2370,12 +2382,13 @@ function mkFathomGrid(){
       const dow=new Date(CY,CM,d).getDay();
       const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===1&&d>1;
       const chk=isChkFathom(item.id,d);
-      if(!isFuture){rowDone+=chk?1:0;rowTotal++;}
+      const skp=isSkipFathom(item.id,d);
+      if(!isFuture&&!skp){rowDone+=chk?1:0;rowTotal++;}
       const td=document.createElement('td');
       td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'');
       td.id=`fhzcc-${item.id}-${d}`;
       if(!isFuture) td.onclick=()=>doFathomToggle(item.id,d);
-      td.innerHTML=`<div class="chk-box${chk?' checked':''}" id="fhzcb-${item.id}-${d}" style="background:${chk?FATHOM_COLOR:'transparent'};border-color:${chk?FATHOM_COLOR:'var(--border)'}"></div>`;
+      td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="fhzcb-${item.id}-${d}" style="background:${chk?FATHOM_COLOR:'transparent'};border-color:${chk?FATHOM_COLOR:'var(--border)'}"></div>`;
       tr.appendChild(td);
     }
     const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
@@ -2396,11 +2409,13 @@ function mkFathomGrid(){
 function doFathomToggle(iid,day){
   toggleFathom(iid,day);
   const chk=isChkFathom(iid,day);
+  const skp=isSkipFathom(iid,day);
   const box=document.getElementById(`fhzcb-${iid}-${day}`);
   if(box){
+    box.classList.toggle('checked',chk);
+    box.classList.toggle('skipped',skp);
     box.style.background=chk?FATHOM_COLOR:'transparent';
     box.style.borderColor=chk?FATHOM_COLOR:'var(--border)';
-    box.classList.toggle('checked',chk);
     box.classList.remove('chk-pop');
     if(chk) requestAnimationFrame(()=>box.classList.add('chk-pop'));
   }
@@ -2412,7 +2427,7 @@ function doFathomToggle(iid,day){
   const isCurMo=CY===new Date().getFullYear()&&CM===new Date().getMonth();
   const lastD=isCurMo?new Date().getDate():dim(CY,CM);
   let rowDone=0,rowTotal=0;
-  for(let d=1;d<=lastD;d++){if(isChkFathom(iid,d))rowDone++;rowTotal++;}
+  for(let d=1;d<=lastD;d++){if(!isSkipFathom(iid,d)){if(isChkFathom(iid,d))rowDone++;rowTotal++;}}
   const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
   const fg=fathomGrade(pct);
   const ds=document.getElementById(`fhzds-${iid}`);
