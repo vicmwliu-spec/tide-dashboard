@@ -371,7 +371,7 @@ let _selDrag = false;        // drag selection active
 let _selBlock = false;       // suppress next click (was a drag)
 let _keepSel = false;        // preserve selection across next render()
 let _selAnchor = null;       // first cell of current drag
-let _selThisDrag = new Set(); // cells added in current drag (for backtrack-deselect)
+let _selPath = [];           // ordered cells added this drag (for backtrack-deselect)
 
 // ─────────────────────────────────────────
 //  CLOUD SYNC (Supabase)
@@ -2525,14 +2525,16 @@ document.addEventListener('mouseover',e=>{
   const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
   if(!c||!_parseSel(c.id)) return;
   if(!_selDrag){
-    _selDrag=true;_selBlock=true;_selClear();_selThisDrag.clear();
-    if(_selAnchor){const a=document.getElementById(_selAnchor);if(a){_selAddCell(a);_selThisDrag.add(a.id);}}
+    _selDrag=true;_selBlock=true;_selClear();_selPath=[];
+    if(_selAnchor){const a=document.getElementById(_selAnchor);if(a){_selAddCell(a);_selPath=[a.id];}}
   }
-  if(_selThisDrag.has(c.id)){
-    // backtrack: deselect this cell
-    _sel.delete(c.id);c.classList.remove('sel');_selThisDrag.delete(c.id);
+  const idx=_selPath.indexOf(c.id);
+  if(idx!==-1){
+    // backtrack: keep this cell, remove everything after it
+    const removed=_selPath.splice(idx+1);
+    removed.forEach(id=>{_sel.delete(id);const el=document.getElementById(id);if(el)el.classList.remove('sel');});
   } else {
-    _selAddCell(c);_selThisDrag.add(c.id);
+    _selAddCell(c);_selPath.push(c.id);
   }
   _updSelBar();
 },true);
