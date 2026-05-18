@@ -511,7 +511,7 @@ function toggle(hid,day){
 function dayProg(day){
   const h=allHabits();
   const done=h.filter(hb=>isChk(hb.id,day)).length;
-  return {done,total:h.length,pct:h.length?Math.round(done/h.length*100):0};
+  return {done,total:h.length,pct:h.length?Math.floor(done/h.length*100):0};
 }
 
 function habitProg(hid){
@@ -887,12 +887,12 @@ function buildTHead(){
 
   // Summary headers (rowspan 2)
   const doneH=document.createElement('th');
-  doneH.className='sr sr-2 st sum-hdr first-sum';doneH.rowSpan=2;
+  doneH.className='sr sr-2 st hz-sum-th first-sum';doneH.rowSpan=2;
   doneH.textContent='Done';r1.appendChild(doneH);
 
   const pctH=document.createElement('th');
-  pctH.className='sr sr-1 st sum-hdr';pctH.rowSpan=2;
-  pctH.textContent='%';r1.appendChild(pctH);
+  pctH.className='sr sr-1 st hz-sum-th';pctH.rowSpan=2;
+  pctH.textContent='CR %';r1.appendChild(pctH);
 
   thead.appendChild(r1);
 
@@ -1971,7 +1971,7 @@ function buildHzTable(){
         tr.appendChild(td);
       }
 
-      const pct=rowTotal?Math.round(rowDone/rowTotal*100):0;
+      const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
       const doneTd=document.createElement('td');doneTd.className='sr sr-2 hz-sum-td first-sum';doneTd.id=`hzds-${h.id}`;
       doneTd.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
       const pctTd=document.createElement('td');pctTd.className='sr sr-1 hz-sum-td';pctTd.id=`hzps-${h.id}`;
