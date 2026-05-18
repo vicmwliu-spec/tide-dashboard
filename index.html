@@ -370,6 +370,7 @@ let _selMD = false;          // mousedown held on a cell
 let _selDrag = false;        // drag selection active
 let _selBlock = false;       // suppress next click (was a drag)
 let _keepSel = false;        // preserve selection across next render()
+let _selAnchor = null;       // first cell of current drag
 
 // ─────────────────────────────────────────
 //  CLOUD SYNC (Supabase)
@@ -2515,14 +2516,17 @@ function _selAddCell(el){
 document.addEventListener('mousedown',e=>{
   const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
   if(!c||!_parseSel(c.id)) return;
-  _selMD=true;_selDrag=false;_selBlock=false;
+  _selMD=true;_selDrag=false;_selBlock=false;_selAnchor=c.id;
 },true);
 
 document.addEventListener('mouseover',e=>{
   if(!_selMD) return;
   const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
   if(!c||!_parseSel(c.id)) return;
-  if(!_selDrag){_selDrag=true;_selBlock=true;_selClear();}
+  if(!_selDrag){
+    _selDrag=true;_selBlock=true;_selClear();
+    if(_selAnchor){const a=document.getElementById(_selAnchor);if(a)_selAddCell(a);}
+  }
   _selAddCell(c);_updSelBar();
 },true);
 
