@@ -232,6 +232,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 tr.dnd-ins-t>td,tr.dnd-ins-t>th{box-shadow:inset 0 3px 0 var(--accent) !important}
 tr.dnd-ins-b>td,tr.dnd-ins-b>th{box-shadow:inset 0 -3px 0 var(--accent) !important}
 
+/* ── Multi-select ── */
+.chk-c.sel,.hz-chk-c.sel{background:rgba(59,130,246,.13)!important;position:relative}
+.chk-c.sel .sl,.hz-chk-c.sel .sl{background:rgba(59,130,246,.13)!important}
+.chk-c.sel .chk-box,.hz-chk-c.sel .chk-box{outline:2px solid var(--accent);outline-offset:1px}
+html.dark .chk-c.sel,html.dark .hz-chk-c.sel{background:rgba(59,130,246,.18)!important}
+#sel-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text1);color:var(--bg);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:500;display:none;align-items:center;gap:12px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25);white-space:nowrap;pointer-events:none}
+#sel-bar .sel-hint{opacity:.55;font-weight:400}
+
 /* ── Misc ── */
 .empty-state{text-align:center;padding:48px 24px;color:var(--text3)}
 .empty-state p{margin-top:8px;font-size:13px}
@@ -307,6 +315,7 @@ html.dark .dnd-grip:hover{color:var(--text2)}
 </head>
 <body>
 <div id="app"></div>
+<div id="sel-bar"><span id="sel-count"></span><span class="sel-hint">Space to cycle &nbsp;·&nbsp; Esc to clear</span></div>
 
 <script>
 // ─────────────────────────────────────────
@@ -356,6 +365,11 @@ let hzChartInst = null;
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
 let _aarDay = null; // currently open AAR day
+let _sel = new Set();   // selected cell IDs
+let _selMD = false;     // mousedown held on a cell
+let _selDrag = false;   // drag selection active
+let _selBlock = false;  // suppress next click (was a drag)
+let _keepSel = false;   // preserve selection across next render()
 
 // ─────────────────────────────────────────
 //  CLOUD SYNC (Supabase)
@@ -595,6 +609,9 @@ function cumulData(){
 //  RENDER MAIN
 // ─────────────────────────────────────────
 function render(){
+  const wasSel=_keepSel;
+  _keepSel=false;
+  if(!wasSel) _sel.clear();
   const app=document.getElementById('app');
   app.innerHTML='';
   if(chartInst){chartInst.destroy();chartInst=null}
@@ -615,6 +632,10 @@ function render(){
     app.appendChild(mkTide());
   }
   document.addEventListener('click',closePop,{capture:true});
+  if(wasSel){
+    _sel.forEach(id=>{const el=document.getElementById(id);if(el)el.classList.add('sel');else _sel.delete(id)});
+  }
+  _updSelBar();
 }
 
 // ─────────────────────────────────────────
@@ -2451,6 +2472,105 @@ function deleteFathomItem(id){
   D.fathom.items=D.fathom.items.filter(i=>i.id!==id);
   save();render();
 }
+
+// ─────────────────────────────────────────
+//  MULTI-CELL SELECTION
+// ─────────────────────────────────────────
+function _updSelBar(){
+  const bar=document.getElementById('sel-bar');
+  const cnt=document.getElementById('sel-count');
+  if(!bar) return;
+  if(_sel.size>0){bar.style.display='flex';if(cnt)cnt.textContent=`${_sel.size} cell${_sel.size>1?'s':''} selected`;}
+  else bar.style.display='none';
+}
+function _selClear(){
+  _sel.forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('sel')});
+  _sel.clear();_updSelBar();
+}
+function _parseSel(id){
+  const m=id.match(/^(fhzcc|hzcc|cc)-(.+)-(\d+)$/);
+  if(!m) return null;
+  return {type:m[1]==='fhzcc'?'fathom':'habit',id:m[2],day:+m[3]};
+}
+function _setHabitState(hid,day,done,skip){
+  const mo=md(CY,CM);
+  if(!mo.completions[hid])mo.completions[hid]={};
+  if(!mo.skips[hid])mo.skips[hid]={};
+  mo.completions[hid][day]=done;
+  mo.skips[hid][day]=skip;
+}
+function _setFathomState(iid,day,done,skip){
+  const mo=fathomMd();
+  if(!mo.fathomCompletions[iid])mo.fathomCompletions[iid]={};
+  if(!mo.fathomSkips[iid])mo.fathomSkips[iid]={};
+  mo.fathomCompletions[iid][day]=done;
+  mo.fathomSkips[iid][day]=skip;
+}
+function _selAddCell(el){
+  if(!el||!el.id||el.classList.contains('future')||!_parseSel(el.id)) return;
+  _sel.add(el.id);el.classList.add('sel');
+}
+
+// Drag-to-select (capture phase so it runs before onclick)
+document.addEventListener('mousedown',e=>{
+  const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
+  if(!c||!_parseSel(c.id)) return;
+  _selMD=true;_selDrag=false;_selBlock=false;
+},true);
+
+document.addEventListener('mouseover',e=>{
+  if(!_selMD) return;
+  const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
+  if(!c||!_parseSel(c.id)) return;
+  if(!_selDrag){_selDrag=true;_selBlock=true;_selClear();}
+  _selAddCell(c);_updSelBar();
+},true);
+
+document.addEventListener('mouseup',()=>{_selMD=false;},true);
+
+document.addEventListener('click',e=>{
+  if(_selBlock){_selBlock=false;e.stopPropagation();return;}
+  const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
+  if(e.shiftKey&&c&&_parseSel(c.id)){
+    e.stopPropagation();
+    if(_sel.has(c.id)){_sel.delete(c.id);c.classList.remove('sel');}
+    else _selAddCell(c);
+    _updSelBar();return;
+  }
+  if(c&&_sel.size>0) _selClear();
+  if(!c&&!e.target.closest('#app')) _selClear();
+},true);
+
+// Space = cycle all selected cells
+document.addEventListener('keydown',e=>{
+  if(e.code==='Escape'){_selClear();return;}
+  if(e.code!=='Space'||_sel.size===0) return;
+  const t=e.target.tagName;
+  if(t==='INPUT'||t==='TEXTAREA'||e.target.isContentEditable) return;
+  e.preventDefault();
+  // Tally states across selection
+  let ec=0,dc=0,sc=0;
+  _sel.forEach(id=>{
+    const p=_parseSel(id);if(!p) return;
+    const done=p.type==='fathom'?isChkFathom(p.id,p.day):isChk(p.id,p.day);
+    const skip=p.type==='fathom'?isSkipFathom(p.id,p.day):isSkip(p.id,p.day);
+    if(done)dc++;else if(skip)sc++;else ec++;
+  });
+  // Majority state → cycle to next: empty→done, done→skip, skip→empty
+  const mx=Math.max(ec,dc,sc);
+  let td=false,ts=false;
+  if(mx===ec)td=true;
+  else if(mx===dc)ts=true;
+  // Apply to all selected cells
+  _sel.forEach(id=>{
+    const p=_parseSel(id);if(!p) return;
+    if(p.type==='fathom') _setFathomState(p.id,p.day,td,ts);
+    else _setHabitState(p.id,p.day,td,ts);
+  });
+  save();
+  _keepSel=true;
+  render();
+});
 
 // ─────────────────────────────────────────
 //  BOOT
