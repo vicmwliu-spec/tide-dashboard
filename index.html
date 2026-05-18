@@ -2458,6 +2458,7 @@ function doFathomToggle(iid,day){
   if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
   if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span>`;
   updStats();
+  updTide();
 }
 
 function addFathomItem(){
