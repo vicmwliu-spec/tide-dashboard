@@ -294,6 +294,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 
   /* Grid */
   .grid-card{margin-bottom:10px}
+  .grid-scroll{overflow-x:scroll;overscroll-behavior-x:contain}
   /* Larger touch targets for checkboxes */
   .chk-box{width:30px;height:30px;border-radius:7px}
   .chk-c{padding:5px 4px}
@@ -2399,7 +2400,7 @@ function mkFathomGrid(){
 
   const cg=document.createElement('colgroup');
   const cH=document.createElement('col');cH.style.width=editMode?'180px':'100px';cg.appendChild(cH);
-  const cD=document.createElement('col');cD.span=days;cg.appendChild(cD);
+  const cD=document.createElement('col');cD.span=days;cD.style.width='34px';cg.appendChild(cD);
   const cDn=document.createElement('col');cDn.style.width='56px';cg.appendChild(cDn);
   const cP=document.createElement('col');cP.style.width='56px';cg.appendChild(cP);
   t.appendChild(cg);
