@@ -352,6 +352,7 @@ let hzChartInst = null;
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
 let _aarDay = null; // currently open AAR day
+let weekMode = localStorage.getItem('tide_week')!==null ? localStorage.getItem('tide_week')==='1' : window.innerWidth<=768;
 
 // ─────────────────────────────────────────
 //  CLOUD SYNC (Supabase)
@@ -421,6 +422,27 @@ function toggleDark(){
   localStorage.setItem('tide_dark',darkMode?'1':'0');
   document.documentElement.classList.toggle('dark',darkMode);
   render();
+}
+
+function toggleWeekMode(){
+  weekMode=!weekMode;
+  localStorage.setItem('tide_week',weekMode?'1':'0');
+  render();
+}
+
+function thisWeekDays(){
+  const today=new Date();
+  const isCurMo=CY===today.getFullYear()&&CM===today.getMonth();
+  let refDay;
+  if(isCurMo) refDay=today.getDate();
+  else if(new Date(CY,CM,1)<today) refDay=dim(CY,CM); // past month → last week
+  else refDay=1; // future month → first week
+  const dow=new Date(CY,CM,refDay).getDay();
+  const wStart=refDay-dow, wEnd=wStart+6;
+  const mDays=dim(CY,CM);
+  const days=[];
+  for(let d=Math.max(1,wStart);d<=Math.min(mDays,wEnd);d++) days.push(d);
+  return days;
 }
 
 function pillBg(pct){
@@ -592,6 +614,8 @@ function render(){
     if(gridLayout==='vertical'){
       app.appendChild(mkChart());
       app.appendChild(mkGrid());
+    } else if(weekMode){
+      app.appendChild(mkWeekGrid());
     } else {
       app.appendChild(mkGridHorizontal());
     }
@@ -621,6 +645,7 @@ function mkHeader(){
       <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
       <button class="btn" onclick="toggleDark()">${darkMode?'Day Mode':'Night Mode'}</button>
       <button class="btn ${view==='year'?'btn-on':''}" onclick="toggleView()">${view==='year'?'&#8592; Month View':'Year Overview'}</button>
+      ${view!=='year'&&gridLayout==='horizontal'?`<button class="btn ${weekMode?'btn-on':''}" onclick="toggleWeekMode()">This Week</button>`:''}
       ${view!=='year'?`<button class="btn btn-on" onclick="toggleLayout()" title="Switch between vertical (days as rows) and horizontal (days as columns)">${gridLayout==='horizontal'?'&#8597; Vertical':'&#8596; Horizontal'}</button>`:''}
       <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>`;
@@ -1985,6 +2010,122 @@ function buildHzTable(){
   return t;
 }
 
+// ─────────────────────────────────────────
+//  WEEK GRID (mobile-optimised 7-day view)
+// ─────────────────────────────────────────
+function mkWeekGrid(){
+  const isCurMo=CY===new Date().getFullYear()&&CM===new Date().getMonth();
+  const todayD=isCurMo?new Date().getDate():-1;
+  const wDays=thisWeekDays();
+
+  const card=document.createElement('div');
+  card.className='grid-card'+(editMode?' edit-mode':'');
+  card.id='grid-card';
+
+  const bar=document.createElement('div');
+  bar.className='grid-bar';
+  bar.innerHTML=`<span class="grid-bar-l">${MON[CM]} ${wDays[0]}–${wDays[wDays.length-1]}</span>`;
+  card.appendChild(bar);
+
+  const t=document.createElement('table');
+  t.style.cssText='width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0';
+
+  const cg=document.createElement('colgroup');
+  const cHabit=document.createElement('col');cHabit.style.width='26%';cg.appendChild(cHabit);
+  wDays.forEach(()=>cg.appendChild(document.createElement('col')));
+  t.appendChild(cg);
+
+  const thead=document.createElement('thead');
+
+  // Row A: daily % (corner spans both header rows)
+  const rA=document.createElement('tr');
+  const cornerA=document.createElement('th');
+  cornerA.className='sl st';cornerA.rowSpan=2;
+  cornerA.style.cssText='padding:4px 8px;border-bottom:2px solid var(--border);vertical-align:bottom';
+  cornerA.innerHTML=`<div style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Habit</div>`;
+  rA.appendChild(cornerA);
+  wDays.forEach(d=>{
+    const isToday=d===todayD;
+    const isFuture=isCurMo&&d>todayD;
+    const {pct}=dayProg(d);
+    const td=document.createElement('td');
+    td.id=`hzdp-${d}`;
+    td.className='st hz-chk-c'+(isToday?' today-col':'');
+    td.style.cssText=`padding:3px 2px;cursor:default;background:${isToday?'var(--today-bg)':'var(--surface2)'};border-bottom:1px solid var(--border2)`;
+    if(isFuture) td.innerHTML=`<span style="color:var(--text3);font-size:9px">—</span>`;
+    else{const c=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';td.innerHTML=`<span style="color:${c};font-size:10px;font-weight:700">${pct}%</span>`;}
+    rA.appendChild(td);
+  });
+  thead.appendChild(rA);
+
+  // Row B: day number + DOW + AAR button
+  const rB=document.createElement('tr');
+  wDays.forEach(d=>{
+    const dow=new Date(CY,CM,d).getDay();
+    const isToday=d===todayD;
+    const isFutureDay=isCurMo&&d>todayD;
+    const th=document.createElement('th');
+    th.className='st hz-day-th'+(isToday?' today-col':'');
+    th.innerHTML=`<span class="hd-num">${d}</span><span class="hd-dow">${DOW[dow]}</span>${!isFutureDay?`<button id="aar-btn-${d}" class="aar-btn${getAAR(d)?' aar-has':''}" onclick="event.stopPropagation();openAAR(${d})" title="AAR">✎</button>`:''}`;
+    rB.appendChild(th);
+  });
+  thead.appendChild(rB);
+  t.appendChild(thead);
+
+  const tbody=document.createElement('tbody');
+  D.groups.forEach(g=>{
+    const grpTr=document.createElement('tr');
+    const grpTd=document.createElement('td');
+    grpTd.colSpan=wDays.length+1;
+    grpTd.className='hz-grp-row';
+    const badgeBg=g.color+'1A';
+    if(editMode){
+      grpTd.innerHTML=`<div style="display:flex;align-items:center;gap:6px">
+        <div class="grp-badge" style="background:${badgeBg};color:${g.color}">
+          <button class="color-dot-btn" style="display:block;background:${g.color}" onclick="openColorPop(event,'${g.id}')"></button>
+          <input class="grp-name-in" value="${esc(g.name)}" style="color:${g.color}" onchange="renameGroup('${g.id}',this.value)" onclick="event.stopPropagation()"/>
+        </div>
+        <button class="btn" style="padding:2px 6px;font-size:10px;color:#EF4444;border-color:#FCA5A5" onclick="deleteGroup('${g.id}')">&#10005;</button>
+        <button class="add-hbt-btn" onclick="addHabit('${g.id}')">+ Add Habit</button>
+      </div>`;
+    } else {
+      grpTd.innerHTML=`<div class="grp-badge" style="background:${badgeBg};color:${g.color}"><div class="grp-dot" style="background:${g.color}"></div>${esc(g.name)}</div>`;
+    }
+    grpTr.appendChild(grpTd);tbody.appendChild(grpTr);
+
+    g.habits.forEach(h=>{
+      const tr=document.createElement('tr');
+      tr.className='hz-row';
+      const nameTd=document.createElement('td');
+      nameTd.className='sl hz-habit-td';
+      if(editMode){
+        nameTd.innerHTML=`<div style="display:flex;align-items:center;gap:2px;overflow:hidden">
+          <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
+          <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteHabit('${g.id}','${h.id}')" title="Remove">&#10005;</button>
+        </div>`;
+      } else {
+        nameTd.innerHTML=`<div class="hz-habit-name">${esc(h.name)}</div><div class="hz-habit-grp" style="color:${g.color}">${esc(g.name)}</div>`;
+      }
+      tr.appendChild(nameTd);
+      wDays.forEach(d=>{
+        const isToday=d===todayD;
+        const isFuture=isCurMo&&d>todayD;
+        const chk=isChk(h.id,d);
+        const td=document.createElement('td');
+        td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'');
+        td.id=`hzcc-${h.id}-${d}`;
+        if(!isFuture) td.onclick=()=>doHzToggle(h.id,d,g.color);
+        td.innerHTML=`<div class="chk-box${chk?' checked':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  });
+  t.appendChild(tbody);
+  card.appendChild(t);
+  return card;
+}
+
 function doHzToggle(hid,day,color){
   toggle(hid,day);
   // animate the checkbox
@@ -2004,7 +2145,7 @@ function doHzToggle(hid,day,color){
   const days=dim(CY,CM);
   let rowDone=0,rowTotal=0;
   for(let d=1;d<=todayD;d++){if(isChk(hid,d))rowDone++;rowTotal++}
-  const pct=rowTotal?Math.round(rowDone/rowTotal*100):0;
+  const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
   const pc=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
   const ds=document.getElementById(`hzds-${hid}`);
   const ps=document.getElementById(`hzps-${hid}`);
