@@ -391,14 +391,18 @@ async function _pushToCloud(){
 
 async function loadFromCloud(){
   try{
-    const {data,error}=await _sb.from('tide_data').select('data').eq('id','main').single();
+    const {data,error}=await _sb.from('tide_data').select('data,updated_at').eq('id','main').single();
     if(error) throw error;
-    if(data?.data && Object.keys(data.data).length>0){
+    const cloudHasData=data?.data && Object.keys(data.data).length>0 && data.data.groups;
+    if(cloudHasData){
       D=data.data;
       if(!D.aarTemplates) D.aarTemplates=[];
       localStorage.setItem(SK,JSON.stringify(D));
+      _syncStatus='synced';
+    } else {
+      // Cloud is empty — upload our local data so other devices can get it
+      await _pushToCloud();
     }
-    _syncStatus='synced';
   }catch(e){
     console.warn('Cloud load failed, using local data:',e);
     _syncStatus='offline';
