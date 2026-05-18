@@ -1367,7 +1367,7 @@ function mkAnnual(){
         const lastD=isCurQMo?now.getDate():dim(CY,qm);
         for(let dd=1;dd<=lastD;dd++) fItems.forEach(it=>{fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;});
       }
-      if(fp>0) fLabel=fathomGrade(Math.floor(fc/fp*100)).label;
+      if(fc>0) fLabel=fathomGrade(Math.floor(fc/fp*100)).label;
     }
     return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fLabel};
   });
@@ -1439,7 +1439,7 @@ function mkAnnual(){
             const daysToCount=isCur?now.getDate():days;
             let fc=0,fp=0;
             for(let dd=1;dd<=daysToCount;dd++) fItems.forEach(it=>{fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;});
-            if(fp>0) fGradeLabel=fathomGrade(Math.floor(fc/fp*100)).label;
+            if(fc>0) fGradeLabel=fathomGrade(Math.floor(fc/fp*100)).label;
           }
         }
         return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})">
@@ -2238,7 +2238,7 @@ function mkFathomGrid(){
   bar.className='grid-bar';
   bar.innerHTML=`
     <span class="grid-bar-l" style="display:flex;align-items:center;gap:8px">
-      <span style="font-weight:800;letter-spacing:.14em;color:var(--text1)">Fathom</span>
+      <span style="font-weight:800;letter-spacing:.14em;color:var(--text1)">FATHOM</span>
     </span>
     <div style="display:flex;align-items:center;gap:8px">
       ${mGrade?`<span style="font-size:11px;font-weight:600;color:${fgColor(mGrade)}">${mGrade.label} &middot; ${mPct}%</span>`:''}
