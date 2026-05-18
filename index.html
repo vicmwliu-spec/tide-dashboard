@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>TIDE</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -244,48 +247,83 @@ html.dark .chk-c.sel,html.dark .hz-chk-c.sel{background:rgba(59,130,246,.18)!imp
 .empty-state{text-align:center;padding:48px 24px;color:var(--text3)}
 .empty-state p{margin-top:8px;font-size:13px}
 .hidden{display:none!important}
-@media(max-width:900px){.stats-row{grid-template-columns:repeat(2,1fr)}.annual-grid{grid-template-columns:repeat(3,1fr)}}
+/* TIDE summary card */
+.notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
 
-/* ── Mobile ── */
+/* ── Touch: apply to all devices ── */
+button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.chk-c,.hz-chk-c{-webkit-user-select:none;user-select:none}
+.grid-scroll{-webkit-overflow-scrolling:touch}
+/* Responsive label helpers */
+.mob-hide{display:inline}.mob-show{display:none}
+
+@media(max-width:900px){
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .annual-grid{grid-template-columns:repeat(3,1fr)}
+}
+
+/* ── Mobile (≤768px) ── */
 @media(max-width:768px){
-  #app{padding:10px}
-  /* Header: stack logo+nav on top, buttons on bottom */
-  .hdr{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:12px}
-  .hdr-l{justify-content:space-between;flex-wrap:nowrap}
-  .hdr-r{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+  .mob-hide{display:none}.mob-show{display:inline}
+
+  #app{padding:12px 10px 10px;padding-bottom:max(10px,env(safe-area-inset-bottom,10px))}
+
+  /* Header */
+  .hdr{flex-direction:column;align-items:stretch;gap:6px;margin-bottom:12px}
+  .hdr-l{justify-content:space-between;flex-wrap:nowrap;gap:8px}
+  .hdr-r{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end}
   .app-logo{font-size:17px}
   .month-lbl{min-width:0;font-size:13px}
-  /* Buttons: slightly smaller on mobile */
-  .btn{padding:5px 11px;font-size:11px}
-  /* Stats: 2 col */
+  .month-nav{padding:4px 10px}
+  .nav-btn{padding:4px 12px;font-size:20px}
+  .btn{padding:6px 10px;font-size:11px;min-height:34px}
+
+  /* Quote */
+  .quote-card{padding:10px 14px;margin-bottom:10px}
+
+  /* Stats */
   .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
   .stat{padding:12px 14px}
   .stat-val{font-size:22px}
-  /* Chart shorter on mobile */
+
+  /* Chart */
   .chart-wrap{height:110px}
-  /* Year grid: 2 cols */
-  .annual-grid{grid-template-columns:repeat(2,1fr);gap:8px}
-  /* Horizontal table: let it scroll freely (remove fixed layout) */
-  #hz-tbl{table-layout:auto;min-width:max-content;width:auto}
-  /* Make day columns touch-friendly */
-  .hz-chk-c{padding:4px 1px}
-  .chk-box{width:26px;height:26px}
-  .hz-day-th{min-width:32px;padding:4px 1px}
-  /* Quote card */
-  .quote-card{padding:10px 14px;margin-bottom:10px}
-  /* Grid card */
+
+  /* Grid */
   .grid-card{margin-bottom:10px}
-  /* Year quarter grid: 2 cols */
+  /* Larger touch targets for checkboxes */
+  .chk-box{width:30px;height:30px;border-radius:7px}
+  .chk-c{padding:5px 4px}
+  .hz-chk-c{padding:5px 2px}
+  .hz-day-th{min-width:30px;padding:4px 1px}
+  /* Horizontal table: free-scroll on mobile */
+  #hz-tbl{table-layout:auto;min-width:max-content;width:auto}
+
+  /* TIDE notes card */
+  .notes-card{padding:14px 16px}
+
+  /* Year grid */
+  .annual-grid{grid-template-columns:repeat(2,1fr);gap:8px}
   .qtr-grid{grid-template-columns:repeat(2,1fr) !important}
+
+  /* Selection bar: above iOS home bar */
+  #sel-bar{bottom:max(20px,env(safe-area-inset-bottom,20px))}
 }
+
+/* ── Small phones (≤480px) ── */
 @media(max-width:480px){
-  #app{padding:8px}
+  #app{padding:8px 6px}
+  .hdr-r{gap:4px}
+  .month-lbl{font-size:12px}
   .stats-row{grid-template-columns:1fr 1fr;gap:6px}
   .stat{padding:10px 12px}
   .stat-val{font-size:20px}
   .annual-grid{grid-template-columns:repeat(2,1fr)}
-  .hdr-r{gap:4px;flex-wrap:wrap}
-  .hdr-r .btn{padding:5px 8px;font-size:10px}
+  .chk-box{width:28px;height:28px}
+  .notes-card{padding:12px 14px}
 }
 
 /* ── Checkbox (no innerHTML swap → no table jitter) ── */
@@ -667,10 +705,10 @@ function mkHeader(){
     </div>
     <div class="hdr-r">
       <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
-      <button class="btn" onclick="toggleDark()">${darkMode?'Day Mode':'Night Mode'}</button>
-      <button class="btn ${view==='year'?'btn-on':''}" onclick="toggleView()">${view==='year'?'&#8592; Month View':'Year Overview'}</button>
-      ${view!=='year'?`<button class="btn btn-on" onclick="toggleLayout()" title="Switch between vertical (days as rows) and horizontal (days as columns)">${gridLayout==='horizontal'?'&#8597; Vertical':'&#8596; Horizontal'}</button>`:''}
-      <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
+      <button class="btn" onclick="toggleDark()"><span class="mob-hide">${darkMode?'Day Mode':'Night Mode'}</span><span class="mob-show">${darkMode?'&#9728;':'&#9790;'}</span></button>
+      <button class="btn ${view==='year'?'btn-on':''}" onclick="toggleView()"><span class="mob-hide">${view==='year'?'&#8592; Month View':'Year Overview'}</span><span class="mob-show">${view==='year'?'Month':'Year'}</span></button>
+      ${view!=='year'?`<button class="btn btn-on" onclick="toggleLayout()" title="Switch layout"><span class="mob-hide">${gridLayout==='horizontal'?'&#8597; Vertical':'&#8596; Horizontal'}</span><span class="mob-show">${gridLayout==='horizontal'?'&#8597;':'&#8596;'}</span></button>`:''}
+      <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()"><span class="mob-hide">${editMode?'&#10003; Done':'&#9998; Edit'}</span><span class="mob-show">${editMode?'&#10003;':'&#9998;'}</span></button>
     </div>`;
   return d;
 }
@@ -2671,6 +2709,11 @@ document.addEventListener('keydown',e=>{
   save();
   _keepSel=true;
   render();
+});
+
+// Prevent browser context menu when long-pressing habit cells
+document.addEventListener('contextmenu',e=>{
+  if(e.target.closest('.chk-c,.hz-chk-c')) e.preventDefault();
 });
 
 // Touch long-press to skip (mobile)
