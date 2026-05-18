@@ -332,13 +332,14 @@ function defaultData(){
     ],
     months:{},
     aarTemplates:[],
+    fathom:{items:[]},
   };
 }
 
 // ─────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────
-let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];return d }catch{ return defaultData() } })();
+let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};return d }catch{ return defaultData() } })();
 let darkMode = localStorage.getItem('tide_dark')==='1';
 if(darkMode) document.documentElement.classList.add('dark');
 const now = new Date();
@@ -596,6 +597,7 @@ function render(){
     } else {
       app.appendChild(mkGridHorizontal());
     }
+    app.appendChild(mkFathomGrid());
     app.appendChild(mkTide());
   }
   document.addEventListener('click',closePop,{capture:true});
@@ -655,11 +657,20 @@ function mkStats(){
   return d;
 }
 
+function _fathomStatLine(id,pct,label,hasData){
+  if(!hasData) return `<div id="${id}"></div>`;
+  const g=fathomGrade(pct);
+  const c=fgColor(g);
+  return `<div id="${id}" style="margin-top:7px;padding-top:7px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">${label}</span>
+    <span style="font-size:11px;font-weight:600;color:${c}">${g.label} &middot; ${pct}%</span>
+  </div>`;
+}
+
 function buildStats(){
   const {comp,totalGoal,rate,dLeft}=monthStats();
   const rc=rate>=80?'var(--green)':rate>=50?'var(--amber)':'var(--red)';
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
-  const tc=tTotal===0?'var(--text3)':tPct>=80?'var(--green)':tPct>=50?'var(--amber)':'var(--red)';
   const grpRows=tGroups.filter(g=>g.total>0).map(g=>{
     const gc=g.pct>=80?'var(--green)':g.pct>=50?'var(--amber)':'var(--red)';
     return `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">
@@ -670,9 +681,11 @@ function buildStats(){
     </div>`;
   }).join('');
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
+  const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
+  const {pct:ftPct,hasData:ftHas}=fathomTodayStats();
   return `
     <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub">of ${totalGoal} possible</div></div>
-    <div class="stat"><div class="stat-lbl">Compound Rate</div><div class="stat-val" id="sv-rate" style="color:${rc}">${rate}%</div><div class="stat-sub">this month so far</div></div>
+    <div class="stat"><div class="stat-lbl">Compound Rate</div><div class="stat-val" id="sv-rate" style="color:${rc}">${rate}%</div><div class="stat-sub">this month so far</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
     <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div></div>
     <div class="stat"><div class="stat-lbl">Today's Compound Rate</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
@@ -681,6 +694,7 @@ function buildStats(){
       </div>
       <div class="stat-sub" id="sv-today-sub">${todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:'No habits set'}</div>
       <div id="sv-today-grps">${grpRows}</div>
+      ${_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas)}
     </div>`;
 }
 
@@ -717,6 +731,12 @@ function updStats(){
       </div>`;
     }).join('');
   }
+  const fmEl=document.getElementById('sv-fathom-month');
+  const ftEl=document.getElementById('sv-fathom-today');
+  const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
+  const {pct:ftPct,hasData:ftHas}=fathomTodayStats();
+  if(fmEl) fmEl.outerHTML=_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas);
+  if(ftEl) ftEl.outerHTML=_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas);
 }
 
 // ─────────────────────────────────────────
@@ -1166,6 +1186,16 @@ const ANNUAL_GRADES=[
   {min:45,letter:'C',name:'Continuing',color:'#EA580C'},
   {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
+const FATHOM_GRADES=[
+  {min:100,label:'Stoic',   color:'#4E9B8A',dcolor:'#6BBDB0'},
+  {min:80, label:'Apex',    color:'#5B8BAF',dcolor:'#7AAFD0'},
+  {min:60, label:'Bedrock', color:'#7878A0',dcolor:'#9F9FC0'},
+  {min:30, label:'Crescent',color:'#9C8B78',dcolor:'#BFAB98'},
+  {min:0,  label:'Dusk',    color:'#888896',dcolor:'#ADADBB'},
+];
+const FATHOM_COLOR='#6B7FA8'; // checkbox color
+function fgColor(g){ return darkMode?g.dcolor:g.color; }
+function fathomGrade(pct){ return FATHOM_GRADES.find(g=>pct>=g.min)||FATHOM_GRADES[FATHOM_GRADES.length-1]; }
 
 function _periodStats(monthIndices){
   const today=new Date();
@@ -1187,6 +1217,47 @@ function _periodStats(monthIndices){
 
 function quarterStats(qi){ return _periodStats([qi*3,qi*3+1,qi*3+2]); }
 function annualStats(){ return _periodStats([0,1,2,3,4,5,6,7,8,9,10,11]); }
+
+// ── Fathom helpers ──
+function fathomMd(){
+  const k=mk(CY,CM);
+  if(!D.months[k]) D.months[k]={completions:{},fathomCompletions:{}};
+  if(!D.months[k].fathomCompletions) D.months[k].fathomCompletions={};
+  return D.months[k];
+}
+function isChkFathom(iid,day){
+  const mo=D.months[mk(CY,CM)];
+  return !!(mo?.fathomCompletions?.[iid]?.[day]);
+}
+function toggleFathom(iid,day){
+  const mo=fathomMd();
+  if(!mo.fathomCompletions[iid]) mo.fathomCompletions[iid]={};
+  mo.fathomCompletions[iid][day]=!mo.fathomCompletions[iid][day];
+  save();
+}
+function fathomDayProg(day){
+  const items=D.fathom?.items||[];
+  const done=items.filter(it=>isChkFathom(it.id,day)).length;
+  return {done,total:items.length,pct:items.length?Math.floor(done/items.length*100):0};
+}
+function fathomMonthStats(){
+  const items=D.fathom?.items||[];
+  if(!items.length) return {pct:0,done:0,poss:0,hasData:false};
+  const today=new Date();
+  const isCur=CY===today.getFullYear()&&CM===today.getMonth();
+  const lastDay=isCur?today.getDate():dim(CY,CM);
+  let comp=0,poss=0;
+  for(let d=1;d<=lastDay;d++) items.forEach(it=>{poss++;if(isChkFathom(it.id,d))comp++;});
+  return {pct:poss?Math.floor(comp/poss*100):0,done:comp,poss,hasData:poss>0};
+}
+function fathomTodayStats(){
+  const items=D.fathom?.items||[];
+  const t=new Date();
+  if(t.getFullYear()!==CY||t.getMonth()!==CM) return {pct:0,done:0,total:items.length,hasData:false};
+  const day=t.getDate();
+  const done=items.filter(it=>isChkFathom(it.id,day)).length;
+  return {done,total:items.length,pct:items.length?Math.floor(done/items.length*100):0,hasData:items.length>0};
+}
 
 function grpTideScore(g){
   if(!g.habits.length) return 0;
@@ -2099,6 +2170,195 @@ function updateHzChart(){
   });
   hzChartInst.options.animation={duration:400,easing:'easeOutQuart'};
   hzChartInst.update();
+}
+
+// ─────────────────────────────────────────
+//  FATHOM GRID
+// ─────────────────────────────────────────
+function mkFathomGrid(){
+  const items=D.fathom?.items||[];
+  const isCurMo=CY===new Date().getFullYear()&&CM===new Date().getMonth();
+  const todayD=isCurMo?new Date().getDate():-1;
+  const days=dim(CY,CM);
+  const {pct:mPct,hasData:mHas}=fathomMonthStats();
+  const mGrade=mHas?fathomGrade(mPct):null;
+
+  const card=document.createElement('div');
+  card.className='grid-card'+(editMode?' edit-mode':'');
+  card.id='fathom-card';
+
+  // Bar
+  const bar=document.createElement('div');
+  bar.className='grid-bar';
+  bar.innerHTML=`
+    <span class="grid-bar-l" style="display:flex;align-items:center;gap:8px">
+      <span style="font-weight:700;color:var(--text1)">Fathom</span>
+      <span style="font-size:10px;color:var(--text3);font-weight:400">Inner Scorecard</span>
+    </span>
+    <div style="display:flex;align-items:center;gap:8px">
+      ${mGrade?`<span style="font-size:11px;font-weight:600;color:${fgColor(mGrade)}">${mGrade.label} &middot; ${mPct}%</span>`:''}
+      ${editMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
+    </div>`;
+  card.appendChild(bar);
+
+  if(!items.length&&!editMode){
+    const empty=document.createElement('div');
+    empty.style.cssText='padding:32px 20px;text-align:center;color:var(--text3);font-size:13px';
+    empty.textContent='No items yet — enter Edit mode to add Fathom items.';
+    card.appendChild(empty);
+    return card;
+  }
+
+  const scroll=document.createElement('div');
+  scroll.className='grid-scroll';
+
+  const t=document.createElement('table');
+  t.className='tbl';
+  t.id='fathom-tbl';
+
+  const cg=document.createElement('colgroup');
+  const cH=document.createElement('col');cH.style.width='100px';cg.appendChild(cH);
+  const cD=document.createElement('col');cD.span=days;cg.appendChild(cD);
+  const cDn=document.createElement('col');cDn.style.width='56px';cg.appendChild(cDn);
+  const cP=document.createElement('col');cP.style.width='56px';cg.appendChild(cP);
+  t.appendChild(cg);
+
+  const thead=document.createElement('thead');
+
+  // Row A: daily % row  +  Done/CR% spanning 3 rows
+  const rA=document.createElement('tr');
+  const cornerA=document.createElement('th');
+  cornerA.className='sl st';cornerA.rowSpan=3;
+  cornerA.style.cssText='padding:6px 8px;border-bottom:2px solid var(--border);vertical-align:bottom';
+  cornerA.innerHTML=`<div style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Item</div>`;
+  rA.appendChild(cornerA);
+  for(let d=1;d<=days;d++){
+    const dow=new Date(CY,CM,d).getDay();
+    const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===1&&d>1;
+    const {pct}=fathomDayProg(d);
+    const td=document.createElement('td');
+    td.id=`fdp-${d}`;
+    td.className='st hz-chk-c'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
+    td.style.cssText=`padding:3px 2px;cursor:default;background:${isToday?'var(--today-bg)':'var(--surface2)'};border-bottom:1px solid var(--border2)`;
+    if(isFuture||!items.length) td.innerHTML=`<span style="color:var(--text3);font-size:9px">—</span>`;
+    else{const fg=fathomGrade(pct);td.innerHTML=`<span style="color:${fgColor(fg)};font-size:10px;font-weight:700">${pct}%</span>`;}
+    rA.appendChild(td);
+  }
+  const donePh=document.createElement('th');
+  donePh.className='sr sr-2 st hz-sum-th first-sum';donePh.rowSpan=3;donePh.style.verticalAlign='bottom';donePh.textContent='Done';
+  const pctPh=document.createElement('th');
+  pctPh.className='sr sr-1 st hz-sum-th';pctPh.rowSpan=3;pctPh.style.verticalAlign='bottom';pctPh.textContent='CR %';
+  rA.appendChild(donePh);rA.appendChild(pctPh);
+  thead.appendChild(rA);
+
+  // Row B: week labels
+  const rB=document.createElement('tr');
+  getWeekSpans(CY,CM).forEach((ws,wi)=>{
+    const th=document.createElement('th');
+    th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
+    th.colSpan=ws.end-ws.start+1;th.textContent=`Week ${ws.week}`;
+    rB.appendChild(th);
+  });
+  thead.appendChild(rB);
+
+  // Row C: day numbers + DOW
+  const rC=document.createElement('tr');
+  for(let d=1;d<=days;d++){
+    const dow=new Date(CY,CM,d).getDay();
+    const isToday=d===todayD,isWeekStart=dow===1&&d>1;
+    const th=document.createElement('th');
+    th.className='st hz-day-th'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
+    th.innerHTML=`<span class="hd-num">${d}</span><span class="hd-dow">${DOW[dow]}</span>`;
+    rC.appendChild(th);
+  }
+  thead.appendChild(rC);
+  t.appendChild(thead);
+
+  const tbody=document.createElement('tbody');
+  items.forEach(item=>{
+    const tr=document.createElement('tr');
+    tr.className='hz-row';
+    const nameTd=document.createElement('td');
+    nameTd.className='sl hz-habit-td';
+    if(editMode){
+      nameTd.innerHTML=`<div style="display:flex;align-items:center;gap:2px;overflow:hidden">
+        <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(item.name)}" onchange="renameFathomItem('${item.id}',this.value)" onclick="event.stopPropagation()"/>
+        <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteFathomItem('${item.id}')" title="Remove">&#10005;</button>
+      </div>`;
+    } else {
+      nameTd.innerHTML=`<div class="hz-habit-name">${esc(item.name)}</div>`;
+    }
+    tr.appendChild(nameTd);
+    let rowDone=0,rowTotal=0;
+    for(let d=1;d<=days;d++){
+      const dow=new Date(CY,CM,d).getDay();
+      const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===1&&d>1;
+      const chk=isChkFathom(item.id,d);
+      if(!isFuture){rowDone+=chk?1:0;rowTotal++;}
+      const td=document.createElement('td');
+      td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'');
+      td.id=`fhzcc-${item.id}-${d}`;
+      if(!isFuture) td.onclick=()=>doFathomToggle(item.id,d);
+      td.innerHTML=`<div class="chk-box${chk?' checked':''}" id="fhzcb-${item.id}-${d}" style="background:${chk?FATHOM_COLOR:'transparent'};border-color:${chk?FATHOM_COLOR:'var(--border)'}"></div>`;
+      tr.appendChild(td);
+    }
+    const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
+    const fg=fathomGrade(pct);
+    const doneTd=document.createElement('td');doneTd.className='sr sr-2 hz-sum-td first-sum';doneTd.id=`fhzds-${item.id}`;
+    doneTd.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
+    const pctTd=document.createElement('td');pctTd.className='sr sr-1 hz-sum-td';pctTd.id=`fhzps-${item.id}`;
+    pctTd.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span>`;
+    tr.appendChild(doneTd);tr.appendChild(pctTd);
+    tbody.appendChild(tr);
+  });
+  t.appendChild(tbody);
+  scroll.appendChild(t);
+  card.appendChild(scroll);
+  return card;
+}
+
+function doFathomToggle(iid,day){
+  toggleFathom(iid,day);
+  const chk=isChkFathom(iid,day);
+  const box=document.getElementById(`fhzcb-${iid}-${day}`);
+  if(box){
+    box.style.background=chk?FATHOM_COLOR:'transparent';
+    box.style.borderColor=chk?FATHOM_COLOR:'var(--border)';
+    box.classList.toggle('checked',chk);
+    box.classList.remove('chk-pop');
+    if(chk) requestAnimationFrame(()=>box.classList.add('chk-pop'));
+  }
+  // Update daily % for this day
+  const {pct:dp}=fathomDayProg(day);
+  const dpEl=document.getElementById(`fdp-${day}`);
+  if(dpEl){const fg=fathomGrade(dp);dpEl.innerHTML=`<span style="color:${fgColor(fg)};font-size:10px;font-weight:700">${dp}%</span>`;}
+  // Update item row summary
+  const isCurMo=CY===new Date().getFullYear()&&CM===new Date().getMonth();
+  const lastD=isCurMo?new Date().getDate():dim(CY,CM);
+  let rowDone=0,rowTotal=0;
+  for(let d=1;d<=lastD;d++){if(isChkFathom(iid,d))rowDone++;rowTotal++;}
+  const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
+  const fg=fathomGrade(pct);
+  const ds=document.getElementById(`fhzds-${iid}`);
+  const ps=document.getElementById(`fhzps-${iid}`);
+  if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
+  if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span>`;
+  updStats();
+}
+
+function addFathomItem(){
+  if(!D.fathom) D.fathom={items:[]};
+  D.fathom.items.push({id:uid(),name:'New Item'});
+  save();render();
+}
+function renameFathomItem(id,name){
+  const item=D.fathom?.items?.find(i=>i.id===id);
+  if(item){item.name=name.trim()||item.name;save();}
+}
+function deleteFathomItem(id){
+  if(!confirm('Remove this Fathom item?')) return;
+  D.fathom.items=D.fathom.items.filter(i=>i.id!==id);
+  save();render();
 }
 
 // ─────────────────────────────────────────
