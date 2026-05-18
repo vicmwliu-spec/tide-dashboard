@@ -236,7 +236,48 @@ tr.dnd-ins-b>td,tr.dnd-ins-b>th{box-shadow:inset 0 -3px 0 var(--accent) !importa
 .empty-state p{margin-top:8px;font-size:13px}
 .hidden{display:none!important}
 @media(max-width:900px){.stats-row{grid-template-columns:repeat(2,1fr)}.annual-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:600px){.stats-row{grid-template-columns:repeat(2,1fr)}.annual-grid{grid-template-columns:repeat(2,1fr)}.hdr{gap:8px}#app{padding:12px}}
+
+/* ── Mobile ── */
+@media(max-width:768px){
+  #app{padding:10px}
+  /* Header: stack logo+nav on top, buttons on bottom */
+  .hdr{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:12px}
+  .hdr-l{justify-content:space-between;flex-wrap:nowrap}
+  .hdr-r{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+  .app-logo{font-size:17px}
+  .month-lbl{min-width:0;font-size:13px}
+  /* Buttons: slightly smaller on mobile */
+  .btn{padding:5px 11px;font-size:11px}
+  /* Stats: 2 col */
+  .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+  .stat{padding:12px 14px}
+  .stat-val{font-size:22px}
+  /* Chart shorter on mobile */
+  .chart-wrap{height:110px}
+  /* Year grid: 2 cols */
+  .annual-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  /* Horizontal table: let it scroll freely (remove fixed layout) */
+  #hz-tbl{table-layout:auto;min-width:max-content;width:auto}
+  /* Make day columns touch-friendly */
+  .hz-chk-c{padding:4px 1px}
+  .chk-box{width:26px;height:26px}
+  .hz-day-th{min-width:32px;padding:4px 1px}
+  /* Quote card */
+  .quote-card{padding:10px 14px;margin-bottom:10px}
+  /* Grid card */
+  .grid-card{margin-bottom:10px}
+  /* Year quarter grid: 2 cols */
+  .qtr-grid{grid-template-columns:repeat(2,1fr) !important}
+}
+@media(max-width:480px){
+  #app{padding:8px}
+  .stats-row{grid-template-columns:1fr 1fr;gap:6px}
+  .stat{padding:10px 12px}
+  .stat-val{font-size:20px}
+  .annual-grid{grid-template-columns:repeat(2,1fr)}
+  .hdr-r{gap:4px;flex-wrap:wrap}
+  .hdr-r .btn{padding:5px 8px;font-size:10px}
+}
 
 /* ── Checkbox (no innerHTML swap → no table jitter) ── */
 .chk-c{overflow:hidden}
@@ -1205,7 +1246,7 @@ function mkAnnual(){
         </div>
       `:''}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px">${qHtml}</div>
+    <div class="qtr-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px">${qHtml}</div>
     <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:12px;padding-top:4px;border-top:1px solid var(--border)">Month by Month</div>
     <div class="annual-grid">
       ${MON.map((name,mi)=>{
@@ -1420,11 +1461,16 @@ function openAAR(day){
 
   const overlay=document.createElement('div');
   overlay.id='aar-overlay';
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
+  const isMobile=window.innerWidth<=768;
+  overlay.style.cssText=isMobile
+    ?'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box'
+    :'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
   overlay.onclick=e=>{if(e.target===overlay)closeAAR()};
 
   const modal=document.createElement('div');
-  modal.style.cssText='background:var(--surface);border-radius:var(--r);box-shadow:0 24px 56px rgba(0,0,0,.18);width:min(720px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden';
+  modal.style.cssText=isMobile
+    ?'background:var(--surface);border-radius:var(--r) var(--r) 0 0;box-shadow:0 -8px 32px rgba(0,0,0,.22);width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden'
+    :'background:var(--surface);border-radius:var(--r);box-shadow:0 24px 56px rgba(0,0,0,.18);width:min(720px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden';
   modal.onclick=e=>e.stopPropagation();
 
   // Header
