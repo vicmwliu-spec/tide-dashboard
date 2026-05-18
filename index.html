@@ -283,6 +283,9 @@ tr.dnd-ins-b>td,tr.dnd-ins-b>th{box-shadow:inset 0 -3px 0 var(--accent) !importa
 /* ── Checkbox (no innerHTML swap → no table jitter) ── */
 .chk-c{overflow:hidden}
 .chk-box.checked::after{content:'✓'}
+.chk-box.skipped{background:transparent!important;border-color:var(--border2)!important;overflow:hidden}
+.chk-box.skipped::after{content:'';position:absolute;width:141%;height:1.5px;background:var(--border);top:50%;left:-20%;transform:rotate(-45deg)}
+.chk-box{position:relative}
 
 /* ── Dark Mode ── */
 html.dark{
@@ -451,12 +454,12 @@ function todayStats(){
   const mkey=mk(yr,mo);
   const mdata=D.months[mkey];
   const h=allHabits();
-  const done=h.filter(hb=>!!(mdata?.completions[hb.id]?.[day])).length;
-  const total=h.length;
+  let done=0,total=0;
+  h.forEach(hb=>{if(!(mdata?.skips?.[hb.id]?.[day])){total++;if(mdata?.completions[hb.id]?.[day])done++;}});
   const pct=total?Math.floor(done/total*100):0;
   const groups=D.groups.map(g=>{
-    const gDone=g.habits.filter(hb=>!!(mdata?.completions[hb.id]?.[day])).length;
-    const gTotal=g.habits.length;
+    let gDone=0,gTotal=0;
+    g.habits.forEach(hb=>{if(!(mdata?.skips?.[hb.id]?.[day])){gTotal++;if(mdata?.completions[hb.id]?.[day])gDone++;}});
     return {id:g.id,name:g.name,color:g.color,done:gDone,total:gTotal,pct:gTotal?Math.floor(gDone/gTotal*100):0};
   });
   return {done,total,pct,groups};
@@ -469,7 +472,8 @@ function mk(y,m){ return `${y}-${String(m+1).padStart(2,'0')}` }
 
 function md(y,m){
   const k=mk(y,m);
-  if(!D.months[k]) D.months[k]={quote:'',notes:'',completions:{}};
+  if(!D.months[k]) D.months[k]={quote:'',notes:'',completions:{},skips:{}};
+  if(!D.months[k].skips) D.months[k].skips={};
   return D.months[k];
 }
 
@@ -500,20 +504,29 @@ function isChk(hid,day){
   if(!mo) return false;
   return !!(mo.completions[hid]&&mo.completions[hid][day]);
 }
+function isSkip(hid,day){
+  const mo=D.months[mk(CY,CM)];
+  return !!(mo?.skips?.[hid]?.[day]);
+}
 
 function toggle(hid,day){
-  const c=md(CY,CM).completions;
-  if(!c[hid]) c[hid]={};
-  c[hid][day]=!c[hid][day];
+  const mo=md(CY,CM);
+  if(!mo.completions[hid]) mo.completions[hid]={};
+  if(!mo.skips[hid]) mo.skips[hid]={};
+  const done=!!mo.completions[hid][day];
+  const skip=!!mo.skips[hid][day];
+  if(!done&&!skip){mo.completions[hid][day]=true;}
+  else if(done){mo.completions[hid][day]=false;mo.skips[hid][day]=true;}
+  else{mo.skips[hid][day]=false;}
   save();
-  // horizontal mode handles its own DOM updates in doHzToggle; skip partialUpdate
   if(gridLayout==='vertical') partialUpdate(hid,day);
 }
 
 function dayProg(day){
   const h=allHabits();
-  const done=h.filter(hb=>isChk(hb.id,day)).length;
-  return {done,total:h.length,pct:h.length?Math.floor(done/h.length*100):0};
+  let done=0,total=0;
+  h.forEach(hb=>{if(!isSkip(hb.id,day)){total++;if(isChk(hb.id,day))done++;}});
+  return {done,total,pct:total?Math.floor(done/total*100):0};
 }
 
 function habitProg(hid){
@@ -521,9 +534,9 @@ function habitProg(hid){
   const today=new Date();
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
   const last=isCur?today.getDate():days;
-  let done=0;
-  for(let d=1;d<=last;d++) if(isChk(hid,d)) done++;
-  return {goal:days,actual:done,pct:last?Math.round(done/last*100):0,last};
+  let done=0,possible=0;
+  for(let d=1;d<=last;d++){if(!isSkip(hid,d)){possible++;if(isChk(hid,d))done++;}}
+  return {goal:days,actual:done,pct:possible?Math.round(done/possible*100):0,last:possible};
 }
 
 function monthStats(){
@@ -568,8 +581,9 @@ function cumulData(){
     let gd=0,gt=0;
     const pts=[];
     for(let d=1;d<=last;d++){
-      const done=g.habits.filter(hb=>isChk(hb.id,d)).length;
-      gd+=done;gt+=g.habits.length;
+      let done=0,tot=0;
+      g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;if(isChk(hb.id,d))done++;}});
+      gd+=done;gt+=tot;
       pts.push({x:d,y:gt?Math.round(gd/gt*100):0});
     }
     return {id:g.id,name:g.name,color:g.color,data:pts};
@@ -1025,8 +1039,9 @@ function buildDayRow(d,todayD){
       td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
       td2.id=`cc-${h.id}-${d}`;
       const chk=isChk(h.id,d);
+      const skp=isSkip(h.id,d);
       td2.onclick=isFuture?null:()=>doToggle(h.id,d,g.color);
-      td2.innerHTML=`<div class="chk-box${chk?' checked':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+      td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
       tr.appendChild(td2);
     });
     if(editMode){
@@ -1119,9 +1134,11 @@ function doToggle(hid,day,color){
   const box=document.getElementById(`cb-${hid}-${day}`);
   if(box){
     const chk=isChk(hid,day);
+    const skp=isSkip(hid,day);
+    box.classList.toggle('checked',chk);
+    box.classList.toggle('skipped',skp);
     box.style.background=chk?color:'transparent';
     box.style.borderColor=chk?color:'var(--border)';
-    box.classList.toggle('checked',chk);
     box.classList.remove('chk-pop');
     if(chk) requestAnimationFrame(()=>box.classList.add('chk-pop'));
   }
@@ -1209,7 +1226,7 @@ function _periodStats(monthIndices){
     const isCur=isCurrentYear&&mi===today.getMonth();
     const lastDay=isCur?today.getDate():dim(CY,mi);
     for(let dd=1;dd<=lastDay;dd++){
-      h.forEach(hb=>{poss++;if(m.completions[hb.id]?.[dd])comp++;});
+      h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}});
     }
   });
   return {comp,poss,pct:poss?Math.floor(comp/poss*100):0,hasData:poss>0};
@@ -1267,7 +1284,7 @@ function grpTideScore(g){
   const td=isCur?today.getDate():days;
   let done=0,poss=0;
   for(let d=1;d<=td;d++){
-    g.habits.forEach(h=>{poss++;if(isChk(h.id,d))done++;});
+    g.habits.forEach(h=>{if(!isSkip(h.id,d)){poss++;if(isChk(h.id,d))done++;}});
   }
   return poss?Math.floor(done/poss*100):0;
 }
@@ -1415,7 +1432,7 @@ function mkAnnual(){
         let comp=0,poss=0;
         if(m){
           for(let dd=1;dd<=days;dd++){
-            h.forEach(hb=>{poss++;if(m.completions[hb.id]?.[dd])comp++});
+            h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++}});
           }
         }
         const rate=poss?Math.round(comp/poss*100):0;
@@ -1427,7 +1444,7 @@ function mkAnnual(){
           if(isCur){
             tc=0;tp=0;
             for(let dd=1;dd<=now.getDate();dd++){
-              h.forEach(hb=>{tp++;if(m.completions[hb.id]?.[dd])tc++;});
+              h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){tp++;if(m.completions[hb.id]?.[dd])tc++;}});
             }
           }
           if(tp>0) tideGrade=TIDE_GRADES.find(g=>Math.floor(tc/tp*100)>=g.min);
@@ -2087,12 +2104,13 @@ function buildHzTable(){
         const isFuture=isCurMo&&d>todayD;
         const isWeekStart=dow===1&&d>1;
         const chk=isChk(h.id,d);
-        if(!isFuture){rowDone+=chk?1:0;rowTotal++}
+        const skp=isSkip(h.id,d);
+        if(!isFuture&&!skp){rowDone+=chk?1:0;rowTotal++}
         const td=document.createElement('td');
         td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'');
         td.id=`hzcc-${h.id}-${d}`;
         if(!isFuture) td.onclick=()=>doHzToggle(h.id,d,g.color);
-        td.innerHTML=`<div class="chk-box${chk?' checked':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
         tr.appendChild(td);
       }
 
@@ -2116,9 +2134,11 @@ function doHzToggle(hid,day,color){
   const box=document.getElementById(`hzcb-${hid}-${day}`);
   if(box){
     const chk=isChk(hid,day);
+    const skp=isSkip(hid,day);
+    box.classList.toggle('checked',chk);
+    box.classList.toggle('skipped',skp);
     box.style.background=chk?color:'transparent';
     box.style.borderColor=chk?color:'var(--border)';
-    box.classList.toggle('checked',chk);
     box.classList.remove('chk-pop');
     if(chk) requestAnimationFrame(()=>box.classList.add('chk-pop'));
   }
@@ -2128,7 +2148,7 @@ function doHzToggle(hid,day,color){
   const todayD=isCurMo?today.getDate():dim(CY,CM);
   const days=dim(CY,CM);
   let rowDone=0,rowTotal=0;
-  for(let d=1;d<=todayD;d++){if(isChk(hid,d))rowDone++;rowTotal++}
+  for(let d=1;d<=todayD;d++){if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}}
   const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
   const pc=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
   const ds=document.getElementById(`hzds-${hid}`);
