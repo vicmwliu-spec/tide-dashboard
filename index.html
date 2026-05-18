@@ -365,11 +365,13 @@ let hzChartInst = null;
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
 let _aarDay = null; // currently open AAR day
-let _sel = new Set();   // selected cell IDs
-let _selMD = false;     // mousedown held on a cell
-let _selDrag = false;   // drag selection active
-let _selBlock = false;  // suppress next click (was a drag)
-let _keepSel = false;   // preserve selection across next render()
+let _sel = new Set();        // selected cell IDs
+let _selMD = false;          // mousedown held on a cell
+let _selDrag = false;        // drag selection active
+let _selBlock = false;       // suppress next click (was a drag)
+let _keepSel = false;        // preserve selection across next render()
+let _selThisDrag = new Set();// cells touched in current drag (for backtrack-deselect)
+let _selDragLast = null;     // last cell entered during drag (deduplicate)
 
 // ─────────────────────────────────────────
 //  CLOUD SYNC (Supabase)
@@ -2521,12 +2523,20 @@ document.addEventListener('mousedown',e=>{
 document.addEventListener('mouseover',e=>{
   if(!_selMD) return;
   const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
-  if(!c||!_parseSel(c.id)) return;
-  if(!_selDrag){_selDrag=true;_selBlock=true;_selClear();}
-  _selAddCell(c);_updSelBar();
+  if(!c||!_parseSel(c.id)||c.id===_selDragLast) return;
+  _selDragLast=c.id;
+  if(!_selDrag){_selDrag=true;_selBlock=true;_selClear();_selThisDrag.clear();}
+  if(_selThisDrag.has(c.id)){
+    // Dragged back over — deselect it
+    _sel.delete(c.id);c.classList.remove('sel');_selThisDrag.delete(c.id);
+  } else {
+    // New cell — select it
+    _selThisDrag.add(c.id);_selAddCell(c);
+  }
+  _updSelBar();
 },true);
 
-document.addEventListener('mouseup',()=>{_selMD=false;},true);
+document.addEventListener('mouseup',()=>{_selMD=false;_selDragLast=null;_selThisDrag.clear();},true);
 
 document.addEventListener('click',e=>{
   if(_selBlock){_selBlock=false;e.stopPropagation();return;}
@@ -2537,8 +2547,7 @@ document.addEventListener('click',e=>{
     else _selAddCell(c);
     _updSelBar();return;
   }
-  if(c&&_sel.size>0) _selClear();
-  if(!c&&!e.target.closest('#app')) _selClear();
+  if(_sel.size>0) _selClear();
 },true);
 
 // Space = cycle all selected cells
