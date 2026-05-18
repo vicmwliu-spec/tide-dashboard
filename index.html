@@ -1371,8 +1371,15 @@ function openColorPop(e,gid){
     pop.appendChild(sw);
   });
   const r=e.target.getBoundingClientRect();
-  pop.style.top=(r.bottom+6+window.scrollY)+'px';
-  pop.style.left=(r.left+window.scrollX)+'px';
+  const PW=116,PH=96; // popup approx dimensions
+  let top=r.bottom+6;
+  let left=r.left;
+  if(top+PH>window.innerHeight-8) top=r.top-PH-6; // flip above if near bottom
+  if(left+PW>window.innerWidth-8) left=window.innerWidth-PW-8; // clamp right edge
+  if(left<8) left=8;
+  if(top<8) top=8;
+  pop.style.top=top+'px';
+  pop.style.left=left+'px';
   document.body.appendChild(pop);
 }
 
