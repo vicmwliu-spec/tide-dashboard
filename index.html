@@ -372,6 +372,8 @@ let _selBlock = false;       // suppress next click (was a drag)
 let _keepSel = false;        // preserve selection across next render()
 let _selAnchor = null;       // first cell of current drag
 let _selPath = [];           // ordered cells added this drag (for backtrack-deselect)
+let _lpTimer = null;         // long-press timer
+let _lpFired = false;        // long press triggered (suppress next click)
 
 // ─────────────────────────────────────────
 //  CLOUD SYNC (Supabase)
@@ -529,13 +531,19 @@ function toggle(hid,day){
   const mo=md(CY,CM);
   if(!mo.completions[hid]) mo.completions[hid]={};
   if(!mo.skips[hid]) mo.skips[hid]={};
-  const done=!!mo.completions[hid][day];
-  const skip=!!mo.skips[hid][day];
-  if(!done&&!skip){mo.completions[hid][day]=true;}
-  else if(done){mo.completions[hid][day]=false;mo.skips[hid][day]=true;}
-  else{mo.skips[hid][day]=false;}
+  mo.skips[hid][day]=false;
+  mo.completions[hid][day]=!mo.completions[hid][day];
   save();
   if(gridLayout==='vertical') partialUpdate(hid,day);
+}
+function skipToggle(hid,day){
+  const mo=md(CY,CM);
+  if(!mo.completions[hid]) mo.completions[hid]={};
+  if(!mo.skips[hid]) mo.skips[hid]={};
+  const skip=!!mo.skips[hid][day];
+  mo.completions[hid][day]=false;
+  mo.skips[hid][day]=!skip;
+  save();
 }
 
 function dayProg(day){
@@ -1061,6 +1069,7 @@ function buildDayRow(d,todayD){
       const td2=document.createElement('td');
       td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
       td2.id=`cc-${h.id}-${d}`;
+      td2.dataset.color=g.color;
       const chk=isChk(h.id,d);
       const skp=isSkip(h.id,d);
       td2.onclick=isFuture?null:()=>doToggle(h.id,d,g.color);
@@ -1164,6 +1173,40 @@ function doToggle(hid,day,color){
     box.style.borderColor=chk?color:'var(--border)';
     box.classList.remove('chk-pop');
     if(chk) requestAnimationFrame(()=>box.classList.add('chk-pop'));
+  }
+}
+
+function doSkipToggle(hid,day,color){
+  skipToggle(hid,day);
+  const chk=isChk(hid,day);
+  const skp=isSkip(hid,day);
+  const boxV=document.getElementById(`cb-${hid}-${day}`);
+  const boxH=document.getElementById(`hzcb-${hid}-${day}`);
+  [boxV,boxH].forEach(box=>{
+    if(!box) return;
+    box.classList.toggle('checked',chk);
+    box.classList.toggle('skipped',skp);
+    box.style.background=chk?color:'transparent';
+    box.style.borderColor=chk?color:'var(--border)';
+  });
+  if(gridLayout==='vertical'){
+    partialUpdate(hid,day);
+  } else {
+    const today=new Date();
+    const isCurMo=today.getFullYear()===CY&&today.getMonth()===CM;
+    const todayD=isCurMo?today.getDate():dim(CY,CM);
+    let rowDone=0,rowTotal=0;
+    for(let d=1;d<=todayD;d++){if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}}
+    const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
+    const pc=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+    const ds=document.getElementById(`hzds-${hid}`);
+    const ps=document.getElementById(`hzps-${hid}`);
+    if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
+    if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span>`;
+    const {pct:dp}=dayProg(day);
+    const dpEl=document.getElementById(`hzdp-${day}`);
+    if(dpEl){const c=dp===100?'var(--green)':dp>=50?'var(--amber)':'var(--red)';dpEl.innerHTML=`<span style="color:${c};font-size:10px;font-weight:700">${dp}%</span>`;}
+    updStats();updateHzChart();updTide();
   }
 }
 
@@ -1278,11 +1321,17 @@ function toggleFathom(iid,day){
   const mo=fathomMd();
   if(!mo.fathomCompletions[iid]) mo.fathomCompletions[iid]={};
   if(!mo.fathomSkips[iid]) mo.fathomSkips[iid]={};
-  const done=!!mo.fathomCompletions[iid][day];
+  mo.fathomSkips[iid][day]=false;
+  mo.fathomCompletions[iid][day]=!mo.fathomCompletions[iid][day];
+  save();
+}
+function skipToggleFathom(iid,day){
+  const mo=fathomMd();
+  if(!mo.fathomCompletions[iid]) mo.fathomCompletions[iid]={};
+  if(!mo.fathomSkips[iid]) mo.fathomSkips[iid]={};
   const skip=!!mo.fathomSkips[iid][day];
-  if(!done&&!skip){mo.fathomCompletions[iid][day]=true;}
-  else if(done){mo.fathomCompletions[iid][day]=false;mo.fathomSkips[iid][day]=true;}
-  else{mo.fathomSkips[iid][day]=false;}
+  mo.fathomCompletions[iid][day]=false;
+  mo.fathomSkips[iid][day]=!skip;
   save();
 }
 function fathomDayProg(day){
@@ -2144,6 +2193,7 @@ function buildHzTable(){
         const td=document.createElement('td');
         td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'');
         td.id=`hzcc-${h.id}-${d}`;
+        td.dataset.color=g.color;
         if(!isFuture) td.onclick=()=>doHzToggle(h.id,d,g.color);
         td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
         tr.appendChild(td);
@@ -2461,6 +2511,33 @@ function doFathomToggle(iid,day){
   updTide();
 }
 
+function doFathomSkipToggle(iid,day){
+  skipToggleFathom(iid,day);
+  const chk=isChkFathom(iid,day);
+  const skp=isSkipFathom(iid,day);
+  const box=document.getElementById(`fhzcb-${iid}-${day}`);
+  if(box){
+    box.classList.toggle('checked',chk);
+    box.classList.toggle('skipped',skp);
+    box.style.background=chk?FATHOM_COLOR:'transparent';
+    box.style.borderColor=chk?FATHOM_COLOR:'var(--border)';
+  }
+  const {pct:dp}=fathomDayProg(day);
+  const dpEl=document.getElementById(`fdp-${day}`);
+  if(dpEl){const fg2=fathomGrade(dp);dpEl.innerHTML=`<span style="color:${fgColor(fg2)};font-size:10px;font-weight:700">${dp}%</span>`;}
+  const isCurMo=CY===new Date().getFullYear()&&CM===new Date().getMonth();
+  const lastD=isCurMo?new Date().getDate():dim(CY,CM);
+  let rowDone=0,rowTotal=0;
+  for(let d=1;d<=lastD;d++){if(!isSkipFathom(iid,d)){if(isChkFathom(iid,d))rowDone++;rowTotal++;}}
+  const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
+  const fg=fathomGrade(pct);
+  const ds=document.getElementById(`fhzds-${iid}`);
+  const ps=document.getElementById(`fhzps-${iid}`);
+  if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
+  if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span>`;
+  updStats();updTide();
+}
+
 function addFathomItem(){
   if(!D.fathom) D.fathom={items:[]};
   D.fathom.items.push({id:uid(),name:'New Item'});
@@ -2514,11 +2591,20 @@ function _selAddCell(el){
   _sel.add(el.id);el.classList.add('sel');
 }
 
-// Drag-to-select (capture phase so it runs before onclick)
+// Drag-to-select + long-press-to-skip (capture phase so it runs before onclick)
 document.addEventListener('mousedown',e=>{
   const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
   if(!c||!_parseSel(c.id)) return;
   _selMD=true;_selDrag=false;_selBlock=false;_selAnchor=c.id;
+  clearTimeout(_lpTimer);_lpFired=false;
+  _lpTimer=setTimeout(()=>{
+    if(_selDrag) return;
+    _lpFired=true;
+    const p=_parseSel(c.id);
+    if(!p) return;
+    if(p.type==='fathom') doFathomSkipToggle(p.id,p.day);
+    else doSkipToggle(p.id,p.day,c.dataset.color||'var(--accent)');
+  },500);
 },true);
 
 document.addEventListener('mouseover',e=>{
@@ -2527,6 +2613,7 @@ document.addEventListener('mouseover',e=>{
   if(!c||!_parseSel(c.id)) return;
   if(!_selDrag){
     _selDrag=true;_selBlock=true;_selClear();_selPath=[];
+    clearTimeout(_lpTimer);_lpTimer=null;
     if(_selAnchor){const a=document.getElementById(_selAnchor);if(a){_selAddCell(a);_selPath=[a.id];}}
   }
   const idx=_selPath.indexOf(c.id);
@@ -2540,9 +2627,10 @@ document.addEventListener('mouseover',e=>{
   _updSelBar();
 },true);
 
-document.addEventListener('mouseup',()=>{_selMD=false;},true);
+document.addEventListener('mouseup',()=>{_selMD=false;clearTimeout(_lpTimer);_lpTimer=null;},true);
 
 document.addEventListener('click',e=>{
+  if(_lpFired){_lpFired=false;e.stopPropagation();return;}
   if(_selBlock){_selBlock=false;e.stopPropagation();return;}
   const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
   if(e.shiftKey&&c&&_parseSel(c.id)){
@@ -2584,6 +2672,22 @@ document.addEventListener('keydown',e=>{
   _keepSel=true;
   render();
 });
+
+// Touch long-press to skip (mobile)
+document.addEventListener('touchstart',e=>{
+  const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
+  if(!c||!_parseSel(c.id)) return;
+  clearTimeout(_lpTimer);_lpFired=false;
+  _lpTimer=setTimeout(()=>{
+    _lpFired=true;
+    const p=_parseSel(c.id);
+    if(!p) return;
+    if(p.type==='fathom') doFathomSkipToggle(p.id,p.day);
+    else doSkipToggle(p.id,p.day,c.dataset.color||'var(--accent)');
+  },500);
+},{passive:true});
+document.addEventListener('touchmove',()=>{clearTimeout(_lpTimer);_lpTimer=null;},{passive:true});
+document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;},{passive:true});
 
 // ─────────────────────────────────────────
 //  BOOT
