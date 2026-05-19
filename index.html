@@ -294,24 +294,23 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 
   /* Grid */
   .grid-card{margin-bottom:10px}
-  /* Fathom card: override overflow:hidden so Android Chrome can route touch to child scroller */
-  #fathom-card{overflow:visible}
+  /* overflow:clip clips visually (keeps rounded corners) but doesn't create a scroll containment
+     context, so Android Chrome can route horizontal touch to the child #fathom-scroll */
+  #fathom-card{overflow:clip}
   /* Fathom scroll */
   #fathom-scroll{
     overflow-x:scroll;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior-x:contain;
     will-change:scroll-position;
-    touch-action:pan-x pan-y;
-    border-radius:0 0 var(--r) var(--r);
   }
   /* Larger touch targets for checkboxes */
   .chk-box{width:30px;height:30px;border-radius:7px}
   .chk-c{padding:5px 4px}
   .hz-chk-c{padding:5px 2px}
   .hz-day-th{min-width:30px;padding:4px 1px}
-  /* Fathom table: free-scroll on mobile (hz-tbl stays fixed to avoid competing h-scroll) */
-  #fathom-tbl{table-layout:auto;min-width:max-content;width:auto}
+  /* Both tables: free-scroll on mobile */
+  #hz-tbl,#fathom-tbl{table-layout:auto;min-width:max-content;width:auto}
 
   /* TIDE notes card */
   .notes-card{padding:14px 16px}
