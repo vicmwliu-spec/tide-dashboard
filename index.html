@@ -294,7 +294,12 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 
   /* Grid */
   .grid-card{margin-bottom:10px}
-  .grid-scroll{overflow-x:scroll;overscroll-behavior-x:contain}
+  /* Fathom scroll: always-visible scrollbar, isolated from other containers */
+  #fathom-scroll{
+    overflow-x:scroll;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain;
+  }
   /* Larger touch targets for checkboxes */
   .chk-box{width:30px;height:30px;border-radius:7px}
   .chk-c{padding:5px 4px}
@@ -2393,10 +2398,13 @@ function mkFathomGrid(){
 
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
+  scroll.id='fathom-scroll';
 
   const t=document.createElement('table');
   t.className='tbl';
   t.id='fathom-tbl';
+  // Set explicit min-width in px so mobile browsers can't collapse it via bad max-content calc
+  t.style.minWidth=((editMode?180:100)+days*34+56+56)+'px';
 
   const cg=document.createElement('colgroup');
   const cH=document.createElement('col');cH.style.width=editMode?'180px':'100px';cg.appendChild(cH);
