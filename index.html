@@ -297,13 +297,13 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   /* overflow:clip clips visually (keeps rounded corners) but doesn't create a scroll containment
      context, so Android Chrome can route horizontal touch to the child #fathom-scroll */
   #fathom-card{overflow:clip}
-  /* Fathom scroll: touch-action:pan-x tells Chrome to route h-swipes here (not to page scroll) */
+  /* touch-action:pan-x pan-y: h-swipes go to #fathom-scroll, v-swipes pass to page */
   #fathom-scroll{
     overflow-x:scroll;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior-x:contain;
     will-change:scroll-position;
-    touch-action:pan-x;
+    touch-action:pan-x pan-y;
   }
   /* Larger touch targets for checkboxes */
   .chk-box{width:30px;height:30px;border-radius:7px}
@@ -2404,14 +2404,6 @@ function mkFathomGrid(){
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='fathom-scroll';
-  // Android Chrome: manually drive horizontal scroll so it works inside any overflow parent
-  {let tx=0,ty=0,ax=0;
-  scroll.addEventListener('touchstart',e=>{tx=e.touches[0].pageX;ty=e.touches[0].pageY;ax=0;},{passive:true});
-  scroll.addEventListener('touchmove',e=>{
-    const dx=e.touches[0].pageX-tx,dy=e.touches[0].pageY-ty;
-    if(!ax) ax=Math.abs(dx)>Math.abs(dy)?1:2;
-    if(ax===1){e.preventDefault();scroll.scrollLeft-=dx;tx=e.touches[0].pageX;ty=e.touches[0].pageY;}
-  },{passive:false});}
 
   const t=document.createElement('table');
   t.className='tbl';
