@@ -628,7 +628,9 @@ function monthStats(){
     const hs=g.habits.filter(hb=>!hb.archived);
     let gd=0,gt=0;
     for(let d=1;d<=td;d++){hs.forEach(hb=>{if(!isSkip(hb.id,d)){gt++;if(isChk(hb.id,d))gd++;}});}
-    return {...g,pct:gt?Math.floor(gd/gt*100):0,gt};
+    const gFutPoss=hs.length*dLeft;
+    const maxRate=(gt+gFutPoss)?Math.floor((gd+gFutPoss)/(gt+gFutPoss)*100):0;
+    return {...g,pct:gt?Math.floor(gd/gt*100):0,gt,gd,maxRate};
   });
   return {comp,poss,rate,dLeft,td,isCur,maxRate,monthGroups};
 }
@@ -769,14 +771,15 @@ function _fathomStatLine(id,pct,label,hasData){
   </div>`;
 }
 
-function _grpRows(groups,filterKey){
+function _grpRows(groups,filterKey,getVal){
   return groups.filter(g=>g[filterKey]>0).map(g=>{
-    const gc=g.pct>=80?'var(--green)':g.pct>=50?'var(--amber)':'var(--red)';
+    const def={val:`${g.pct}%`,color:g.pct>=80?'var(--green)':g.pct>=50?'var(--amber)':'var(--red)'};
+    const {val,color}=getVal?getVal(g):def;
     return `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">
       <span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%">
         <span style="width:5px;height:5px;border-radius:50%;background:${g.color};flex-shrink:0;display:inline-block"></span>${esc(g.name)}
       </span>
-      <span style="font-size:10px;font-weight:600;color:${gc}">${g.pct}%</span>
+      <span style="font-size:10px;font-weight:600;color:${color}">${val}</span>
     </div>`;
   }).join('');
 }
@@ -788,13 +791,16 @@ function buildStats(){
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
   const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
   const {pct:ftPct,hasData:ftHas}=fathomTodayStats();
-  const maxRateLine=isCur&&dLeft>0
-    ?`<div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span> CR</div>`
-    :`<div id="sv-max-rate"></div>`;
+  const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
+  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:g.maxRate>=80?'var(--green)':g.maxRate>=50?'var(--amber)':'var(--red)'});
+  const maxRateBlock=isCur&&dLeft>0?`
+    <div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span> CR</div>
+    <div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>`
+    :`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
   return `
-    <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub" id="sv-poss">of ${poss} possible this month</div></div>
+    <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub" id="sv-poss">of ${poss} possible this month</div><div id="sv-comp-grps">${_grpRows(monthGroups,'gt',compGrpFn)}</div></div>
     <div class="stat"><div class="stat-lbl">Compound Rate</div><div class="stat-val" id="sv-rate" style="color:${rc}">${rate}%</div><div class="stat-sub">this month so far</div><div id="sv-month-grps">${_grpRows(monthGroups,'gt')}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
-    <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateLine}</div>
+    <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>
     <div class="stat"><div class="stat-lbl">Today's Compound Rate</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-today-grade" style="color:${todayGrade?todayGrade.color:'var(--text3)'}">${todayGrade?todayGrade.letter:'—'}</span>
@@ -820,11 +826,17 @@ function updStats(){
   const todayRateEl=document.getElementById('sv-today-rate');
   const todaySubEl=document.getElementById('sv-today-sub');
   const todayGrpsEl=document.getElementById('sv-today-grps');
+  const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
+  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:g.maxRate>=80?'var(--green)':g.maxRate>=50?'var(--amber)':'var(--red)'});
   if(compEl) compEl.textContent=comp;
   if(possEl) possEl.textContent=`of ${poss} possible this month`;
+  const compGrpsEl=document.getElementById('sv-comp-grps');
+  if(compGrpsEl) compGrpsEl.innerHTML=_grpRows(monthGroups,'gt',compGrpFn);
   if(rateEl){rateEl.textContent=rate+'%';rateEl.style.color=rc;}
   if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt');
   if(maxRateEl&&isCur&&dLeft>0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span> CR`;
+  const maxRateGrpsEl=document.getElementById('sv-max-rate-grps');
+  if(maxRateGrpsEl&&isCur&&dLeft>0) maxRateGrpsEl.innerHTML=_grpRows(monthGroups,'gt',maxGrpFn);
   if(todayGradeEl){
     todayGradeEl.textContent=todayGrade?todayGrade.letter:'—';
     todayGradeEl.style.color=todayGrade?todayGrade.color:'var(--text3)';
