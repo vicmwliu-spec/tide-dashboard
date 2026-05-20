@@ -805,7 +805,7 @@ function buildStats(){
         <span class="stat-val" id="sv-month-grade" style="color:${monthGrade?monthGrade.color:'var(--text3)'}">${monthGrade?monthGrade.letter:'—'}</span>
         <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${rate}%</span>
       </div>
-      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · this month so far':'this month so far'}</div>
+      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · this month':'this month'}</div>
       <div id="sv-month-grps">${_grpRows(monthGroups,'gt')}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
     <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>
     <div class="stat"><div class="stat-lbl">Today's Compound Rate</div>
@@ -843,8 +843,7 @@ function updStats(){
   if(compGrpsEl) compGrpsEl.innerHTML=_grpRows(monthGroups,'gt',compGrpFn);
   if(monthGradeEl){monthGradeEl.textContent=monthGrade?monthGrade.letter:'—';monthGradeEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
   if(rateEl){rateEl.textContent=rate+'%';rateEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
-  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · this month so far':'this month so far';
-  if(rateEl){rateEl.textContent=rate+'%';rateEl.style.color=rc;}
+  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · this month':'this month';
   if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt');
   if(maxRateEl&&isCur&&dLeft>0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span> CR`;
   const maxRateGrpsEl=document.getElementById('sv-max-rate-grps');
@@ -1540,9 +1539,8 @@ function mkAnnual(){
   const fItems=D.fathom?.items||[];
   const quarters=[0,1,2,3].map(qi=>{
     const s=quarterStats(qi);
-    let fLabel=null;
+    let fGrade=null,fc=0,fp=0;
     if(fItems.length){
-      let fc=0,fp=0;
       for(let qm=qi*3;qm<qi*3+3;qm++){
         const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&qm<=now.getMonth());
         if(!isPast) continue;
@@ -1551,9 +1549,9 @@ function mkAnnual(){
         const lastD=isCurQMo?now.getDate():dim(CY,qm);
         for(let dd=1;dd<=lastD;dd++) fItems.forEach(it=>{if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});
       }
-      if(fc>0) fLabel=fathomGrade(Math.floor(fc/fp*100)).label;
+      if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
     }
-    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fLabel};
+    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp};
   });
 
   const qHtml=quarters.map(q=>`
@@ -1569,7 +1567,7 @@ function mkAnnual(){
         <div style="font-size:24px;font-weight:600;color:var(--border);margin-top:2px">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:5px">Not started</div>
       `}
-      ${q.fLabel?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fLabel}</div>`:''}
+      ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fGrade.label} · ${q.fc}/${q.fp}</div>`:''}
     </div>`).join('');
 
   d.innerHTML=`
@@ -1596,34 +1594,23 @@ function mkAnnual(){
         const m=D.months[k];
         const days=dim(CY,mi);
         const h=allHabits();
+        const isCur=mi===CM&&CY===now.getFullYear();
+        const daysToCount=isCur?now.getDate():days;
         let comp=0,poss=0;
         if(m){
-          for(let dd=1;dd<=days;dd++){
-            h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++}});
+          for(let dd=1;dd<=daysToCount;dd++){
+            h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}});
           }
         }
-        const rate=poss?Math.round(comp/poss*100):0;
-        const isCur=mi===CM&&CY===now.getFullYear();
+        const rate=poss?Math.floor(comp/poss*100):0;
         const barC=rate>=80?'var(--green)':rate>=50?'var(--amber)':rate>0?'var(--accent)':'var(--border)';
-        let tideGrade=null;
-        if(m&&comp>0){
-          let tc=comp,tp=poss;
-          if(isCur){
-            tc=0;tp=0;
-            for(let dd=1;dd<=now.getDate();dd++){
-              h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){tp++;if(m.completions[hb.id]?.[dd])tc++;}});
-            }
-          }
-          if(tp>0) tideGrade=TIDE_GRADES.find(g=>Math.floor(tc/tp*100)>=g.min);
-        }
-        let fGradeLabel=null;
+        const tideGrade=poss>0?TIDE_GRADES.find(g=>rate>=g.min):null;
+        let fGrade=null,fc=0,fp=0;
         if(fItems.length){
           const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
           if(isPast){
-            const daysToCount=isCur?now.getDate():days;
-            let fc=0,fp=0;
             for(let dd=1;dd<=daysToCount;dd++) fItems.forEach(it=>{if(!m?.fathomSkips?.[it.id]?.[dd]){fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;}});
-            if(fc>0) fGradeLabel=fathomGrade(Math.floor(fc/fp*100)).label;
+            if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
           }
         }
         return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})">
@@ -1633,7 +1620,7 @@ function mkAnnual(){
           </div>
           <div class="mo-bar"><div class="mo-fill" style="width:${rate}%;background:${barC}"></div></div>
           <div class="mo-stat">${rate}% · ${comp}/${poss||'—'}</div>
-          ${fGradeLabel?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">${fGradeLabel}</div>`:''}
+          ${fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">${fGrade.label} · ${fc}/${fp}</div>`:''}
         </div>`;
       }).join('')}
     </div>`;
