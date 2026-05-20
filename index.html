@@ -789,6 +789,7 @@ function buildStats(){
   const rc=rate>=80?'var(--green)':rate>=50?'var(--amber)':'var(--red)';
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
+  const monthGrade=poss===0?null:TODAY_GRADES.find(g=>rate>=g.min);
   const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
   const {pct:ftPct,hasData:ftHas}=fathomTodayStats();
   const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
@@ -799,7 +800,13 @@ function buildStats(){
     :`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
   return `
     <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub" id="sv-poss">of ${poss} possible this month</div><div id="sv-comp-grps">${_grpRows(monthGroups,'gt',compGrpFn)}</div></div>
-    <div class="stat"><div class="stat-lbl">Compound Rate</div><div class="stat-val" id="sv-rate" style="color:${rc}">${rate}%</div><div class="stat-sub">this month so far</div><div id="sv-month-grps">${_grpRows(monthGroups,'gt')}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
+    <div class="stat"><div class="stat-lbl">Compound Rate</div>
+      <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
+        <span class="stat-val" id="sv-month-grade" style="color:${monthGrade?monthGrade.color:'var(--text3)'}">${monthGrade?monthGrade.letter:'—'}</span>
+        <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${rate}%</span>
+      </div>
+      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · this month so far':'this month so far'}</div>
+      <div id="sv-month-grps">${_grpRows(monthGroups,'gt')}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
     <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>
     <div class="stat"><div class="stat-lbl">Today's Compound Rate</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
@@ -814,24 +821,29 @@ function buildStats(){
 
 function updStats(){
   const {comp,poss,rate,isCur,dLeft,maxRate,monthGroups}=monthStats();
-  const rc=rate>=80?'var(--green)':rate>=50?'var(--amber)':'var(--red)';
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
+  const monthGrade=poss===0?null:TODAY_GRADES.find(g=>rate>=g.min);
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
+  const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
+  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:g.maxRate>=80?'var(--green)':g.maxRate>=50?'var(--amber)':'var(--red)'});
   const compEl=document.getElementById('sv-comp');
   const possEl=document.getElementById('sv-poss');
+  const compGrpsEl=document.getElementById('sv-comp-grps');
+  const monthGradeEl=document.getElementById('sv-month-grade');
   const rateEl=document.getElementById('sv-rate');
+  const monthSubEl=document.getElementById('sv-month-sub');
   const monthGrpsEl=document.getElementById('sv-month-grps');
   const maxRateEl=document.getElementById('sv-max-rate');
   const todayGradeEl=document.getElementById('sv-today-grade');
   const todayRateEl=document.getElementById('sv-today-rate');
   const todaySubEl=document.getElementById('sv-today-sub');
   const todayGrpsEl=document.getElementById('sv-today-grps');
-  const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
-  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:g.maxRate>=80?'var(--green)':g.maxRate>=50?'var(--amber)':'var(--red)'});
   if(compEl) compEl.textContent=comp;
   if(possEl) possEl.textContent=`of ${poss} possible this month`;
-  const compGrpsEl=document.getElementById('sv-comp-grps');
   if(compGrpsEl) compGrpsEl.innerHTML=_grpRows(monthGroups,'gt',compGrpFn);
+  if(monthGradeEl){monthGradeEl.textContent=monthGrade?monthGrade.letter:'—';monthGradeEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
+  if(rateEl){rateEl.textContent=rate+'%';rateEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
+  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · this month so far':'this month so far';
   if(rateEl){rateEl.textContent=rate+'%';rateEl.style.color=rc;}
   if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt');
   if(maxRateEl&&isCur&&dLeft>0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span> CR`;
