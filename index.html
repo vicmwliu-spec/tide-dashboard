@@ -183,6 +183,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .edit-mode .grp-name-in,.edit-mode .hbt-in,.edit-mode .goal-in{cursor:text;border-radius:3px}
 .edit-mode .grp-name-in:focus,.edit-mode .hbt-in:focus,.edit-mode .goal-in:focus{background:#FFFBEB;outline:1px solid #FDE68A}
 
+/* ── Start date pill ── */
+.sd-pill{position:relative;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;border:1px solid var(--border);background:var(--surface);font-size:10px;font-weight:500;color:var(--text3);cursor:pointer;white-space:nowrap;font-family:var(--font);user-select:none;transition:border-color .12s,color .12s,background .12s;flex-shrink:0}
+.sd-pill:hover{border-color:var(--accent);color:var(--accent);background:var(--today-bg)}
+.sd-pill input[type="date"]{position:absolute;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;border:none;padding:0;margin:0}
+
 /* ── Horizontal layout ── */
 .hz-day-th{text-align:center;padding:4px 2px;font-size:10px;font-weight:600;color:var(--text2);white-space:nowrap;vertical-align:bottom}
 .hz-day-th .hd-num{font-size:12px;font-weight:700;display:block;line-height:1.2}
@@ -963,7 +968,7 @@ function mkGrid(){
   const bar=document.createElement('div');
   bar.className='grid-bar';
   const hasData=!!D.months[mk(CY,CM)];
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.appendChild(buildTable());
@@ -1063,6 +1068,7 @@ function buildTHead(){
         th.innerHTML=`<div style="display:flex;align-items:center;gap:3px;padding:2px 4px">
           <span class="dnd-grip">⠿</span>
           <input class="hbt-in" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
+          <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(h.startDate||todayStr())}<input type="date" value="${h.startDate||todayStr()}" onchange="changeHabitStartDate('${h.id}',this.value)"/></span>
           <button class="del-btn" onclick="deleteHabit('${g.id}','${h.id}')" title="Remove">&#10005;</button>
         </div>`;
         th.draggable=true;
@@ -1155,17 +1161,14 @@ function buildDayRow(d,todayD){
   // Habit cells
   D.groups.forEach((g,gi)=>{
     g.habits.forEach((h,hi)=>{
-      const hStartDate=h.startDate?new Date(h.startDate+'T00:00:00'):null;
-      const isBeforeStart=hStartDate&&new Date(CY,CM,d)<hStartDate;
       const td2=document.createElement('td');
-      td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture||isBeforeStart?' future':'');
+      td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
       td2.id=`cc-${h.id}-${d}`;
       td2.dataset.color=g.color;
       const chk=isChk(h.id,d);
       const skp=isSkip(h.id,d);
-      td2.onclick=isFuture||isBeforeStart?null:()=>doToggle(h.id,d,g.color);
-      if(isBeforeStart){td2.innerHTML=`<span style="color:var(--text3);font-size:11px">—</span>`}
-      else{td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`}
+      td2.onclick=isFuture?null:()=>doToggle(h.id,d,g.color);
+      td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
       tr.appendChild(td2);
     });
     if(editMode){
@@ -1957,7 +1960,9 @@ function deleteAARTemplate(tid){
 
 function addGroup(){
   const color=PAL[D.groups.length%PAL.length];
-  D.groups.push({id:uid(),name:'New Group',color,habits:[{id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()}]});
+  const hid=uid();const sd=todayStr();
+  D.groups.push({id:uid(),name:'New Group',color,startDate:sd,habits:[{id:hid,name:'New Habit',goalDays:31,startDate:sd}]});
+  applyHabitStartDateSkips(hid,sd);
   save();render();
 }
 
@@ -2052,10 +2057,14 @@ function renameGroup(gid,name){
   const g=D.groups.find(g=>g.id===gid);
   if(g){g.name=name.trim()||g.name;save()}
 }
+function changeGroupStartDate(gid,date){
+  const g=D.groups.find(g=>g.id===gid);
+  if(g){g.startDate=date||todayStr();save();render()}
+}
 
 function addHabit(gid){
   const g=D.groups.find(g=>g.id===gid);
-  if(g){g.habits.push({id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()});save();render()}
+  if(g){const h={id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()};g.habits.push(h);applyHabitStartDateSkips(h.id,h.startDate);save();render()}
 }
 
 function deleteHabit(gid,hid){
@@ -2069,12 +2078,22 @@ function renameHabit(hid,name){
     if(h){h.name=name.trim()||h.name;save();return}
   }
 }
+function changeHabitStartDate(hid,date){
+  for(const g of D.groups){
+    const h=g.habits.find(h=>h.id===hid);
+    if(h){h.startDate=date||todayStr();save();render();return}
+  }
+}
 
 // ─────────────────────────────────────────
 //  UTILS
 // ─────────────────────────────────────────
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 function autoH(ta){ ta.style.height='auto';ta.style.height=ta.scrollHeight+'px' }
+function fmtDate(iso){if(!iso)return'';const[y,m,d]=iso.split('-').map(Number);const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1];return mn+' '+d+(y!==new Date().getFullYear()?" '"+String(y).slice(2):'')}
+function openDatePicker(el){const inp=el.querySelector('input[type="date"]');if(!inp)return;if(inp.showPicker)inp.showPicker();else inp.click()}
+function applyHabitStartDateSkips(hid,startDateIso){const start=new Date(startDateIso+'T00:00:00');const mo=md(CY,CM);if(!mo.skips[hid])mo.skips[hid]={};if(!mo.completions[hid])mo.completions[hid]={};const days=dim(CY,CM);for(let d=1;d<=days;d++){if(new Date(CY,CM,d)<start){mo.completions[hid][d]=false;mo.skips[hid][d]=true;}}}
+function applyFathomStartDateSkips(fid,startDateIso){const start=new Date(startDateIso+'T00:00:00');const mo=fathomMd();if(!mo.fathomSkips[fid])mo.fathomSkips[fid]={};if(!mo.fathomCompletions[fid])mo.fathomCompletions[fid]={};const days=dim(CY,CM);for(let d=1;d<=days;d++){if(new Date(CY,CM,d)<start){mo.fathomCompletions[fid][d]=false;mo.fathomSkips[fid][d]=true;}}}
 
 // ─────────────────────────────────────────
 //  HORIZONTAL GRID (days as columns, habits as rows)
@@ -2086,7 +2105,7 @@ function mkGridHorizontal(){
   const bar=document.createElement('div');
   bar.className='grid-bar';
   const hasData2=!!D.months[mk(CY,CM)];
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData2?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
@@ -2237,6 +2256,7 @@ function buildHzTable(){
         nameTd.innerHTML=`<div style="display:flex;align-items:center;gap:2px;overflow:hidden">
           <span class="dnd-grip" style="margin-right:1px">⠿</span>
           <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
+          <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(h.startDate||todayStr())}<input type="date" value="${h.startDate||todayStr()}" onchange="changeHabitStartDate('${h.id}',this.value)"/></span>
           <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteHabit('${g.id}','${h.id}')" title="Remove">&#10005;</button>
         </div>`;
         tr.draggable=true;
@@ -2263,23 +2283,20 @@ function buildHzTable(){
       tr.appendChild(nameTd);
 
       let rowDone=0,rowTotal=0;
-      const hStartDate=h.startDate?new Date(h.startDate+'T00:00:00'):null;
       for(let d=1;d<=days;d++){
         const dow=new Date(CY,CM,d).getDay();
         const isToday=d===todayD;
         const isFuture=isCurMo&&d>todayD;
-        const isBeforeStart=hStartDate&&new Date(CY,CM,d)<hStartDate;
         const isWeekStart=dow===1&&d>1;
         const chk=isChk(h.id,d);
         const skp=isSkip(h.id,d);
-        if(!isFuture&&!isBeforeStart&&!skp){rowDone+=chk?1:0;rowTotal++}
+        if(!isFuture&&!skp){rowDone+=chk?1:0;rowTotal++}
         const td=document.createElement('td');
-        td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture||isBeforeStart?' future':'')+(isWeekStart?' hz-week-sep':'');
+        td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'');
         td.id=`hzcc-${h.id}-${d}`;
         td.dataset.color=g.color;
-        if(!isFuture&&!isBeforeStart) td.onclick=()=>doHzToggle(h.id,d,g.color);
-        if(isBeforeStart){td.innerHTML=`<span style="color:var(--text3);font-size:11px">—</span>`}
-        else{td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`}
+        if(!isFuture) td.onclick=()=>doHzToggle(h.id,d,g.color);
+        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
         tr.appendChild(td);
       }
 
@@ -2317,10 +2334,7 @@ function doHzToggle(hid,day,color){
   const todayD=isCurMo?today.getDate():dim(CY,CM);
   const days=dim(CY,CM);
   let rowDone=0,rowTotal=0;
-  const _hObj=allHabits().find(h=>h.id===hid);
-  const _hStart=_hObj?.startDate?new Date(_hObj.startDate+'T00:00:00'):null;
   for(let d=1;d<=todayD;d++){
-    if(_hStart&&new Date(CY,CM,d)<_hStart) continue;
     if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}
   }
   const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
@@ -2518,6 +2532,7 @@ function mkFathomGrid(){
       nameTd.innerHTML=`<div style="display:flex;align-items:center;gap:2px;overflow:hidden">
         <span class="dnd-grip" style="margin-right:1px">⠿</span>
         <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(item.name)}" onchange="renameFathomItem('${item.id}',this.value)" onclick="event.stopPropagation()"/>
+        <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(item.startDate||todayStr())}<input type="date" value="${item.startDate||todayStr()}" onchange="changeFathomStartDate('${item.id}',this.value)"/></span>
         <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteFathomItem('${item.id}')" title="Remove">&#10005;</button>
       </div>`;
       tr.draggable=true;
@@ -2632,12 +2647,18 @@ function doFathomSkipToggle(iid,day){
 
 function addFathomItem(){
   if(!D.fathom) D.fathom={items:[]};
-  D.fathom.items.push({id:uid(),name:'New Item'});
+  const item={id:uid(),name:'New Item',startDate:todayStr()};
+  D.fathom.items.push(item);
+  applyFathomStartDateSkips(item.id,item.startDate);
   save();render();
 }
 function renameFathomItem(id,name){
   const item=D.fathom?.items?.find(i=>i.id===id);
   if(item){item.name=name.trim()||item.name;save();}
+}
+function changeFathomStartDate(id,date){
+  const item=D.fathom?.items?.find(i=>i.id===id);
+  if(item){item.startDate=date||todayStr();save();render();}
 }
 function deleteFathomItem(id){
   if(!confirm('Remove this Fathom item?')) return;
