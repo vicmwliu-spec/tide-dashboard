@@ -2081,7 +2081,7 @@ function renameHabit(hid,name){
 function changeHabitStartDate(hid,date){
   for(const g of D.groups){
     const h=g.habits.find(h=>h.id===hid);
-    if(h){h.startDate=date||todayStr();save();render();return}
+    if(h){h.startDate=date||todayStr();applyHabitStartDateSkips(hid,h.startDate);save();render();return}
   }
 }
 
@@ -2094,8 +2094,22 @@ function fmtDate(iso){if(!iso)return'';const[y,m,d]=iso.split('-').map(Number);c
 function openDatePicker(el){const inp=el.querySelector('input[type="date"]');if(!inp)return;if(inp.showPicker)inp.showPicker();else inp.click()}
 function expandNameInput(inp){const td=inp.closest('td');if(!td)return;td.style.overflow='visible';td.style.zIndex='20';inp.style.minWidth='280px';inp.style.boxShadow='0 2px 14px rgba(0,0,0,.18)';inp.style.background='var(--surface)'}
 function collapseNameInput(inp){const td=inp.closest('td');if(!td)return;td.style.overflow='hidden';td.style.zIndex='';inp.style.minWidth='0';inp.style.boxShadow='';inp.style.background=''}
-function applyHabitStartDateSkips(hid,startDateIso){const start=new Date(startDateIso+'T00:00:00');const mo=md(CY,CM);if(!mo.skips[hid])mo.skips[hid]={};if(!mo.completions[hid])mo.completions[hid]={};const days=dim(CY,CM);for(let d=1;d<=days;d++){if(new Date(CY,CM,d)<start){mo.completions[hid][d]=false;mo.skips[hid][d]=true;}}}
-function applyFathomStartDateSkips(fid,startDateIso){const start=new Date(startDateIso+'T00:00:00');const mo=fathomMd();if(!mo.fathomSkips[fid])mo.fathomSkips[fid]={};if(!mo.fathomCompletions[fid])mo.fathomCompletions[fid]={};const days=dim(CY,CM);for(let d=1;d<=days;d++){if(new Date(CY,CM,d)<start){mo.fathomCompletions[fid][d]=false;mo.fathomSkips[fid][d]=true;}}}
+function applyHabitStartDateSkips(hid,startDateIso){
+  const start=new Date(startDateIso+'T00:00:00');
+  const startY=start.getFullYear(),startM=start.getMonth();
+  const write=(y,m)=>{const mo=md(y,m);if(!mo.skips[hid])mo.skips[hid]={};if(!mo.completions[hid])mo.completions[hid]={};const days=dim(y,m);for(let d=1;d<=days;d++){if(new Date(y,m,d)<start){mo.completions[hid][d]=false;mo.skips[hid][d]=true;}}};
+  Object.keys(D.months).forEach(k=>{const[ys,ms]=k.split('-');write(+ys,+ms-1);});
+  let y=CY,m=CM;
+  while(y<startY||(y===startY&&m<=startM)){write(y,m);m++;if(m>11){y++;m=0;}}
+}
+function applyFathomStartDateSkips(fid,startDateIso){
+  const start=new Date(startDateIso+'T00:00:00');
+  const startY=start.getFullYear(),startM=start.getMonth();
+  const write=(y,m)=>{const k=mk(y,m);if(!D.months[k])D.months[k]={quote:'',notes:'',completions:{},skips:{},fathomCompletions:{},fathomSkips:{}};const mo=D.months[k];if(!mo.fathomCompletions)mo.fathomCompletions={};if(!mo.fathomSkips)mo.fathomSkips={};if(!mo.fathomSkips[fid])mo.fathomSkips[fid]={};if(!mo.fathomCompletions[fid])mo.fathomCompletions[fid]={};const days=dim(y,m);for(let d=1;d<=days;d++){if(new Date(y,m,d)<start){mo.fathomCompletions[fid][d]=false;mo.fathomSkips[fid][d]=true;}}};
+  Object.keys(D.months).forEach(k=>{const[ys,ms]=k.split('-');write(+ys,+ms-1);});
+  let y=CY,m=CM;
+  while(y<startY||(y===startY&&m<=startM)){write(y,m);m++;if(m>11){y++;m=0;}}
+}
 
 // ─────────────────────────────────────────
 //  HORIZONTAL GRID (days as columns, habits as rows)
@@ -2660,7 +2674,7 @@ function renameFathomItem(id,name){
 }
 function changeFathomStartDate(id,date){
   const item=D.fathom?.items?.find(i=>i.id===id);
-  if(item){item.startDate=date||todayStr();save();render();}
+  if(item){item.startDate=date||todayStr();applyFathomStartDateSkips(item.id,item.startDate);save();render();}
 }
 function deleteFathomItem(id){
   if(!confirm('Remove this Fathom item?')) return;
