@@ -376,6 +376,7 @@ const MON = ['January','February','March','April','May','June','July','August','
 const PAL = ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EC4899','#14B8A6','#F97316','#6366F1','#EF4444','#06B6D4'];
 
 function uid(){ return '_'+Math.random().toString(36).slice(2,9) }
+function todayStr(){ return new Date().toISOString().slice(0,10) }
 
 function defaultData(){
   const g1=uid(),g2=uid();
@@ -596,7 +597,11 @@ function skipToggle(hid,day){
 }
 
 function dayProg(day){
-  const h=allHabits();
+  const cellDate=new Date(CY,CM,day);
+  const h=allHabits().filter(hb=>{
+    if(!hb.startDate) return true;
+    return new Date(hb.startDate+'T00:00:00')<=cellDate;
+  });
   let done=0,total=0;
   h.forEach(hb=>{if(!isSkip(hb.id,day)){total++;if(isChk(hb.id,day))done++;}});
   return {done,total,pct:total?Math.floor(done/total*100):0};
@@ -1150,14 +1155,17 @@ function buildDayRow(d,todayD){
   // Habit cells
   D.groups.forEach((g,gi)=>{
     g.habits.forEach((h,hi)=>{
+      const hStartDate=h.startDate?new Date(h.startDate+'T00:00:00'):null;
+      const isBeforeStart=hStartDate&&new Date(CY,CM,d)<hStartDate;
       const td2=document.createElement('td');
-      td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
+      td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture||isBeforeStart?' future':'');
       td2.id=`cc-${h.id}-${d}`;
       td2.dataset.color=g.color;
       const chk=isChk(h.id,d);
       const skp=isSkip(h.id,d);
-      td2.onclick=isFuture?null:()=>doToggle(h.id,d,g.color);
-      td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+      td2.onclick=isFuture||isBeforeStart?null:()=>doToggle(h.id,d,g.color);
+      if(isBeforeStart){td2.innerHTML=`<span style="color:var(--text3);font-size:11px">—</span>`}
+      else{td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`}
       tr.appendChild(td2);
     });
     if(editMode){
@@ -1949,7 +1957,7 @@ function deleteAARTemplate(tid){
 
 function addGroup(){
   const color=PAL[D.groups.length%PAL.length];
-  D.groups.push({id:uid(),name:'New Group',color,habits:[{id:uid(),name:'New Habit',goalDays:31}]});
+  D.groups.push({id:uid(),name:'New Group',color,habits:[{id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()}]});
   save();render();
 }
 
@@ -2047,7 +2055,7 @@ function renameGroup(gid,name){
 
 function addHabit(gid){
   const g=D.groups.find(g=>g.id===gid);
-  if(g){g.habits.push({id:uid(),name:'New Habit',goalDays:31});save();render()}
+  if(g){g.habits.push({id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()});save();render()}
 }
 
 function deleteHabit(gid,hid){
@@ -2255,20 +2263,23 @@ function buildHzTable(){
       tr.appendChild(nameTd);
 
       let rowDone=0,rowTotal=0;
+      const hStartDate=h.startDate?new Date(h.startDate+'T00:00:00'):null;
       for(let d=1;d<=days;d++){
         const dow=new Date(CY,CM,d).getDay();
         const isToday=d===todayD;
         const isFuture=isCurMo&&d>todayD;
+        const isBeforeStart=hStartDate&&new Date(CY,CM,d)<hStartDate;
         const isWeekStart=dow===1&&d>1;
         const chk=isChk(h.id,d);
         const skp=isSkip(h.id,d);
-        if(!isFuture&&!skp){rowDone+=chk?1:0;rowTotal++}
+        if(!isFuture&&!isBeforeStart&&!skp){rowDone+=chk?1:0;rowTotal++}
         const td=document.createElement('td');
-        td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'');
+        td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture||isBeforeStart?' future':'')+(isWeekStart?' hz-week-sep':'');
         td.id=`hzcc-${h.id}-${d}`;
         td.dataset.color=g.color;
-        if(!isFuture) td.onclick=()=>doHzToggle(h.id,d,g.color);
-        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+        if(!isFuture&&!isBeforeStart) td.onclick=()=>doHzToggle(h.id,d,g.color);
+        if(isBeforeStart){td.innerHTML=`<span style="color:var(--text3);font-size:11px">—</span>`}
+        else{td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`}
         tr.appendChild(td);
       }
 
@@ -2306,7 +2317,12 @@ function doHzToggle(hid,day,color){
   const todayD=isCurMo?today.getDate():dim(CY,CM);
   const days=dim(CY,CM);
   let rowDone=0,rowTotal=0;
-  for(let d=1;d<=todayD;d++){if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}}
+  const _hObj=allHabits().find(h=>h.id===hid);
+  const _hStart=_hObj?.startDate?new Date(_hObj.startDate+'T00:00:00'):null;
+  for(let d=1;d<=todayD;d++){
+    if(_hStart&&new Date(CY,CM,d)<_hStart) continue;
+    if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}
+  }
   const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
   const pc=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
   const ds=document.getElementById(`hzds-${hid}`);
