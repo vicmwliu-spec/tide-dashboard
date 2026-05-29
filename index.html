@@ -2092,6 +2092,8 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 function autoH(ta){ ta.style.height='auto';ta.style.height=ta.scrollHeight+'px' }
 function fmtDate(iso){if(!iso)return'';const[y,m,d]=iso.split('-').map(Number);const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1];return mn+' '+d+(y!==new Date().getFullYear()?" '"+String(y).slice(2):'')}
 function openDatePicker(el){const inp=el.querySelector('input[type="date"]');if(!inp)return;if(inp.showPicker)inp.showPicker();else inp.click()}
+function expandNameInput(inp){const td=inp.closest('td');if(!td)return;td.style.overflow='visible';td.style.zIndex='20';inp.style.minWidth='280px';inp.style.boxShadow='0 2px 14px rgba(0,0,0,.18)';inp.style.background='var(--surface)'}
+function collapseNameInput(inp){const td=inp.closest('td');if(!td)return;td.style.overflow='hidden';td.style.zIndex='';inp.style.minWidth='0';inp.style.boxShadow='';inp.style.background=''}
 function applyHabitStartDateSkips(hid,startDateIso){const start=new Date(startDateIso+'T00:00:00');const mo=md(CY,CM);if(!mo.skips[hid])mo.skips[hid]={};if(!mo.completions[hid])mo.completions[hid]={};const days=dim(CY,CM);for(let d=1;d<=days;d++){if(new Date(CY,CM,d)<start){mo.completions[hid][d]=false;mo.skips[hid][d]=true;}}}
 function applyFathomStartDateSkips(fid,startDateIso){const start=new Date(startDateIso+'T00:00:00');const mo=fathomMd();if(!mo.fathomSkips[fid])mo.fathomSkips[fid]={};if(!mo.fathomCompletions[fid])mo.fathomCompletions[fid]={};const days=dim(CY,CM);for(let d=1;d<=days;d++){if(new Date(CY,CM,d)<start){mo.fathomCompletions[fid][d]=false;mo.fathomSkips[fid][d]=true;}}}
 
@@ -2529,9 +2531,9 @@ function mkFathomGrid(){
     const nameTd=document.createElement('td');
     nameTd.className='sl hz-habit-td';
     if(editMode){
-      nameTd.innerHTML=`<div style="display:flex;align-items:center;gap:2px;overflow:hidden">
+      nameTd.innerHTML=`<div style="display:flex;align-items:center;gap:2px;">
         <span class="dnd-grip" style="margin-right:1px">⠿</span>
-        <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(item.name)}" onchange="renameFathomItem('${item.id}',this.value)" onclick="event.stopPropagation()"/>
+        <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(item.name)}" onchange="renameFathomItem('${item.id}',this.value)" onclick="event.stopPropagation()" onfocus="expandNameInput(this)" onblur="collapseNameInput(this)"/>
         <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(item.startDate||todayStr())}<input type="date" value="${item.startDate||todayStr()}" onchange="changeFathomStartDate('${item.id}',this.value)"/></span>
         <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteFathomItem('${item.id}')" title="Remove">&#10005;</button>
       </div>`;
