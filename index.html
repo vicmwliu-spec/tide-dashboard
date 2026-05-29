@@ -219,7 +219,9 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* Vertical: separator rows in tbody */
 .week-sep-r td{background:var(--surface2) !important;border-top:1px solid var(--border) !important;border-bottom:1px solid var(--border2) !important}
 .week-sep-r .sl{background:var(--surface2) !important}
-.week-sep-day{padding:3px 14px;white-space:nowrap}
+.week-sep-day{padding:3px 14px;white-space:nowrap;cursor:default}
+.wk-badge{display:inline-flex;align-items:center;margin-left:8px;font-size:9px;font-weight:700;letter-spacing:.05em;padding:1px 6px;border-radius:9px;vertical-align:middle;opacity:0;transition:opacity .15s,transform .15s;transform:translateX(-4px);pointer-events:none;user-select:none}
+.week-sep-r:hover .wk-badge,.hz-week-hdr-th:hover .wk-badge{opacity:1;transform:translateX(0)}
 /* Horizontal: week header row in thead */
 .hz-week-hdr-th{text-align:center;padding:3px 4px;background:var(--surface2);border-bottom:1px solid var(--border2);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap}
 .hz-week-hdr-th.first-week{border-left:none}
@@ -1114,6 +1116,14 @@ function buildTBody(){
   // Build a lookup: day → week number
   const dayWeek={};
   spans.forEach(s=>{for(let d=s.start;d<=s.end;d++) dayWeek[d]=s.week;});
+  // Pre-compute per-week completion stats for grade badges
+  const wkData={};
+  spans.forEach(s=>{
+    const lastD=todayD>0?Math.min(s.end,todayD):0;
+    let wd=0,wt=0;
+    for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
+    wkData[s.week]=wt>0?{pct:Math.round(wd/wt*100),done:wd,total:wt}:null;
+  });
   const totalHabitCols=D.groups.reduce((s,g)=>s+g.habits.length+(editMode?1:0),0);
   for(let d=1;d<=days;d++){
     // Insert week separator before the first day of each week
@@ -1123,7 +1133,13 @@ function buildTBody(){
       sepTr.className='week-sep-r';
       const sepTd=document.createElement('td');
       sepTd.className='sl week-sep-day';
-      sepTd.innerHTML=`<span class="week-lbl-text">Week ${wn}</span>`;
+      const wd=wkData[wn];
+      const wg=wd&&wd.total>0?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
+      const weekStarted=todayD<0||spans.find(s=>s.week===wn)?.start<=todayD;
+      const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
+      const badgeText=wg?`${wg.letter} · ${wd.pct}%`:'—';
+      const badge=weekStarted?`<span class="wk-badge" style="${badgeStyle}">${badgeText}</span>`:'';
+      sepTd.innerHTML=`<span class="week-lbl-text">Week ${wn}</span>${badge}`;
       const fillTd=document.createElement('td');
       fillTd.colSpan=totalHabitCols+2;
       sepTr.appendChild(sepTd);sepTr.appendChild(fillTd);
@@ -1364,6 +1380,13 @@ const ANNUAL_GRADES=[
   {min:45,letter:'C',name:'Continuing',color:'#EA580C'},
   {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
+const WEEK_GRADES=[
+  {min:95,letter:'S',name:'Surpassing',color:'var(--green)'},
+  {min:83,letter:'A',name:'Ascending', color:'var(--accent)'},
+  {min:65,letter:'B',name:'Building',  color:'var(--amber)'},
+  {min:45,letter:'C',name:'Continuing',color:'#EA580C'},
+  {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
+];
 const FATHOM_GRADES=[
   {min:100,label:'Stoic',   color:'#4E9B8A',dcolor:'#6BBDB0'},
   {min:80, label:'Apex',    color:'#5B8BAF',dcolor:'#7AAFD0'},
@@ -1374,6 +1397,16 @@ const FATHOM_GRADES=[
 const FATHOM_COLOR='#6B7FA8'; // checkbox color
 function fgColor(g){ return darkMode?g.dcolor:g.color; }
 function fathomGrade(pct){ return FATHOM_GRADES.find(g=>pct>=g.min)||FATHOM_GRADES[FATHOM_GRADES.length-1]; }
+function weekStats(){
+  const todayD=now.getFullYear()===CY&&now.getMonth()===CM?now.getDate():-1;
+  if(todayD===-1) return {pct:0,done:0,total:0,hasData:false,weekNum:0};
+  const span=getWeekSpans(CY,CM).find(s=>todayD>=s.start&&todayD<=s.end);
+  if(!span) return {pct:0,done:0,total:0,hasData:false,weekNum:0};
+  let done=0,total=0;
+  for(let d=span.start;d<=Math.min(span.end,todayD);d++){const{done:dd,total:dt}=dayProg(d);done+=dd;total+=dt;}
+  const pct=total?Math.round(done/total*100):0;
+  return {pct,done,total,hasData:total>0,weekNum:span.week};
+}
 
 function _periodStats(monthIndices){
   const today=new Date();
@@ -2192,14 +2225,20 @@ function buildHzTable(){
   }
   thead.appendChild(rB);
 
-  // Row C: Week label headers (corner + Done/% covered by rowSpan=4 above)
+  // Row C: Week label headers
   const rC=document.createElement('tr');
   const weekSpans=getWeekSpans(CY,CM);
+  const hzWkData={};
+  weekSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):0;let wd=0,wt=0;for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}hzWkData[s.week]=wt>0?{pct:Math.round(wd/wt*100)}:null;});
   weekSpans.forEach((ws,wi)=>{
     const th=document.createElement('th');
     th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
     th.colSpan=ws.end-ws.start+1;
-    th.textContent=`Week ${ws.week}`;
+    const wd=hzWkData[ws.week];
+    const wg=wd?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
+    const started=todayD<0||ws.start<=todayD;
+    const bStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}`;
     rC.appendChild(th);
   });
   thead.appendChild(rC);
@@ -2517,10 +2556,18 @@ function mkFathomGrid(){
 
   // Row B: week labels
   const rB=document.createElement('tr');
-  getWeekSpans(CY,CM).forEach((ws,wi)=>{
+  const fWkSpans=getWeekSpans(CY,CM);
+  const fWkData={};
+  fWkSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):0;let wd=0,wt=0;for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}fWkData[s.week]=wt>0?{pct:Math.round(wd/wt*100)}:null;});
+  fWkSpans.forEach((ws,wi)=>{
     const th=document.createElement('th');
     th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
-    th.colSpan=ws.end-ws.start+1;th.textContent=`Week ${ws.week}`;
+    th.colSpan=ws.end-ws.start+1;
+    const wd=fWkData[ws.week];
+    const wg=wd?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
+    const started=todayD<0||ws.start<=todayD;
+    const bStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}`;
     rB.appendChild(th);
   });
   thead.appendChild(rB);
