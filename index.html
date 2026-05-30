@@ -422,6 +422,7 @@ let hzChartInst = null;
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
 let _aarDay = null; // currently open AAR day
+let _aarWeek = null; // currently open weekly AAR week number
 let _sel = new Set();        // selected cell IDs
 let _selMD = false;          // mousedown held on a cell
 let _selDrag = false;        // drag selection active
@@ -741,7 +742,6 @@ function mkHeader(){
       <button class="btn" onclick="toggleDark()"><span class="mob-hide">${darkMode?'Day Mode':'Night Mode'}</span><span class="mob-show">${darkMode?'&#9728;':'&#9790;'}</span></button>
       <button class="btn ${view==='year'?'btn-on':''}" onclick="toggleView()"><span class="mob-hide">${view==='year'?'&#8592; Month View':'Year Overview'}</span><span class="mob-show">${view==='year'?'Month':'Year'}</span></button>
       ${view!=='year'?`<button class="btn btn-on" onclick="toggleLayout()" title="Switch layout"><span class="mob-hide">${gridLayout==='horizontal'?'&#8597; Vertical':'&#8596; Horizontal'}</span><span class="mob-show">${gridLayout==='horizontal'?'&#8597;':'&#8596;'}</span></button>`:''}
-      <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()"><span class="mob-hide">${editMode?'&#10003; Done':'&#9998; Edit'}</span><span class="mob-show">${editMode?'&#10003;':'&#9998;'}</span></button>
     </div>`;
   return d;
 }
@@ -791,7 +791,7 @@ function _grpRows(groups,filterKey,getVal){
       <span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%">
         <span style="width:5px;height:5px;border-radius:50%;background:${g.color};flex-shrink:0;display:inline-block"></span>${esc(g.name)}
       </span>
-      <span style="font-size:10px;font-weight:600;color:${color}">${val}</span>
+      <span style="font-size:10px;font-weight:600;color:${color};min-width:34px;text-align:right;font-variant-numeric:tabular-nums">${val}</span>
     </div>`;
   }).join('');
 }
@@ -805,7 +805,7 @@ function buildStats(){
   const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
   const {pct:ftPct,hasData:ftHas}=fathomTodayStats();
   const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
-  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:g.maxRate>=80?'var(--green)':g.maxRate>=50?'var(--amber)':'var(--red)'});
+  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:'var(--text3)'});
   const maxGrade=isCur&&dLeft>0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
   const maxRateBlock=isCur&&dLeft>0?`
     <div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% SE</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div>
@@ -838,7 +838,7 @@ function updStats(){
   const monthGrade=poss===0?null:TIDE_GRADES.find(g=>rate>=g.min);
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
   const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
-  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:g.maxRate>=80?'var(--green)':g.maxRate>=50?'var(--amber)':'var(--red)'});
+  const maxGrpFn=g=>({val:`${g.maxRate}%`,color:'var(--text3)'});
   const compEl=document.getElementById('sv-comp');
   const possEl=document.getElementById('sv-poss');
   const compGrpsEl=document.getElementById('sv-comp-grps');
@@ -886,7 +886,14 @@ function updStats(){
 function mkChart(){
   const d=document.createElement('div');
   d.className='chart-card';
-  d.innerHTML=`<div class="card-title">Slight Edge Curve</div><div class="chart-wrap"><canvas id="pc"></canvas></div>`;
+  d.innerHTML=`<div class="grid-bar">
+    <div class="grid-bar-l">Slight Edge Curve</div>
+    <div style="display:flex;gap:8px">
+      ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}
+      <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
+    </div>
+  </div>
+  <div class="chart-wrap"><canvas id="pc"></canvas></div>`;
   setTimeout(()=>buildChart(),0);
   return d;
 }
@@ -1139,7 +1146,8 @@ function buildTBody(){
       const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
       const badgeText=wg?`${wg.letter} · ${wd.pct}%`:'—';
       const badge=weekStarted?`<span class="wk-badge" style="${badgeStyle}">${badgeText}</span>`:'';
-      sepTd.innerHTML=`<span class="week-lbl-text">Week ${wn}</span>${badge}`;
+      const wAarHas=!!getWeekAAR(wn);
+      sepTd.innerHTML=`<span class="week-lbl-text">Week ${wn}</span>${badge}<button id="week-aar-btn-${wn}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${wn})" title="Weekly Review" style="display:inline;margin-left:6px;margin-top:0;padding:1px 5px">✎</button>`;
       const fillTd=document.createElement('td');
       fillTd.colSpan=totalHabitCols+2;
       sepTr.appendChild(sepTd);sepTr.appendChild(fillTd);
@@ -1388,11 +1396,11 @@ const WEEK_GRADES=[
   {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
 const FATHOM_GRADES=[
-  {min:100,label:'Stoic',   color:'#4E9B8A',dcolor:'#6BBDB0'},
-  {min:80, label:'Apex',    color:'#5B8BAF',dcolor:'#7AAFD0'},
-  {min:60, label:'Bedrock', color:'#7878A0',dcolor:'#9F9FC0'},
-  {min:30, label:'Crescent',color:'#9C8B78',dcolor:'#BFAB98'},
-  {min:0,  label:'Dusk',    color:'#888896',dcolor:'#ADADBB'},
+  {min:90,label:'Stoic',   color:'#4E9B8A',dcolor:'#6BBDB0'},
+  {min:78,label:'Apex',    color:'#5B8BAF',dcolor:'#7AAFD0'},
+  {min:62,label:'Bedrock', color:'#7878A0',dcolor:'#9F9FC0'},
+  {min:42,label:'Crescent',color:'#9C8B78',dcolor:'#BFAB98'},
+  {min:0, label:'Dusk',    color:'#888896',dcolor:'#ADADBB'},
 ];
 const FATHOM_COLOR='#6B7FA8'; // checkbox color
 function fgColor(g){ return darkMode?g.dcolor:g.color; }
@@ -1907,9 +1915,86 @@ function openAAR(day){
 function closeAAR(){
   const editor=document.getElementById('aar-editor');
   if(editor&&_aarDay!=null) saveAAREntry(_aarDay,editor.innerHTML.trim());
+  if(editor&&_aarWeek!=null) saveWeekAAREntry(_aarWeek,editor.innerHTML.trim());
   document.getElementById('aar-overlay')?.remove();
-  _aarDay=null;
+  _aarDay=null; _aarWeek=null;
   updateAARIndicators();
+  updateWeekAARIndicators();
+}
+
+function getWeekAAR(wn){
+  return D.months[mk(CY,CM)]?.weekAar?.[wn]||'';
+}
+function saveWeekAAREntry(wn,html){
+  const mo=md(CY,CM);
+  if(!mo.weekAar) mo.weekAar={};
+  if(html&&html!=='<br>') mo.weekAar[wn]=html;
+  else delete mo.weekAar[wn];
+  save();
+}
+function updateWeekAARIndicators(){
+  getWeekSpans(CY,CM).forEach(s=>{
+    const btn=document.getElementById(`week-aar-btn-${s.week}`);
+    if(btn) btn.classList.toggle('aar-has',!!getWeekAAR(s.week));
+  });
+}
+function closeWeekAAR(){
+  const editor=document.getElementById('aar-editor');
+  if(editor&&_aarWeek!=null) saveWeekAAREntry(_aarWeek,editor.innerHTML.trim());
+  document.getElementById('aar-overlay')?.remove();
+  _aarWeek=null;
+  updateWeekAARIndicators();
+}
+function openWeekAAR(wn){
+  document.getElementById('aar-overlay')?.remove();
+  _aarDay=null; _aarWeek=wn;
+  const span=getWeekSpans(CY,CM).find(s=>s.week===wn);
+  const dateStr=span?`${MON[CM]} ${span.start}–${span.end}, ${CY}`:`Week ${wn}`;
+  const content=getWeekAAR(wn);
+  const isMobile=window.innerWidth<=768;
+
+  const overlay=document.createElement('div');
+  overlay.id='aar-overlay';
+  overlay.style.cssText=isMobile
+    ?'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box'
+    :'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
+  overlay.onclick=e=>{if(e.target===overlay)closeWeekAAR()};
+
+  const modal=document.createElement('div');
+  modal.style.cssText=isMobile
+    ?'background:var(--surface);border-radius:var(--r) var(--r) 0 0;box-shadow:0 -8px 32px rgba(0,0,0,.22);width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden'
+    :'background:var(--surface);border-radius:var(--r);box-shadow:0 24px 56px rgba(0,0,0,.18);width:min(720px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden';
+  modal.onclick=e=>e.stopPropagation();
+
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0';
+  hdr.innerHTML=`<div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:2px">Weekly Review — Week ${wn}</div>
+    <div style="font-weight:600;font-size:15px;color:var(--text1)">${dateStr}</div>
+  </div>
+  <button onclick="closeWeekAAR()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px 8px;border-radius:4px;line-height:1;font-family:var(--font)" title="Close — saves automatically">&#10005;</button>`;
+
+  const editorWrap=document.createElement('div');
+  editorWrap.style.cssText='flex:1;overflow-y:auto;min-height:240px';
+  const editor=document.createElement('div');
+  editor.id='aar-editor';
+  editor.contentEditable='true';
+  editor.style.cssText='padding:20px 24px;outline:none;font-size:14px;line-height:1.85;color:var(--text1);min-height:240px;font-family:var(--font)';
+  editor.innerHTML=content||'';
+  editor.addEventListener('keydown',richtextKD);
+  editorWrap.appendChild(editor);
+
+  const tmplSection=buildAARTemplateSection();
+  modal.appendChild(hdr);modal.appendChild(editorWrap);modal.appendChild(tmplSection);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  setTimeout(()=>{
+    editor.focus();
+    const range=document.createRange();
+    range.selectNodeContents(editor);range.collapse(false);
+    const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+  },50);
 }
 
 function buildAARTemplateSection(){
@@ -2154,7 +2239,7 @@ function mkGridHorizontal(){
   const bar=document.createElement('div');
   bar.className='grid-bar';
   const hasData2=!!D.months[mk(CY,CM)];
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button></div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
@@ -2234,11 +2319,13 @@ function buildHzTable(){
     const th=document.createElement('th');
     th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
     th.colSpan=ws.end-ws.start+1;
+    th.style.position='relative';
     const wd=hzWkData[ws.week];
     const wg=wd?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
     const started=todayD<0||ws.start<=todayD;
     const bStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}`;
+    const wAarHas=!!getWeekAAR(ws.week);
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
     rC.appendChild(th);
   });
   thead.appendChild(rC);
@@ -2558,16 +2645,19 @@ function mkFathomGrid(){
   const rB=document.createElement('tr');
   const fWkSpans=getWeekSpans(CY,CM);
   const fWkData={};
-  fWkSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):0;let wd=0,wt=0;for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}fWkData[s.week]=wt>0?{pct:Math.round(wd/wt*100)}:null;});
+  fWkSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):0;let done=0,total=0;for(let d=s.start;d<=lastD;d++){items.forEach(it=>{if(!isSkipFathom(it.id,d)){total++;if(isChkFathom(it.id,d))done++;}});}fWkData[s.week]=total>0?{pct:Math.round(done/total*100)}:null;});
   fWkSpans.forEach((ws,wi)=>{
     const th=document.createElement('th');
     th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
     th.colSpan=ws.end-ws.start+1;
+    th.style.position='relative';
     const wd=fWkData[ws.week];
-    const wg=wd?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
+    const wg=wd?fathomGrade(wd.pct):null;
     const started=todayD<0||ws.start<=todayD;
-    const bStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}`;
+    const col=wg?fgColor(wg):'var(--text3)';
+    const bStyle=wg?`background:${col}20;color:${col};border:1px solid ${col}50`:`color:var(--text3);border:1px solid var(--border2)`;
+    const wAarHas=!!getWeekAAR(ws.week);
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.label+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}-f" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
     rB.appendChild(th);
   });
   thead.appendChild(rB);
