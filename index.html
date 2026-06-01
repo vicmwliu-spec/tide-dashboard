@@ -662,13 +662,11 @@ function allTimeTotal(){
 function cumulData(){
   const days=dim(CY,CM);
   const today=new Date();
-  const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
-  const last=isCur?today.getDate():days;
   const h=allHabits();
   if(!h.length) return {overall:[],groups:[]};
   let cd=0,ct=0;
   const overall=[];
-  for(let d=1;d<=last;d++){
+  for(let d=1;d<=days;d++){
     const p=dayProg(d);
     cd+=p.done;ct+=p.total;
     overall.push({x:d,y:ct?Math.round(cd/ct*100):0});
@@ -676,7 +674,7 @@ function cumulData(){
   const groups=D.groups.map(g=>{
     let gd=0,gt=0;
     const pts=[];
-    for(let d=1;d<=last;d++){
+    for(let d=1;d<=days;d++){
       let done=0,tot=0;
       g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;if(isChk(hb.id,d))done++;}});
       gd+=done;gt+=tot;
@@ -1160,7 +1158,7 @@ function buildTBody(){
 
 function buildDayRow(d,todayD){
   const isToday=d===todayD;
-  const isFuture=todayD>0&&d>todayD;
+  const isFuture=false;
   const dow=new Date(CY,CM,d).getDay();
 
   const tr=document.createElement('tr');
@@ -1336,7 +1334,7 @@ function partialUpdate(hid,day){
   const ps=document.getElementById(`ps-${day}`);
   const today=new Date();
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
-  const isFuture=isCur&&day>today.getDate();
+  const isFuture=false;
   if(ds&&!isFuture) ds.innerHTML=`${done}<span style="color:var(--text3);font-size:9px">/${total}</span>`;
   if(ps&&!isFuture){
     const c=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
@@ -2297,7 +2295,7 @@ function buildHzTable(){
   for(let d=1;d<=days;d++){
     const dow=new Date(CY,CM,d).getDay();
     const isToday=d===todayD;
-    const isFuture=isCurMo&&d>todayD;
+    const isFuture=false;
     const isWeekStart=dow===1&&d>1;
     const {pct}=dayProg(d);
     const td=document.createElement('td');
@@ -2336,7 +2334,7 @@ function buildHzTable(){
     const dow=new Date(CY,CM,d).getDay();
     const isToday=d===todayD;
     const isWeekStart=dow===1&&d>1;
-    const isFutureDay=isCurMo&&d>todayD;
+    const isFutureDay=false;
     const th=document.createElement('th');
     th.className='st hz-day-th'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
     th.innerHTML=`<span class="hd-num">${d}</span><span class="hd-dow">${DOW[dow]}</span>${!isFutureDay?`<button id="aar-btn-${d}" class="aar-btn${getAAR(d)?' aar-has':''}" onclick="event.stopPropagation();openAAR(${d})" title="After Action Review">✎</button>`:''}`;
@@ -2428,7 +2426,7 @@ function buildHzTable(){
       for(let d=1;d<=days;d++){
         const dow=new Date(CY,CM,d).getDay();
         const isToday=d===todayD;
-        const isFuture=isCurMo&&d>todayD;
+        const isFuture=false;
         const isWeekStart=dow===1&&d>1;
         const chk=isChk(h.id,d);
         const skp=isSkip(h.id,d);
@@ -2624,7 +2622,7 @@ function mkFathomGrid(){
   rA.appendChild(cornerA);
   for(let d=1;d<=days;d++){
     const dow=new Date(CY,CM,d).getDay();
-    const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===1&&d>1;
+    const isToday=d===todayD,isFuture=false,isWeekStart=dow===1&&d>1;
     const {pct}=fathomDayProg(d);
     const td=document.createElement('td');
     td.id=`fdp-${d}`;
@@ -2713,7 +2711,7 @@ function mkFathomGrid(){
     let rowDone=0,rowTotal=0;
     for(let d=1;d<=days;d++){
       const dow=new Date(CY,CM,d).getDay();
-      const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===1&&d>1;
+      const isToday=d===todayD,isFuture=false,isWeekStart=dow===1&&d>1;
       const chk=isChkFathom(item.id,d);
       const skp=isSkipFathom(item.id,d);
       if(!isFuture&&!skp){rowDone+=chk?1:0;rowTotal++;}
