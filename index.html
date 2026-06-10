@@ -2262,6 +2262,7 @@ function purgeHabit(gid,hid){
 function clearHabitHistory(hid){
   if(!confirm('Clear all logged history for this habit? The habit stays active but all past completions and skips are erased.')) return;
   Object.values(D.months).forEach(mo=>{if(mo.completions?.[hid])mo.completions[hid]={};if(mo.skips?.[hid])mo.skips[hid]={};});
+  for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h&&h.startDate){applyHabitStartDateSkips(hid,h.startDate);}break;}
   save();render();
 }
 function mkArchivedPanel(){
