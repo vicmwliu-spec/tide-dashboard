@@ -365,6 +365,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 .chk-box{position:relative}
 .chk-box.freq-off{opacity:0.12;background:transparent!important;border-color:var(--border2)!important;}
 .freq-off-c{pointer-events:none!important;cursor:default!important;}
+.chk-box.before-start{opacity:0.35;}
 .freq-day-btn{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--border);background:transparent;font-size:9px;cursor:pointer;color:var(--text3);padding:0;line-height:1;text-align:center;font-weight:600;transition:all .1s;flex-shrink:0;}
 .freq-day-btn.freq-on{background:var(--text1);border-color:var(--text1);color:var(--bg);}
 .freq-day-btn.freq-on-fathom{background:#6B7FA8;border-color:#6B7FA8;color:#fff;}
@@ -608,13 +609,26 @@ function isFreqExcluded(hid,day){
 }
 
 function toggle(hid,day){
+  let startMoved=false;
+  for(const g of D.groups){
+    const h=g.habits.find(h=>h.id===hid);
+    if(h&&h.startDate){
+      const cellDate=new Date(CY,CM,day);
+      if(cellDate<new Date(h.startDate+'T00:00:00')){
+        h.startDate=`${CY}-${String(CM+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        applyHabitStartDateSkips(hid,h.startDate);
+        startMoved=true;
+      }
+    }
+    break;
+  }
   const mo=md(CY,CM);
   if(!mo.completions[hid]) mo.completions[hid]={};
   if(!mo.skips[hid]) mo.skips[hid]={};
   mo.skips[hid][day]=false;
   mo.completions[hid][day]=!mo.completions[hid][day];
   save();
-  if(gridLayout==='vertical') partialUpdate(hid,day);
+  if(startMoved) render(); else if(gridLayout==='vertical') partialUpdate(hid,day);
 }
 function skipToggle(hid,day){
   const mo=md(CY,CM);
@@ -1225,9 +1239,10 @@ function buildDayRow(d,todayD){
       const chk=isChk(h.id,d);
       const skp=isSkip(h.id,d);
       const foff=isFreqExcluded(h.id,d);
+      const bstart=!chk&&h.startDate&&new Date(CY,CM,d)<new Date(h.startDate+'T00:00:00');
       if(foff) td2.classList.add('freq-off-c');
       td2.onclick=(isFuture||foff)?null:()=>doToggle(h.id,d,g.color);
-      td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+      td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
       tr.appendChild(td2);
     });
     if(editMode){
@@ -2525,13 +2540,14 @@ function buildHzTable(){
         const chk=isChk(h.id,d);
         const skp=isSkip(h.id,d);
         const foff=h.freq&&h.freq.length<7&&!h.freq.includes(dow);
+        const bstart=!chk&&h.startDate&&new Date(CY,CM,d)<new Date(h.startDate+'T00:00:00');
         if(!isFuture&&!skp&&!foff){rowDone+=chk?1:0;rowTotal++}
         const td=document.createElement('td');
         td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'')+(foff?' freq-off-c':'');
         td.id=`hzcc-${h.id}-${d}`;
         td.dataset.color=g.color;
         if(!isFuture&&!foff) td.onclick=()=>doHzToggle(h.id,d,g.color);
-        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
         tr.appendChild(td);
       }
 
