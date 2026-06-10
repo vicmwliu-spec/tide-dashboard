@@ -170,6 +170,19 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .del-btn{display:none;background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1;vertical-align:middle}
 .edit-mode .del-btn{display:inline}
 .del-btn:hover{color:#EF4444}
+.clr-btn{display:none;background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px;line-height:1;opacity:.55;flex-shrink:0;}
+.edit-mode .clr-btn{display:inline}
+.clr-btn:hover{color:#EF4444;opacity:1;}
+.arch-panel{margin:8px 12px 4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r2);}
+.arch-panel-title{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
+.arch-item{display:flex;align-items:center;gap:6px;padding:4px 2px;border-bottom:1px solid var(--border2);}
+.arch-item:last-child{border-bottom:none;}
+.arch-item-name{flex:1;color:var(--text3);text-decoration:line-through;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.arch-item-grp{font-size:10px;color:var(--text3);flex-shrink:0;}
+.restore-btn{font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap;font-family:var(--font);}
+.restore-btn:hover{background:var(--border);}
+.purge-btn{font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid #FCA5A5;background:transparent;color:#EF4444;cursor:pointer;white-space:nowrap;font-family:var(--font);}
+.purge-btn:hover{background:#FEF2F2;}
 .add-hbt-btn{display:none;background:none;border:1px dashed var(--border);border-radius:var(--r2);padding:3px 9px;font-size:10px;color:var(--text3);cursor:pointer;font-family:var(--font);white-space:nowrap}
 .edit-mode .add-hbt-btn{display:inline-flex;align-items:center;gap:3px}
 .add-hbt-btn:hover{border-color:var(--text2);color:var(--text2)}
@@ -617,6 +630,7 @@ function dayProg(day){
   const cellDate=new Date(CY,CM,day);
   const dow=cellDate.getDay();
   const h=allHabits().filter(hb=>{
+    if(hb.archived) return false;
     if(hb.startDate&&new Date(hb.startDate+'T00:00:00')>cellDate) return false;
     if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return false;
     return true;
@@ -628,6 +642,9 @@ function dayProg(day){
 
 function habitProg(hid){
   const days=dim(CY,CM);
+  let isArch=false;
+  for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h){isArch=!!h.archived;break;}}
+  if(isArch) return {goal:days,actual:0,pct:0,last:0};
   const today=new Date();
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
   const last=isCur?today.getDate():days;
@@ -719,6 +736,7 @@ function render(){
     } else {
       app.appendChild(mkGridHorizontal());
     }
+    if(editMode){const ap=mkArchivedPanel();if(ap)app.appendChild(ap);}
     app.appendChild(mkFathomGrid());
     app.appendChild(mkTide());
   }
@@ -1078,7 +1096,7 @@ function buildTHead(){
   const r2=document.createElement('tr');
   r2.className='hbt-row';
   D.groups.forEach((g,gi)=>{
-    g.habits.forEach((h,hi)=>{
+    g.habits.filter(h=>!h.archived).forEach((h,hi)=>{
       const th=document.createElement('th');
       th.className='st'+(gi>0&&hi===0?' grp-sep':'');
       th.id=`hth-${h.id}`;
@@ -1090,7 +1108,8 @@ function buildTHead(){
             <span class="dnd-grip">⠿</span>
             <input class="hbt-in" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
             <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(h.startDate||todayStr())}<input type="date" value="${h.startDate||todayStr()}" onchange="changeHabitStartDate('${h.id}',this.value)"/></span>
-            <button class="del-btn" onclick="deleteHabit('${g.id}','${h.id}')" title="Remove">&#10005;</button>
+            <button class="clr-btn" onclick="clearHabitHistory('${h.id}')" title="Clear all history">⊗</button>
+            <button class="del-btn" onclick="deleteHabit('${g.id}','${h.id}')" title="Archive">&#10005;</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${freqBtns}</div>
         </div>`;
@@ -1198,7 +1217,7 @@ function buildDayRow(d,todayD){
 
   // Habit cells
   D.groups.forEach((g,gi)=>{
-    g.habits.forEach((h,hi)=>{
+    g.habits.filter(h=>!h.archived).forEach((h,hi)=>{
       const td2=document.createElement('td');
       td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
       td2.id=`cc-${h.id}-${d}`;
@@ -1527,7 +1546,7 @@ function grpTideScore(g){
   const td=isCur?today.getDate():days;
   let done=0,poss=0;
   for(let d=1;d<=td;d++){
-    g.habits.forEach(h=>{if(!isSkip(h.id,d)){poss++;if(isChk(h.id,d))done++;}});
+    g.habits.forEach(h=>{if(h.archived)return;if(!isSkip(h.id,d)){poss++;if(isChk(h.id,d))done++;}});
   }
   return poss?Math.floor(done/poss*100):0;
 }
@@ -2210,7 +2229,39 @@ function addHabit(gid){
 
 function deleteHabit(gid,hid){
   const g=D.groups.find(g=>g.id===gid);
-  if(g){g.habits=g.habits.filter(h=>h.id!==hid);save();render()}
+  const h=g?.habits.find(h=>h.id===hid);
+  if(h){h.archived=true;save();render();}
+}
+function restoreHabit(gid,hid){
+  const g=D.groups.find(g=>g.id===gid);
+  const h=g?.habits.find(h=>h.id===hid);
+  if(h){h.archived=false;save();render();}
+}
+function purgeHabit(gid,hid){
+  if(!confirm('Permanently delete this habit and all its recorded history? This cannot be undone.')) return;
+  const g=D.groups.find(g=>g.id===gid);
+  if(g) g.habits=g.habits.filter(h=>h.id!==hid);
+  Object.values(D.months).forEach(mo=>{delete mo.completions?.[hid];delete mo.skips?.[hid];});
+  save();render();
+}
+function clearHabitHistory(hid){
+  if(!confirm('Clear all logged history for this habit? The habit stays active but all past completions and skips are erased.')) return;
+  Object.values(D.months).forEach(mo=>{if(mo.completions?.[hid])mo.completions[hid]={};if(mo.skips?.[hid])mo.skips[hid]={};});
+  save();render();
+}
+function mkArchivedPanel(){
+  const allArchived=D.groups.flatMap(g=>g.habits.filter(h=>h.archived).map(h=>({...h,gid:g.id,gc:g.color,gn:g.name})));
+  if(!allArchived.length) return null;
+  const panel=document.createElement('div');
+  panel.className='arch-panel';
+  panel.innerHTML=`<div class="arch-panel-title">Archived Habits</div>`+
+    allArchived.map(h=>`<div class="arch-item">
+      <div class="arch-item-name">${esc(h.name)}</div>
+      <div class="arch-item-grp" style="color:${h.gc}">${esc(h.gn)}</div>
+      <button class="restore-btn" onclick="restoreHabit('${h.gid}','${h.id}')">Restore</button>
+      <button class="purge-btn" onclick="purgeHabit('${h.gid}','${h.id}')">Delete</button>
+    </div>`).join('');
+  return panel;
 }
 
 function renameHabit(hid,name){
@@ -2424,7 +2475,7 @@ function buildHzTable(){
     grpTr.appendChild(grpTd);tbody.appendChild(grpTr);
 
     // Habit rows
-    g.habits.forEach(h=>{
+    g.habits.filter(h=>!h.archived).forEach(h=>{
       const tr=document.createElement('tr');
       tr.className='hz-row';
       const nameTd=document.createElement('td');
@@ -2437,7 +2488,8 @@ function buildHzTable(){
             <span class="dnd-grip" style="margin-right:1px">⠿</span>
             <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
             <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(h.startDate||todayStr())}<input type="date" value="${h.startDate||todayStr()}" onchange="changeHabitStartDate('${h.id}',this.value)"/></span>
-            <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteHabit('${g.id}','${h.id}')" title="Remove">&#10005;</button>
+            <button class="clr-btn" style="display:inline" onclick="clearHabitHistory('${h.id}')" title="Clear all history">⊗</button>
+            <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteHabit('${g.id}','${h.id}')" title="Archive">&#10005;</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${hfreqBtns}</div>
         </div>`;
