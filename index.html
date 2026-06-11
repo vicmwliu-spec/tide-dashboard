@@ -675,14 +675,14 @@ function monthStats(){
   const td=isCur?today.getDate():days;
   const dLeft=isCur?days-td:0;
   let comp=0,poss=0;
-  for(let d=1;d<=td;d++){const p=dayProg(d);comp+=p.done;poss+=(isCur&&d===td)?p.done:p.total;}
+  for(let d=1;d<=td;d++){const p=dayProg(d);comp+=p.done;poss+=p.total;}
   const rate=poss?Math.floor(comp/poss*100):0;
   const futPoss=habits.length*dLeft;
   const maxRate=(poss+futPoss)?Math.floor((comp+futPoss)/(poss+futPoss)*100):0;
   const monthGroups=D.groups.map(g=>{
     const hs=g.habits.filter(hb=>!hb.archived);
     let gd=0,gt=0;
-    for(let d=1;d<=td;d++){const dow=new Date(CY,CM,d).getDay();hs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){const chk=isChk(hb.id,d);if(!(isCur&&d===td)||chk){gt++;}if(chk)gd++;}});}
+    for(let d=1;d<=td;d++){const dow=new Date(CY,CM,d).getDay();hs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){const chk=isChk(hb.id,d);gt++;if(chk)gd++;}});}
     const gFutPoss=hs.length*dLeft;
     const maxRate=(gt+gFutPoss)?Math.floor((gd+gFutPoss)/(gt+gFutPoss)*100):0;
     return {...g,pct:gt?Math.floor(gd/gt*100):0,gt,gd,maxRate};
