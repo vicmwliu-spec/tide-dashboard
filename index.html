@@ -615,7 +615,9 @@ function toggle(hid,day){
     if(h&&h.startDate){
       const cellDate=new Date(CY,CM,day);
       if(cellDate<new Date(h.startDate+'T00:00:00')){
-        h.startDate=`${CY}-${String(CM+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const newStart=`${CY}-${String(CM+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        if(!confirm(`"${h.name}" starts on ${fmtDate(h.startDate)}. Move the start date back to ${fmtDate(newStart)} to log this day?`))return;
+        h.startDate=newStart;
         applyHabitStartDateSkips(hid,h.startDate);
         startMoved=true;
       }
@@ -2301,7 +2303,12 @@ function toggleHabitFreqDay(hid,dow){
 function changeHabitStartDate(hid,date){
   for(const g of D.groups){
     const h=g.habits.find(h=>h.id===hid);
-    if(h){h.startDate=date||todayStr();applyHabitStartDateSkips(hid,h.startDate);save();render();return}
+    if(h){
+      const newDate=date||todayStr();
+      const oldDate=h.startDate||newDate;
+      if(newDate>oldDate&&!confirm(`Moving the start date forward to ${fmtDate(newDate)} will mark all completions before that date as skipped. Continue?`))return;
+      h.startDate=newDate;applyHabitStartDateSkips(hid,h.startDate);save();render();return;
+    }
   }
 }
 
