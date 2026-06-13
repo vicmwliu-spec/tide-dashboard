@@ -56,6 +56,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .quote-icon{color:var(--text3);font-size:22px;line-height:1;margin-top:1px;flex-shrink:0}
 .quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text2);font-style:italic;resize:none;line-height:1.6;overflow:hidden}
 .quote-ta::placeholder{color:var(--text3)}
+/* ── Priority ── */
+.priority-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
+.priority-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap;margin-top:3px;flex-shrink:0}
+.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text1);resize:none;line-height:1.6;overflow:hidden}
+.priority-ta:empty:before{content:attr(data-ph);color:var(--text3);font-weight:400;pointer-events:none}
 
 /* ── Stats ── */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
@@ -303,6 +308,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 
   /* Quote */
   .quote-card{padding:10px 14px;margin-bottom:10px}
+  .priority-card{padding:10px 14px;margin-bottom:10px}
 
   /* Stats */
   .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
@@ -421,6 +427,7 @@ function defaultData(){
     months:{},
     aarTemplates:[],
     fathom:{items:[]},
+    priority:'',
   };
 }
 
@@ -745,6 +752,7 @@ function render(){
     app.appendChild(mkAnnual());
   } else {
     app.appendChild(mkQuote());
+    app.appendChild(mkPriority());
     app.appendChild(mkStats());
     if(gridLayout==='vertical'){
       app.appendChild(mkChart());
@@ -802,6 +810,18 @@ function mkQuote(){
       onkeydown="richtextKD(event)"
     ></div>`;
   setTimeout(()=>{const qta=document.getElementById('qta');if(qta)qta.innerHTML=m?.quote||''},0);
+  return d;
+}
+function mkPriority(){
+  const d=document.createElement('div');
+  d.className='priority-card';
+  d.innerHTML=`
+    <div class="priority-label">Priority</div>
+    <div class="priority-ta" id="pta" contenteditable="true"
+      oninput="savePriority(this.innerHTML)"
+      onkeydown="richtextKD(event)"
+    ></div>`;
+  setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=D.priority||''},0);
   return d;
 }
 
@@ -1797,6 +1817,7 @@ function toggleLayout(){gridLayout=gridLayout==='vertical'?'horizontal':'vertica
 function toggleEdit(){editMode=!editMode;render()}
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
+function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
 
 function resetMonth(){
   if(!confirm(`Reset ${MON[CM]} ${CY}? All completions, notes, and quotes for this month will be cleared.`)) return;
