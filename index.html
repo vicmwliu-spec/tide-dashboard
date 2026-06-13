@@ -2306,7 +2306,7 @@ function changeHabitStartDate(hid,date){
     if(h){
       const newDate=date||todayStr();
       const oldDate=h.startDate||newDate;
-      if(newDate>oldDate&&!confirm(`Moving the start date forward to ${fmtDate(newDate)} will mark all completions before that date as skipped. Continue?`))return;
+      if(newDate!==oldDate&&!confirm(`Changing the start date to ${fmtDate(newDate)} will affect skips and completions. Continue?`))return;
       h.startDate=newDate;applyHabitStartDateSkips(hid,h.startDate);
       if(newDate<oldDate){const start=new Date(newDate+'T00:00:00'),end=new Date(oldDate+'T00:00:00');Object.keys(D.months).forEach(k=>{const[ys,ms]=k.split('-');const mo=D.months[k];if(!mo.skips[hid])return;const days=dim(+ys,+ms-1);for(let d=1;d<=days;d++){const dt=new Date(+ys,+ms-1,d);if(dt>=start&&dt<end)mo.skips[hid][d]=false;}});}
       save();render();return;
