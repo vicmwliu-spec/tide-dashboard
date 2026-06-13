@@ -814,10 +814,9 @@ function mkQuote(){
 }
 function mkPriority(){
   const d=document.createElement('div');
-  d.className='priority-card';
+  d.className='quote-card';
   d.innerHTML=`
-    <div class="priority-label">Priority</div>
-    <div class="priority-ta" id="pta" contenteditable="true"
+    <div class="quote-ta" id="pta" contenteditable="true"
       oninput="savePriority(this.innerHTML)"
       onkeydown="richtextKD(event)"
     ></div>`;
