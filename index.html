@@ -1742,7 +1742,7 @@ function mkAnnual(){
         const moGroups=(m&&m.snapshot)?m.snapshot.groups:D.groups;
         const moHabits=moGroups.flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({...hb,gid:g.id})));
         const moFItems=(m&&m.snapshot)?m.snapshot.fathomItems:(D.fathom?.items||[]);
-        const isCur=mi===CM&&CY===now.getFullYear();
+        const isCur=mi===now.getMonth()&&CY===now.getFullYear();
         const daysToCount=isCur?now.getDate():days;
         let comp=0,poss=0;
         if(m){
