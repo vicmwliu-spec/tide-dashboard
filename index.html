@@ -1777,7 +1777,8 @@ function mkAnnual(){
         }
         const rate=poss?Math.floor(comp/poss*100):0;
         const barC=rate>=80?'var(--green)':rate>=50?'var(--amber)':rate>0?'var(--accent)':'var(--border)';
-        const tideGrade=poss>0?TIDE_GRADES.find(g=>rate>=g.min):null;
+        const isPastOrCur=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
+        const tideGrade=isPastOrCur&&poss>0?TIDE_GRADES.find(g=>rate>=g.min):null;
         let fGrade=null,fc=0,fp=0;
         if(moFItems.length){
           const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
