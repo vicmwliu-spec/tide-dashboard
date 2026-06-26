@@ -1527,16 +1527,22 @@ function weekStats(){
 function _periodStats(monthIndices){
   const today=new Date();
   const isCurrentYear=CY===today.getFullYear();
-  const h=allHabits();
   let comp=0,poss=0;
   monthIndices.forEach(mi=>{
-    if(isCurrentYear&&mi>today.getMonth()) return; // future month
+    if(isCurrentYear&&mi>today.getMonth()) return;
     const m=D.months[mk(CY,mi)];
     if(!m) return;
+    const moGroups=(m.snapshot)?m.snapshot.groups:D.groups;
+    const moHabits=moGroups.flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({...hb})));
     const isCur=isCurrentYear&&mi===today.getMonth();
     const lastDay=isCur?today.getDate():dim(CY,mi);
     for(let dd=1;dd<=lastDay;dd++){
-      h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}});
+      const dow=new Date(CY,mi,dd).getDay();
+      moHabits.forEach(hb=>{
+        if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
+        if(hb.startDate&&new Date(CY,mi,dd)<new Date(hb.startDate+'T00:00:00')) return;
+        if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}
+      });
     }
   });
   return {comp,poss,pct:poss?Math.floor(comp/poss*100):0,hasData:poss>0};
