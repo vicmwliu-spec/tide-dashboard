@@ -1224,6 +1224,7 @@ function buildTBody(){
   const tbody=document.createElement('tbody');
   const days=dim(CY,CM);
   const todayD=now.getFullYear()===CY&&now.getMonth()===CM?now.getDate():-1;
+  const isPastMonth=CY<now.getFullYear()||(CY===now.getFullYear()&&CM<now.getMonth());
   const spans=getWeekSpans(CY,CM);
   // Build a lookup: day → week number
   const dayWeek={};
@@ -1231,7 +1232,7 @@ function buildTBody(){
   // Pre-compute per-week completion stats for grade badges
   const wkData={};
   spans.forEach(s=>{
-    const lastD=todayD>0?Math.min(s.end,todayD):0;
+    const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);
     let wd=0,wt=0;
     for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
     wkData[s.week]=wt>0?{pct:Math.round(wd/wt*100),done:wd,total:wt}:null;
@@ -2461,6 +2462,7 @@ function buildHzTable(){
   const today=new Date();
   const isCurMo=today.getFullYear()===CY&&today.getMonth()===CM;
   const todayD=isCurMo?today.getDate():-1;
+  const isPastMonth=CY<today.getFullYear()||(CY===today.getFullYear()&&CM<today.getMonth());
   const t=document.createElement('table');
   t.className='tbl';t.id='hz-tbl';
 
@@ -2521,7 +2523,7 @@ function buildHzTable(){
   const rC=document.createElement('tr');
   const weekSpans=getWeekSpans(CY,CM);
   const hzWkData={};
-  weekSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):0;let wd=0,wt=0;for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}hzWkData[s.week]=wt>0?{pct:Math.round(wd/wt*100)}:null;});
+  weekSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);let wd=0,wt=0;for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}hzWkData[s.week]=wt>0?{pct:Math.round(wd/wt*100)}:null;});
   weekSpans.forEach((ws,wi)=>{
     const th=document.createElement('th');
     th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
@@ -2790,6 +2792,7 @@ function mkFathomGrid(){
   const items=activeFathomItems();
   const isCurMo=CY===new Date().getFullYear()&&CM===new Date().getMonth();
   const todayD=isCurMo?new Date().getDate():-1;
+  const isPastMonth=CY<new Date().getFullYear()||(CY===new Date().getFullYear()&&CM<new Date().getMonth());
   const days=dim(CY,CM);
   const {pct:mPct,hasData:mHas}=fathomMonthStats();
   const mGrade=mHas?fathomGrade(mPct):null;
@@ -2860,7 +2863,7 @@ function mkFathomGrid(){
   const rB=document.createElement('tr');
   const fWkSpans=getWeekSpans(CY,CM);
   const fWkData={};
-  fWkSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):0;let done=0,total=0;for(let d=s.start;d<=lastD;d++){items.forEach(it=>{if(!isSkipFathom(it.id,d)){total++;if(isChkFathom(it.id,d))done++;}});}fWkData[s.week]=total>0?{pct:Math.round(done/total*100)}:null;});
+  fWkSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);let done=0,total=0;for(let d=s.start;d<=lastD;d++){items.forEach(it=>{if(!isSkipFathom(it.id,d)){total++;if(isChkFathom(it.id,d))done++;}});}fWkData[s.week]=total>0?{pct:Math.round(done/total*100)}:null;});
   fWkSpans.forEach((ws,wi)=>{
     const th=document.createElement('th');
     th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
