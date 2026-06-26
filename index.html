@@ -2346,12 +2346,18 @@ function purgeHabit(gid,hid){
   if(!confirm('Permanently delete this habit and all its recorded history? This cannot be undone.')) return;
   const g=D.groups.find(g=>g.id===gid);
   if(g) g.habits=g.habits.filter(h=>h.id!==hid);
-  Object.values(D.months).forEach(mo=>{delete mo.completions?.[hid];delete mo.skips?.[hid];});
+  Object.values(D.months).forEach(mo=>{
+    const inSnapshot=mo.snapshot?.groups?.some(sg=>sg.habits.some(sh=>sh.id===hid));
+    if(!inSnapshot){delete mo.completions?.[hid];delete mo.skips?.[hid];}
+  });
   save();render();
 }
 function clearHabitHistory(hid){
   if(!confirm('Clear all logged history for this habit? The habit stays active but all past completions and skips are erased.')) return;
-  Object.values(D.months).forEach(mo=>{if(mo.completions?.[hid])mo.completions[hid]={};if(mo.skips?.[hid])mo.skips[hid]={};});
+  Object.values(D.months).forEach(mo=>{
+    const inSnapshot=mo.snapshot?.groups?.some(sg=>sg.habits.some(sh=>sh.id===hid));
+    if(!inSnapshot){if(mo.completions?.[hid])mo.completions[hid]={};if(mo.skips?.[hid])mo.skips[hid]={};}
+  });
   for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h&&h.startDate){applyHabitStartDateSkips(hid,h.startDate);}break;}
   save();render();
 }
