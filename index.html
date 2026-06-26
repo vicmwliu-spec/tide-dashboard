@@ -1715,7 +1715,7 @@ function mkAnnual(){
       const qFItems=(qmo&&qmo.snapshot)?qmo.snapshot.fathomItems:(D.fathom?.items||[]);
       if(!qFItems.length) continue;
       const lastD=isCurQMo?now.getDate():dim(CY,qm);
-      for(let dd=1;dd<=lastD;dd++) qFItems.forEach(it=>{if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});
+      for(let dd=1;dd<=lastD;dd++){const qdow=new Date(CY,qm,dd).getDay();qFItems.forEach(it=>{if(it.startDate&&new Date(CY,qm,dd)<new Date(it.startDate+'T00:00:00')) return;if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});}
     }
     if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
     return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp};
@@ -1771,6 +1771,7 @@ function mkAnnual(){
             const dow=new Date(CY,mi,dd).getDay();
             moHabits.forEach(hb=>{
               if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
+              if(hb.startDate&&new Date(CY,mi,dd)<new Date(hb.startDate+'T00:00:00')) return;
               if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}
             });
           }
