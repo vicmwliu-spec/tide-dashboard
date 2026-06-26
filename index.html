@@ -601,6 +601,19 @@ function getWeekSpans(y,m){
 
 function allHabits(){ return D.groups.flatMap(g=>g.habits.map(h=>({...h,gid:g.id,gc:g.color,gn:g.name}))) }
 
+function activeGroups(){
+  const m=D.months[mk(CY,CM)];
+  return (m&&m.snapshot)?m.snapshot.groups:D.groups;
+}
+function activeFathomItems(){
+  const m=D.months[mk(CY,CM)];
+  return (m&&m.snapshot)?m.snapshot.fathomItems:(D.fathom?.items||[]);
+}
+function isMonthArchived(){
+  const m=D.months[mk(CY,CM)];
+  return !!(m&&m.archived);
+}
+
 function isChk(hid,day){
   const mo=D.months[mk(CY,CM)];
   if(!mo) return false;
@@ -611,13 +624,13 @@ function isSkip(hid,day){
   return !!(mo?.skips?.[hid]?.[day]);
 }
 function isFreqExcluded(hid,day){
-  for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h){if(!h.freq||h.freq.length>=7)return false;return!h.freq.includes(new Date(CY,CM,day).getDay());}}
+  for(const g of activeGroups()){const h=g.habits.find(h=>h.id===hid);if(h){if(!h.freq||h.freq.length>=7)return false;return!h.freq.includes(new Date(CY,CM,day).getDay());}}
   return false;
 }
 
 function toggle(hid,day){
   let startMoved=false;
-  for(const g of D.groups){
+  for(const g of activeGroups()){
     const h=g.habits.find(h=>h.id===hid);
     if(h&&h.startDate){
       const cellDate=new Date(CY,CM,day);
@@ -652,7 +665,7 @@ function skipToggle(hid,day){
 function dayProg(day){
   const cellDate=new Date(CY,CM,day);
   const dow=cellDate.getDay();
-  const h=allHabits().filter(hb=>{
+  const h=activeGroups().flatMap(g=>g.habits.map(hb=>({...hb,gid:g.id}))).filter(hb=>{
     if(hb.archived) return false;
     if(hb.startDate&&new Date(hb.startDate+'T00:00:00')>cellDate) return false;
     if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return false;
@@ -666,7 +679,7 @@ function dayProg(day){
 function habitProg(hid){
   const days=dim(CY,CM);
   let isArch=false;
-  for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h){isArch=!!h.archived;break;}}
+  for(const g of activeGroups()){const h=g.habits.find(h=>h.id===hid);if(h){isArch=!!h.archived;break;}}
   if(isArch) return {goal:days,actual:0,pct:0,last:0};
   const today=new Date();
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
@@ -677,7 +690,7 @@ function habitProg(hid){
 }
 
 function monthStats(){
-  const habits=allHabits();
+  const habits=activeGroups().flatMap(g=>g.habits.filter(hb=>!hb.archived));
   const days=dim(CY,CM);
   const today=new Date();
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
@@ -688,7 +701,7 @@ function monthStats(){
   const rate=poss?Math.floor(comp/poss*100):0;
   const futPoss=habits.length*dLeft;
   const maxRate=(poss+futPoss)?Math.floor((comp+futPoss)/(poss+futPoss)*100):0;
-  const monthGroups=D.groups.map(g=>{
+  const monthGroups=activeGroups().map(g=>{
     const hs=g.habits.filter(hb=>!hb.archived);
     let gd=0,gt=0;
     for(let d=1;d<=td;d++){const dow=new Date(CY,CM,d).getDay();hs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){const chk=isChk(hb.id,d);gt++;if(chk)gd++;}});}
@@ -713,7 +726,7 @@ function allTimeTotal(){
 function cumulData(){
   const days=dim(CY,CM);
   const today=new Date();
-  const h=allHabits();
+  const h=activeGroups().flatMap(g=>g.habits.map(hb=>({...hb,gid:g.id})));
   if(!h.length) return {overall:[],groups:[]};
   let cd=0,ct=0;
   const overall=[];
@@ -722,7 +735,7 @@ function cumulData(){
     cd+=p.done;ct+=p.total;
     overall.push({x:d,y:ct?Math.round(cd/ct*100):0});
   }
-  const groups=D.groups.map(g=>{
+  const groups=activeGroups().map(g=>{
     let gd=0,gt=0;
     const pts=[];
     for(let d=1;d<=days;d++){
@@ -778,15 +791,17 @@ function mkHeader(){
   const d=document.createElement('div');
   d.className='hdr';
   const isNow=CY===now.getFullYear()&&CM===now.getMonth();
+  const archived=isMonthArchived();
   d.innerHTML=`
     <div class="hdr-l">
       <div class="app-logo">TIDE</div>
       <div class="month-nav">
         <button class="nav-btn" onclick="prevMo()">&#8249;</button>
-        <div class="month-lbl">${MON[CM]} ${CY}</div>
+        <div class="month-lbl">${archived?'&#128274; ':''}${MON[CM]} ${CY}</div>
         <button class="nav-btn" onclick="nextMo()">&#8250;</button>
       </div>
       ${!isNow?`<button class="btn btn-today" onclick="goToday()">Today</button>`:''}
+      ${view!=='year'?(archived?`<button class="btn" onclick="unarchiveMonth()" title="Unarchive this month">Unarchive</button>`:`<button class="btn" onclick="archiveMonth()" title="Archive this month">Archive Month</button>`):''}
     </div>
     <div class="hdr-r">
       <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
@@ -1039,7 +1054,8 @@ function mkGrid(){
   const bar=document.createElement('div');
   bar.className='grid-bar';
   const hasData=!!D.months[mk(CY,CM)];
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}</div>`;
+  const _arch=isMonthArchived();
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch&&hasData&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.appendChild(buildTable());
@@ -1070,7 +1086,7 @@ function buildTHead(){
   dayCorner.innerHTML=`<span style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Day</span>`;
   r1.appendChild(dayCorner);
 
-  D.groups.forEach((g,gi)=>{
+  activeGroups().forEach((g,gi)=>{
     const totalCols=g.habits.length+(editMode?1:0);
     const th=document.createElement('th');
     th.className='grp-th st';
@@ -1130,7 +1146,7 @@ function buildTHead(){
   // Row 2: Habit name headers
   const r2=document.createElement('tr');
   r2.className='hbt-row';
-  D.groups.forEach((g,gi)=>{
+  activeGroups().forEach((g,gi)=>{
     g.habits.filter(h=>!h.archived).forEach((h,hi)=>{
       const th=document.createElement('th');
       th.className='st'+(gi>0&&hi===0?' grp-sep':'');
@@ -1199,7 +1215,7 @@ function buildTBody(){
     for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
     wkData[s.week]=wt>0?{pct:Math.round(wd/wt*100),done:wd,total:wt}:null;
   });
-  const totalHabitCols=D.groups.reduce((s,g)=>s+g.habits.length+(editMode?1:0),0);
+  const totalHabitCols=activeGroups().reduce((s,g)=>s+g.habits.length+(editMode?1:0),0);
   for(let d=1;d<=days;d++){
     // Insert week separator before the first day of each week
     if(d===1||(new Date(CY,CM,d).getDay()===1)){
@@ -1251,7 +1267,7 @@ function buildDayRow(d,todayD){
   tr.appendChild(dc);
 
   // Habit cells
-  D.groups.forEach((g,gi)=>{
+  activeGroups().forEach((g,gi)=>{
     g.habits.filter(h=>!h.archived).forEach((h,hi)=>{
       const td2=document.createElement('td');
       td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
@@ -1295,7 +1311,6 @@ function buildDayRow(d,todayD){
 function buildTFoot(){
   const tf=document.createElement('tfoot');
   tf.className='ana-sep';
-  const h=allHabits();
   const days=dim(CY,CM);
 
   const rows={
@@ -1303,7 +1318,7 @@ function buildTFoot(){
     rate:mkAnaRow('Slight Edge %'),
   };
 
-  D.groups.forEach((g,gi)=>{
+  activeGroups().forEach((g,gi)=>{
     g.habits.forEach((h2,hi)=>{
       const {actual,pct,last}=habitProg(h2.id);
       const isSep=gi>0&&hi===0;
@@ -1525,7 +1540,7 @@ function isSkipFathom(iid,day){
   return !!(mo?.fathomSkips?.[iid]?.[day]);
 }
 function isFreqExcludedFathom(iid,day){
-  const item=D.fathom?.items?.find(i=>i.id===iid);
+  const item=activeFathomItems().find(i=>i.id===iid);
   if(!item||!item.freq||item.freq.length>=7) return false;
   return !item.freq.includes(new Date(CY,CM,day).getDay());
 }
@@ -1547,14 +1562,14 @@ function skipToggleFathom(iid,day){
   save();
 }
 function fathomDayProg(day){
-  const items=D.fathom?.items||[];
+  const items=activeFathomItems();
   const dow=new Date(CY,CM,day).getDay();
   let done=0,total=0;
   items.forEach(it=>{if(it.freq&&it.freq.length<7&&!it.freq.includes(dow))return;if(!isSkipFathom(it.id,day)){total++;if(isChkFathom(it.id,day))done++;}});
   return {done,total,pct:total?Math.floor(done/total*100):0};
 }
 function fathomMonthStats(){
-  const items=D.fathom?.items||[];
+  const items=activeFathomItems();
   if(!items.length) return {pct:0,done:0,poss:0,hasData:false};
   const today=new Date();
   const isCur=CY===today.getFullYear()&&CM===today.getMonth();
@@ -1564,7 +1579,7 @@ function fathomMonthStats(){
   return {pct:poss?Math.floor(comp/poss*100):0,done:comp,poss,hasData:poss>0};
 }
 function fathomTodayStats(){
-  const items=D.fathom?.items||[];
+  const items=activeFathomItems();
   const t=new Date();
   if(t.getFullYear()!==CY||t.getMonth()!==CM) return {pct:0,done:0,total:0,hasData:false};
   const day=t.getDate();
@@ -1588,7 +1603,7 @@ function grpTideScore(g){
 }
 
 function tideOverallScore(){
-  const h=allHabits();
+  const h=activeGroups().flatMap(g=>g.habits);
   if(!h.length) return 0;
   const today=new Date();
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
@@ -1602,7 +1617,7 @@ function tideOverallScore(){
 function mkTide(){
   const pct=tideOverallScore();
   const grade=TIDE_GRADES.find(g=>pct>=g.min);
-  const grpCards=D.groups.map(g=>{
+  const grpCards=activeGroups().map(g=>{
     const gp=grpTideScore(g);
     const gg=TIDE_GRADES.find(x=>gp>=x.min);
     return `<div style="flex:1;min-width:90px;border:1px solid var(--border2);border-left:3px solid ${g.color};border-radius:var(--r2);padding:10px 12px;text-align:center">
@@ -1643,7 +1658,7 @@ function updTide(){
   if(pctEl) pctEl.textContent=`${pct}% SLIGHT EDGE`;
   const fEl=document.getElementById('tide-fathom-line');
   if(fEl){const{pct:fp,hasData:fh}=fathomMonthStats();const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fg.label} &middot; ${fp}%`;}else fEl.style.display='none';}
-  D.groups.forEach(g=>{
+  activeGroups().forEach(g=>{
     const gp=grpTideScore(g);
     const gg=TIDE_GRADES.find(x=>gp>=x.min);
     const gl=document.getElementById(`tide-gl-${g.id}`);
@@ -1668,21 +1683,20 @@ function mkAnnual(){
 
   // ── Quarterly scores ──
   const QLabels=['Q1 · Jan – Mar','Q2 · Apr – Jun','Q3 · Jul – Sep','Q4 · Oct – Dec'];
-  const fItems=D.fathom?.items||[];
   const quarters=[0,1,2,3].map(qi=>{
     const s=quarterStats(qi);
     let fGrade=null,fc=0,fp=0;
-    if(fItems.length){
-      for(let qm=qi*3;qm<qi*3+3;qm++){
-        const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&qm<=now.getMonth());
-        if(!isPast) continue;
-        const isCurQMo=CY===now.getFullYear()&&qm===now.getMonth();
-        const qmo=D.months[mk(CY,qm)];
-        const lastD=isCurQMo?now.getDate():dim(CY,qm);
-        for(let dd=1;dd<=lastD;dd++) fItems.forEach(it=>{if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});
-      }
-      if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
+    for(let qm=qi*3;qm<qi*3+3;qm++){
+      const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&qm<=now.getMonth());
+      if(!isPast) continue;
+      const isCurQMo=CY===now.getFullYear()&&qm===now.getMonth();
+      const qmo=D.months[mk(CY,qm)];
+      const qFItems=(qmo&&qmo.snapshot)?qmo.snapshot.fathomItems:(D.fathom?.items||[]);
+      if(!qFItems.length) continue;
+      const lastD=isCurQMo?now.getDate():dim(CY,qm);
+      for(let dd=1;dd<=lastD;dd++) qFItems.forEach(it=>{if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});
     }
+    if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
     return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp};
   });
 
@@ -1725,23 +1739,29 @@ function mkAnnual(){
         const k=mk(CY,mi);
         const m=D.months[k];
         const days=dim(CY,mi);
-        const h=allHabits();
+        const moGroups=(m&&m.snapshot)?m.snapshot.groups:D.groups;
+        const moHabits=moGroups.flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({...hb,gid:g.id})));
+        const moFItems=(m&&m.snapshot)?m.snapshot.fathomItems:(D.fathom?.items||[]);
         const isCur=mi===CM&&CY===now.getFullYear();
         const daysToCount=isCur?now.getDate():days;
         let comp=0,poss=0;
         if(m){
           for(let dd=1;dd<=daysToCount;dd++){
-            h.forEach(hb=>{if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}});
+            const dow=new Date(CY,mi,dd).getDay();
+            moHabits.forEach(hb=>{
+              if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
+              if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}
+            });
           }
         }
         const rate=poss?Math.floor(comp/poss*100):0;
         const barC=rate>=80?'var(--green)':rate>=50?'var(--amber)':rate>0?'var(--accent)':'var(--border)';
         const tideGrade=poss>0?TIDE_GRADES.find(g=>rate>=g.min):null;
         let fGrade=null,fc=0,fp=0;
-        if(fItems.length){
+        if(moFItems.length){
           const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
           if(isPast){
-            for(let dd=1;dd<=daysToCount;dd++) fItems.forEach(it=>{if(!m?.fathomSkips?.[it.id]?.[dd]){fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;}});
+            for(let dd=1;dd<=daysToCount;dd++){const dow2=new Date(CY,mi,dd).getDay();moFItems.forEach(it=>{if(it.freq&&it.freq.length<7&&!it.freq.includes(dow2))return;if(!m?.fathomSkips?.[it.id]?.[dd]){fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;}});}
             if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
           }
         }
@@ -1807,13 +1827,14 @@ function setGroupColor(gid,color){
 // ─────────────────────────────────────────
 //  ACTIONS
 // ─────────────────────────────────────────
-function prevMo(){CM===0?(CM=11,CY--):CM--;render()}
-function nextMo(){CM===11?(CM=0,CY++):CM++;render()}
-function goToday(){CY=now.getFullYear();CM=now.getMonth();render()}
-function goMonth(m){CM=m;view='month';render()}
+function _navRender(){if(isMonthArchived()&&editMode)editMode=false;render()}
+function prevMo(){CM===0?(CM=11,CY--):CM--;_navRender()}
+function nextMo(){CM===11?(CM=0,CY++):CM++;_navRender()}
+function goToday(){CY=now.getFullYear();CM=now.getMonth();_navRender()}
+function goMonth(m){CM=m;view='month';_navRender()}
 function toggleView(){view=view==='year'?'month':'year';render()}
 function toggleLayout(){gridLayout=gridLayout==='vertical'?'horizontal':'vertical';render()}
-function toggleEdit(){editMode=!editMode;render()}
+function toggleEdit(){if(isMonthArchived())return;editMode=!editMode;render()}
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
 function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
@@ -1821,6 +1842,23 @@ function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
 function resetMonth(){
   if(!confirm(`Reset ${MON[CM]} ${CY}? All completions, notes, and quotes for this month will be cleared.`)) return;
   delete D.months[mk(CY,CM)];
+  save();render();
+}
+
+function archiveMonth(){
+  if(!confirm(`Archive ${MON[CM]} ${CY}? The habit list and Fathom items will be locked for this month. You can still edit completions.`)) return;
+  const mo=md(CY,CM);
+  mo.archived=true;
+  mo.snapshot={
+    groups:JSON.parse(JSON.stringify(D.groups)),
+    fathomItems:JSON.parse(JSON.stringify(D.fathom?.items||[]))
+  };
+  save();render();
+}
+function unarchiveMonth(){
+  if(!confirm(`Unarchive ${MON[CM]} ${CY}? This month will use the current habit list going forward.`)) return;
+  const mo=D.months[mk(CY,CM)];
+  if(mo){delete mo.archived;delete mo.snapshot;}
   save();render();
 }
 
@@ -2370,7 +2408,8 @@ function mkGridHorizontal(){
   const bar=document.createElement('div');
   bar.className='grid-bar';
   const hasData2=!!D.months[mk(CY,CM)];
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button></div>`;
+  const _arch2=isMonthArchived();
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
@@ -2478,7 +2517,7 @@ function buildHzTable(){
 
   // ── TBODY: group rows + habit rows ──
   const tbody=document.createElement('tbody');
-  D.groups.forEach((g,gi)=>{
+  activeGroups().forEach((g,gi)=>{
     // Group label row
     const grpTr=document.createElement('tr');
     const grpTd=document.createElement('td');
@@ -2711,7 +2750,7 @@ function updateHzChart(){
 //  FATHOM GRID
 // ─────────────────────────────────────────
 function mkFathomGrid(){
-  const items=D.fathom?.items||[];
+  const items=activeFathomItems();
   const isCurMo=CY===new Date().getFullYear()&&CM===new Date().getMonth();
   const todayD=isCurMo?new Date().getDate():-1;
   const days=dim(CY,CM);
