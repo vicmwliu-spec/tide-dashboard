@@ -553,15 +553,25 @@ function chartConf(){
 function todayStats(){
   const t=new Date();
   const yr=t.getFullYear(),mo=t.getMonth(),day=t.getDate();
+  const dow=t.getDay();
   const mkey=mk(yr,mo);
   const mdata=D.months[mkey];
-  const h=allHabits();
+  const todayGroups=(mdata&&mdata.snapshot)?mdata.snapshot.groups:D.groups;
+  const h=todayGroups.flatMap(g=>g.habits.filter(hb=>{
+    if(hb.archived) return false;
+    if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return false;
+    if(hb.startDate&&new Date(hb.startDate+'T00:00:00')>t) return false;
+    return true;
+  }).map(hb=>({...hb})));
   let done=0,total=0;
   h.forEach(hb=>{if(!(mdata?.skips?.[hb.id]?.[day])){total++;if(mdata?.completions[hb.id]?.[day])done++;}});
   const pct=total?Math.floor(done/total*100):0;
-  const groups=D.groups.map(g=>{
+  const groups=todayGroups.map(g=>{
     let gDone=0,gTotal=0;
-    g.habits.forEach(hb=>{if(!(mdata?.skips?.[hb.id]?.[day])){gTotal++;if(mdata?.completions[hb.id]?.[day])gDone++;}});
+    g.habits.filter(hb=>!hb.archived).forEach(hb=>{
+      if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
+      if(!(mdata?.skips?.[hb.id]?.[day])){gTotal++;if(mdata?.completions[hb.id]?.[day])gDone++;}
+    });
     return {id:g.id,name:g.name,color:g.color,done:gDone,total:gTotal,pct:gTotal?Math.floor(gDone/gTotal*100):0};
   });
   return {done,total,pct,groups};
