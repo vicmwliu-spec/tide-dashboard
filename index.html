@@ -844,7 +844,7 @@ function mkHeader(){
     <div class="hdr-r">
       <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
       <button class="btn" onclick="toggleDark()" title="${darkMode?'Day Mode':'Night Mode'}" style="padding:4px 8px;line-height:0;color:var(--text2)">${darkMode?`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`:`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}</button>
-      <button class="btn ${view==='year'?'btn-on':''}" onclick="toggleView()"><span class="mob-hide">${view==='year'?'&#8592; Month View':'Year Overview'}</span><span class="mob-show">${view==='year'?'Month':'Year'}</span></button>
+      <button class="btn" onclick="toggleView()"><span class="mob-hide">${view==='year'?'Month View':'Year Overview'}</span><span class="mob-show">${view==='year'?'Month':'Year'}</span></button>
     </div>`;
   return d;
 }
@@ -1658,12 +1658,58 @@ function tideOverallScore(){
   return poss?Math.floor(done/poss*100):0;
 }
 
+function grpQuarterScore(g,qi){
+  if(!g.habits.length) return 0;
+  const today=new Date();const isCurrentYear=CY===today.getFullYear();
+  let done=0,poss=0;
+  for(let qm=qi*3;qm<qi*3+3;qm++){
+    const m=D.months[mk(CY,qm)];if(!m) continue;
+    const moGroups=m.snapshot?m.snapshot.groups:D.groups;
+    const moG=moGroups.find(mg=>mg.id===g.id);if(!moG) continue;
+    const habits=moG.habits.filter(hb=>!hb.archived);
+    const isCurMo=isCurrentYear&&qm===today.getMonth();
+    const lastDay=isCurMo?today.getDate():dim(CY,qm);
+    for(let d=1;d<=lastDay;d++){
+      const dow=new Date(CY,qm,d).getDay();
+      habits.forEach(h=>{
+        if(h.freq&&h.freq.length<7&&!h.freq.includes(dow)) return;
+        if(h.startDate&&new Date(CY,qm,d)<new Date(h.startDate+'T00:00:00')) return;
+        if(!m.skips?.[h.id]?.[d]){poss++;if(m.completions?.[h.id]?.[d])done++;}
+      });
+    }
+  }
+  return poss?Math.floor(done/poss*100):0;
+}
+
+function fathomQuarterStats(qi){
+  const today=new Date();const isCurrentYear=CY===today.getFullYear();
+  let comp=0,poss=0;
+  for(let qm=qi*3;qm<qi*3+3;qm++){
+    const isPast=CY<today.getFullYear()||(isCurrentYear&&qm<=today.getMonth());
+    if(!isPast) continue;
+    const m=D.months[mk(CY,qm)];if(!m) continue;
+    const qFItems=m.snapshot?m.snapshot.fathomItems:(D.fathom?.items||[]);if(!qFItems.length) continue;
+    const isCurMo=isCurrentYear&&qm===today.getMonth();
+    const lastD=isCurMo?today.getDate():dim(CY,qm);
+    for(let dd=1;dd<=lastD;dd++){
+      const dow=new Date(CY,qm,dd).getDay();
+      qFItems.forEach(it=>{
+        if(it.freq&&it.freq.length<7&&!it.freq.includes(dow)) return;
+        if(it.startDate&&new Date(CY,qm,dd)<new Date(it.startDate+'T00:00:00')) return;
+        if(!m.fathomSkips?.[it.id]?.[dd]){poss++;if(m.fathomCompletions?.[it.id]?.[dd])comp++;}
+      });
+    }
+  }
+  return {pct:poss?Math.floor(comp/poss*100):0,hasData:poss>0};
+}
+
 function mkTide(){
-  const pct=tideOverallScore();
-  const grade=TIDE_GRADES.find(g=>pct>=g.min);
+  const qi=Math.floor(new Date().getMonth()/3);
+  const {pct}=quarterStats(qi);
+  const grade=QUARTER_GRADES.find(g=>pct>=g.min)||QUARTER_GRADES[QUARTER_GRADES.length-1];
   const grpCards=activeGroups().map(g=>{
-    const gp=grpTideScore(g);
-    const gg=TIDE_GRADES.find(x=>gp>=x.min);
+    const gp=grpQuarterScore(g,qi);
+    const gg=TIDE_GRADES.find(x=>gp>=x.min)||TIDE_GRADES[TIDE_GRADES.length-1];
     return `<div style="flex:1;min-width:90px;border:1px solid var(--border2);border-left:3px solid ${g.color};border-radius:var(--r2);padding:10px 12px;text-align:center">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${g.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.name)}</div>
       <div id="tide-gl-${g.id}" style="font-size:32px;font-weight:700;line-height:1.1;margin-top:6px;color:${gg.color}">${gg.letter}</div>
@@ -1671,14 +1717,14 @@ function mkTide(){
       <div id="tide-gp-${g.id}" style="font-size:11px;color:var(--text3);margin-top:5px">${gp}%</div>
     </div>`;
   }).join('');
-  const {pct:fPct,hasData:fHas}=fathomMonthStats();
+  const {pct:fPct,hasData:fHas}=fathomQuarterStats(qi);
   const fGrade=fHas?fathomGrade(fPct):null;
   const fTideLine=fGrade
     ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:${fgColor(fGrade)};margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em">FATHOM &middot; ${fGrade.label} &middot; ${fPct}%</div>`
     :'<div id="tide-fathom-line" style="display:none"></div>';
   const d=document.createElement('div');
   d.className='notes-card';
-  d.innerHTML=`<div class="card-title">TIDE · ${MON[CM]} ${CY}</div>
+  d.innerHTML=`<div class="card-title">TIDE · Q${qi+1} ${CY}</div>
     <div style="display:flex;flex-direction:column;align-items:center;padding:20px 0 16px">
       <div id="tide-letter" style="font-size:72px;font-weight:700;line-height:1;color:${grade.color};letter-spacing:-.02em">${grade.letter}</div>
       <div id="tide-name" style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${grade.color};margin-top:8px">${grade.name}</div>
@@ -1692,8 +1738,9 @@ function mkTide(){
 }
 
 function updTide(){
-  const pct=tideOverallScore();
-  const grade=TIDE_GRADES.find(g=>pct>=g.min);
+  const qi=Math.floor(new Date().getMonth()/3);
+  const {pct}=quarterStats(qi);
+  const grade=QUARTER_GRADES.find(g=>pct>=g.min)||QUARTER_GRADES[QUARTER_GRADES.length-1];
   const letterEl=document.getElementById('tide-letter');
   const nameEl=document.getElementById('tide-name');
   const pctEl=document.getElementById('tide-pct');
@@ -1701,10 +1748,10 @@ function updTide(){
   if(nameEl){nameEl.textContent=grade.name;nameEl.style.color=grade.color;}
   if(pctEl) pctEl.textContent=`${pct}% SLIGHT EDGE`;
   const fEl=document.getElementById('tide-fathom-line');
-  if(fEl){const{pct:fp,hasData:fh}=fathomMonthStats();const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fg.label} &middot; ${fp}%`;}else fEl.style.display='none';}
+  if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fg.label} &middot; ${fp}%`;}else fEl.style.display='none';}
   activeGroups().forEach(g=>{
-    const gp=grpTideScore(g);
-    const gg=TIDE_GRADES.find(x=>gp>=x.min);
+    const gp=grpQuarterScore(g,qi);
+    const gg=TIDE_GRADES.find(x=>gp>=x.min)||TIDE_GRADES[TIDE_GRADES.length-1];
     const gl=document.getElementById(`tide-gl-${g.id}`);
     const gn=document.getElementById(`tide-gn-${g.id}`);
     const gpp=document.getElementById(`tide-gp-${g.id}`);
@@ -1755,7 +1802,7 @@ function mkAnnual(){
   });
 
   const qHtml=quarters.map(q=>`
-    <div style="border:1px solid ${q.isCurQ?'#00F5D4':'var(--border2)'};border-radius:var(--r2);padding:12px 14px;background:var(--surface2)">
+    <div style="border:1px solid ${q.isCurQ?(q.grade?q.grade.color:'#00F5D4'):'var(--border2)'};border-radius:var(--r2);padding:12px 14px;background:var(--surface2)">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px">${q.label}</div>
       ${q.grade?`
         <div style="display:flex;align-items:baseline;gap:6px">
@@ -1822,9 +1869,9 @@ function mkAnnual(){
             if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
           }
         }
-        return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})">
+        return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})"${isCur?` style="border-color:${tideGrade?tideGrade.color:'#00F5D4'}"`:''}">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-            <div style="font-size:13px;font-weight:600">${name}${isCur?' <span style="font-size:10px;color:#00F5D4">← Now</span>':''}</div>
+            <div style="font-size:13px;font-weight:600">${name}${isCur?` <span style="font-size:10px;color:${tideGrade?tideGrade.color:'#00F5D4'}">← Now</span>`:''}</div>
             ${tideGrade?`<span style="font-size:17px;font-weight:700;color:${tideGrade.color};line-height:1;flex-shrink:0;margin-left:6px">${tideGrade.letter}</span>`:''}
           </div>
           <div class="mo-bar"><div class="mo-fill" style="width:${rate}%;background:${barC}"></div></div>
