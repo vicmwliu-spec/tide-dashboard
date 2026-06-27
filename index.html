@@ -686,7 +686,7 @@ function toggle(hid,day){
   mo.skips[hid][day]=false;
   mo.completions[hid][day]=!mo.completions[hid][day];
   save();
-  if(startMoved) render(); else if(gridLayout==='vertical') partialUpdate(hid,day);
+  if(startMoved) render(); else partialUpdate(hid,day);
 }
 function skipToggle(hid,day){
   const mo=md(CY,CM);
@@ -803,12 +803,7 @@ function render(){
     app.appendChild(mkQuote());
     app.appendChild(mkPriority());
     app.appendChild(mkStats());
-    if(gridLayout==='vertical'){
-      app.appendChild(mkChart());
-      app.appendChild(mkGrid());
-    } else {
-      app.appendChild(mkGridHorizontal());
-    }
+    app.appendChild(mkGridHorizontal());
     if(editMode){const ap=mkArchivedPanel();if(ap)app.appendChild(ap);}
     app.appendChild(mkFathomGrid());
     app.appendChild(mkTide());
@@ -850,7 +845,6 @@ function mkHeader(){
       <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
       <button class="btn" onclick="toggleDark()" title="${darkMode?'Day Mode':'Night Mode'}" style="padding:4px 8px;line-height:0;color:var(--text2)">${darkMode?`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`:`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}</button>
       <button class="btn ${view==='year'?'btn-on':''}" onclick="toggleView()"><span class="mob-hide">${view==='year'?'&#8592; Month View':'Year Overview'}</span><span class="mob-show">${view==='year'?'Month':'Year'}</span></button>
-      ${view!=='year'?`<button class="btn btn-on" onclick="toggleLayout()" title="Switch layout"><span class="mob-hide">${gridLayout==='horizontal'?'&#8597; Vertical':'&#8596; Horizontal'}</span><span class="mob-show">${gridLayout==='horizontal'?'&#8597;':'&#8596;'}</span></button>`:''}
     </div>`;
   return d;
 }
@@ -1896,7 +1890,6 @@ function nextMo(){CM===11?(CM=0,CY++):CM++;_navRender()}
 function goToday(){CY=now.getFullYear();CM=now.getMonth();_navRender()}
 function goMonth(m){CM=m;view='month';_navRender()}
 function toggleView(){view=view==='year'?'month':'year';render()}
-function toggleLayout(){gridLayout=gridLayout==='vertical'?'horizontal':'vertical';render()}
 function toggleEdit(){if(isMonthArchived()||hasMonthSnapshot())return;editMode=!editMode;render()}
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
