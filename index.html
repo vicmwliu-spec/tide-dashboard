@@ -1751,11 +1751,11 @@ function mkAnnual(){
       bestPct=(s.poss+futPoss)?Math.floor((s.comp+futPoss)/(s.poss+futPoss)*100):0;
       bestGrade=QUARTER_GRADES.find(g=>bestPct>=g.min)||null;
     }
-    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp,bestPct,bestGrade};
+    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp,bestPct,bestGrade,isCurQ};
   });
 
   const qHtml=quarters.map(q=>`
-    <div style="border:1px solid var(--border2);border-radius:var(--r2);padding:12px 14px;background:var(--surface2)">
+    <div style="border:1px solid ${q.isCurQ?'#00F5D4':'var(--border2)'};border-radius:var(--r2);padding:12px 14px;background:var(--surface2)">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px">${q.label}</div>
       ${q.grade?`
         <div style="display:flex;align-items:baseline;gap:6px">
@@ -1811,9 +1811,9 @@ function mkAnnual(){
           }
         }
         const rate=poss?Math.floor(comp/poss*100):0;
-        const barC=rate>=80?'var(--green)':rate>=50?'var(--amber)':rate>0?'var(--accent)':'var(--border)';
         const isPastOrCur=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
         const tideGrade=isPastOrCur&&poss>0?TIDE_GRADES.find(g=>rate>=g.min):null;
+        const barC=tideGrade?tideGrade.color:'var(--border)';
         let fGrade=null,fc=0,fp=0;
         if(moFItems.length){
           const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
@@ -1824,7 +1824,7 @@ function mkAnnual(){
         }
         return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-            <div style="font-size:13px;font-weight:600">${name}${isCur?' <span style="font-size:10px;color:var(--accent)">← Now</span>':''}</div>
+            <div style="font-size:13px;font-weight:600">${name}${isCur?' <span style="font-size:10px;color:#00F5D4">← Now</span>':''}</div>
             ${tideGrade?`<span style="font-size:17px;font-weight:700;color:${tideGrade.color};line-height:1;flex-shrink:0;margin-left:6px">${tideGrade.letter}</span>`:''}
           </div>
           <div class="mo-bar"><div class="mo-fill" style="width:${rate}%;background:${barC}"></div></div>
