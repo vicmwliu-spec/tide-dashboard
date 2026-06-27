@@ -1083,7 +1083,7 @@ function mkGrid(){
   bar.className='grid-bar';
   const hasData=!!D.months[mk(CY,CM)];
   const _arch=isMonthArchived();const _snap=hasMonthSnapshot();
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch&&!_snap&&hasData&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch&&!_snap&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch&&!_snap?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch&&!_snap&&hasData&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch&&!_snap&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.appendChild(buildTable());
@@ -1875,13 +1875,13 @@ function setGroupColor(gid,color){
 // ─────────────────────────────────────────
 //  ACTIONS
 // ─────────────────────────────────────────
-function _navRender(){if((isMonthArchived()||hasMonthSnapshot())&&editMode)editMode=false;render()}
+function _navRender(){if(isMonthArchived()&&editMode)editMode=false;render()}
 function prevMo(){CM===0?(CM=11,CY--):CM--;_navRender()}
 function nextMo(){CM===11?(CM=0,CY++):CM++;_navRender()}
 function goToday(){CY=now.getFullYear();CM=now.getMonth();_navRender()}
 function goMonth(m){CM=m;view='month';_navRender()}
 function toggleView(){view=view==='year'?'month':'year';render()}
-function toggleEdit(){if(isMonthArchived()||hasMonthSnapshot())return;editMode=!editMode;render()}
+function toggleEdit(){if(isMonthArchived())return;editMode=!editMode;render()}
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
 function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
@@ -2470,7 +2470,7 @@ function mkGridHorizontal(){
   bar.className='grid-bar';
   const hasData2=!!D.months[mk(CY,CM)];
   const _arch2=isMonthArchived();const _snap2=hasMonthSnapshot();
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2&&!_snap2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
