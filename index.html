@@ -405,7 +405,7 @@ html.dark .dnd-grip:hover{color:var(--text2)}
 const SK = 'habit_dash_v1';
 const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const PAL = ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EC4899','#14B8A6','#F97316','#6366F1','#EF4444','#06B6D4'];
+const PAL = ['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EC4899','#14B8A6','#F0A500','#6366F1','#EF4444','#06B6D4'];
 
 function uid(){ return '_'+Math.random().toString(36).slice(2,9) }
 function todayStr(){ return new Date().toISOString().slice(0,10) }
@@ -554,11 +554,7 @@ function gradeColor(){
   const pct=tideOverallScore();
   const grade=TIDE_GRADES.find(g=>pct>=g.min)||TIDE_GRADES[TIDE_GRADES.length-1];
   const map={
-    'var(--green)' :'#22C55E',
-    'var(--accent)':'#00F5D4',
-    'var(--amber)' :'#F59E0B',
-    '#EA580C'      :'#EA580C',
-    'var(--red)'   :'#EF4444',
+    'var(--red)':'#EF4444',
   };
   return map[grade.color]||grade.color;
 }
@@ -1436,11 +1432,11 @@ function doSkipToggle(hid,day,color){
     let rowDone=0,rowTotal=0;
     for(let d=1;d<=todayD;d++){if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}}
     const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
-    const pc=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+    const pc=(TIDE_GRADES.find(gr=>pct>=gr.min)||TIDE_GRADES[TIDE_GRADES.length-1]).color;
     const ds=document.getElementById(`hzds-${hid}`);
     const ps=document.getElementById(`hzps-${hid}`);
     if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
-    if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span>`;
+    if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pc};border-radius:2px"></div></div>`;
     const {pct:dp}=dayProg(day);
     const dpEl=document.getElementById(`hzdp-${day}`);
     if(dpEl){const c=dp===100?'var(--green)':dp>=50?'var(--amber)':'var(--red)';dpEl.innerHTML=`<span style="color:${c};font-size:10px;font-weight:700">${dp}%</span>`;}
@@ -1480,37 +1476,37 @@ function partialUpdate(hid,day){
 //  TIDE
 // ─────────────────────────────────────────
 const TIDE_GRADES=[
-  {min:90,letter:'S',name:'Surpassing',color:'var(--green)'},
-  {min:80,letter:'A',name:'Ascending', color:'var(--accent)'},
-  {min:68,letter:'B',name:'Building',  color:'var(--amber)'},
+  {min:90,letter:'S',name:'Surpassing',color:'#10B981'},
+  {min:80,letter:'A',name:'Ascending', color:'#00F5D4'},
+  {min:68,letter:'B',name:'Building',  color:'#F0A500'},
   {min:50,letter:'C',name:'Continuing',color:'#EA580C'},
   {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
 const TODAY_GRADES=[
-  {min:100,letter:'S',name:'Surpassing',color:'var(--green)'},
-  {min:80, letter:'A',name:'Ascending', color:'var(--accent)'},
-  {min:60, letter:'B',name:'Building',  color:'var(--amber)'},
+  {min:100,letter:'S',name:'Surpassing',color:'#10B981'},
+  {min:80, letter:'A',name:'Ascending', color:'#00F5D4'},
+  {min:60, letter:'B',name:'Building',  color:'#F0A500'},
   {min:30, letter:'C',name:'Continuing',color:'#EA580C'},
   {min:0,  letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
 const QUARTER_GRADES=[
-  {min:88,letter:'S',name:'Surpassing',color:'var(--green)'},
-  {min:78,letter:'A',name:'Ascending', color:'var(--accent)'},
-  {min:65,letter:'B',name:'Building',  color:'var(--amber)'},
+  {min:88,letter:'S',name:'Surpassing',color:'#10B981'},
+  {min:78,letter:'A',name:'Ascending', color:'#00F5D4'},
+  {min:65,letter:'B',name:'Building',  color:'#F0A500'},
   {min:48,letter:'C',name:'Continuing',color:'#EA580C'},
   {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
 const ANNUAL_GRADES=[
-  {min:85,letter:'S',name:'Surpassing',color:'var(--green)'},
-  {min:75,letter:'A',name:'Ascending', color:'var(--accent)'},
-  {min:62,letter:'B',name:'Building',  color:'var(--amber)'},
+  {min:85,letter:'S',name:'Surpassing',color:'#10B981'},
+  {min:75,letter:'A',name:'Ascending', color:'#00F5D4'},
+  {min:62,letter:'B',name:'Building',  color:'#F0A500'},
   {min:45,letter:'C',name:'Continuing',color:'#EA580C'},
   {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
 const WEEK_GRADES=[
-  {min:95,letter:'S',name:'Surpassing',color:'var(--green)'},
-  {min:83,letter:'A',name:'Ascending', color:'var(--accent)'},
-  {min:65,letter:'B',name:'Building',  color:'var(--amber)'},
+  {min:95,letter:'S',name:'Surpassing',color:'#10B981'},
+  {min:83,letter:'A',name:'Ascending', color:'#00F5D4'},
+  {min:65,letter:'B',name:'Building',  color:'#F0A500'},
   {min:45,letter:'C',name:'Continuing',color:'#EA580C'},
   {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
 ];
@@ -2690,8 +2686,8 @@ function buildHzTable(){
       const doneTd=document.createElement('td');doneTd.className='sr sr-2 hz-sum-td first-sum';doneTd.id=`hzds-${h.id}`;
       doneTd.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
       const pctTd=document.createElement('td');pctTd.className='sr sr-1 hz-sum-td';pctTd.id=`hzps-${h.id}`;
-      const pc=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
-      pctTd.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span>`;
+      const pc=(TIDE_GRADES.find(gr=>pct>=gr.min)||TIDE_GRADES[TIDE_GRADES.length-1]).color;
+      pctTd.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pc};border-radius:2px"></div></div>`;
       tr.appendChild(doneTd);tr.appendChild(pctTd);
       tbody.appendChild(tr);
     });
@@ -2724,11 +2720,11 @@ function doHzToggle(hid,day,color){
     if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}
   }
   const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
-  const pc=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+  const pc=(TIDE_GRADES.find(gr=>pct>=gr.min)||TIDE_GRADES[TIDE_GRADES.length-1]).color;
   const ds=document.getElementById(`hzds-${hid}`);
   const ps=document.getElementById(`hzps-${hid}`);
   if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
-  if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span>`;
+  if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pc};border-radius:2px"></div></div>`;
   // update daily % row (in thead)
   const {pct:dp}=dayProg(day);
   const dpEl=document.getElementById(`hzdp-${day}`);
@@ -2989,7 +2985,7 @@ function mkFathomGrid(){
     const doneTd=document.createElement('td');doneTd.className='sr sr-2 hz-sum-td first-sum';doneTd.id=`fhzds-${item.id}`;
     doneTd.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
     const pctTd=document.createElement('td');pctTd.className='sr sr-1 hz-sum-td';pctTd.id=`fhzps-${item.id}`;
-    pctTd.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span>`;
+    pctTd.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${fgColor(fg)};border-radius:2px"></div></div>`;
     tr.appendChild(doneTd);tr.appendChild(pctTd);
     tbody.appendChild(tr);
   });
@@ -3026,7 +3022,7 @@ function doFathomToggle(iid,day){
   const ds=document.getElementById(`fhzds-${iid}`);
   const ps=document.getElementById(`fhzps-${iid}`);
   if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
-  if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span>`;
+  if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${fgColor(fg)};border-radius:2px"></div></div>`;
   updStats();
   updTide();
 }
@@ -3054,7 +3050,7 @@ function doFathomSkipToggle(iid,day){
   const ds=document.getElementById(`fhzds-${iid}`);
   const ps=document.getElementById(`fhzps-${iid}`);
   if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
-  if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span>`;
+  if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${fgColor(fg)};border-radius:2px"></div></div>`;
   updStats();updTide();
 }
 
