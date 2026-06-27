@@ -1034,8 +1034,8 @@ function buildChart(){
   });
   datasets.push({
     label:'Overall',data:overall,
-    borderColor:cc.overall,backgroundColor:cc.fill,
-    borderWidth:2.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:5,
+    borderColor:'red',backgroundColor:'rgba(99,102,241,0.4)',
+    borderWidth:5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:5,
   });
   groups.forEach(g=>{
     datasets.push({
@@ -1755,7 +1755,17 @@ function mkAnnual(){
       for(let dd=1;dd<=lastD;dd++){const qdow=new Date(CY,qm,dd).getDay();qFItems.forEach(it=>{if(it.startDate&&new Date(CY,qm,dd)<new Date(it.startDate+'T00:00:00')) return;if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});}
     }
     if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
-    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp};
+    const isCurQ=CY===now.getFullYear()&&qi===Math.floor(now.getMonth()/3);
+    let bestPct=null,bestGrade=null;
+    if(isCurQ&&s.hasData){
+      const remainInMonth=dim(CY,now.getMonth())-now.getDate();
+      let futureDays=remainInMonth;
+      for(let qm=qi*3;qm<qi*3+3;qm++){if(qm>now.getMonth()) futureDays+=dim(CY,qm);}
+      const futPoss=allHabits().length*futureDays;
+      bestPct=(s.poss+futPoss)?Math.floor((s.comp+futPoss)/(s.poss+futPoss)*100):0;
+      bestGrade=QUARTER_GRADES.find(g=>bestPct>=g.min)||null;
+    }
+    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp,bestPct,bestGrade};
   });
 
   const qHtml=quarters.map(q=>`
@@ -1772,6 +1782,7 @@ function mkAnnual(){
         <div style="font-size:10px;color:var(--text3);margin-top:5px">Not started</div>
       `}
       ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fGrade.label} · ${q.fc}/${q.fp}</div>`:''}
+      ${q.bestPct!==null?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${q.bestPct}%</span>${q.bestGrade?` · <span style="font-weight:600;color:var(--text3)">${q.bestGrade.letter} ${q.bestGrade.name}</span>`:''}</div>`:''}
     </div>`).join('');
 
   d.innerHTML=`
