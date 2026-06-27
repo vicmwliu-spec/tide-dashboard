@@ -57,10 +57,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text2);resize:none;line-height:1.6;overflow:hidden}
 .quote-ta::placeholder{color:var(--text3)}
 /* ── Priority ── */
-.priority-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
+.priority-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .priority-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap;margin-top:3px;flex-shrink:0}
-.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text1);resize:none;line-height:1.6;overflow:hidden}
-.priority-ta:empty:before{content:attr(data-ph);color:var(--text3);font-weight:400;pointer-events:none}
+.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.priority-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
+/* ── Top row ── */
+.top-row{display:flex;gap:14px;margin-bottom:14px;align-items:flex-start}
+.top-row .quote-card{flex:1;margin-bottom:0}
+.top-row .priority-card{width:35%;flex-shrink:0}
 
 /* ── Stats ── */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
@@ -148,17 +152,17 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .aar-btn{display:block;background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:500;padding:2px 5px;border-radius:3px;line-height:1.4;margin-top:3px;font-family:var(--font);letter-spacing:.03em;white-space:nowrap}
 .aar-btn:hover{background:var(--border2);color:var(--text1)}
 .aar-btn.aar-has{color:var(--accent);font-weight:600}
-#aar-editor hr,.quote-ta hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
-#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol{padding-left:22px;margin:4px 0}
-#aar-editor li,.quote-ta li{margin:2px 0}
-#aar-editor ul,.quote-ta ul{list-style-type:disc}
-#aar-editor ul ul,.quote-ta ul ul{list-style-type:circle}
-#aar-editor ul ul ul,.quote-ta ul ul ul{list-style-type:square}
-#aar-editor ol,.quote-ta ol{list-style-type:decimal}
-#aar-editor ol ol,.quote-ta ol ol{list-style-type:lower-alpha}
-#aar-editor ol ol ol,.quote-ta ol ol ol{list-style-type:lower-roman}
+#aar-editor hr,.quote-ta hr,.priority-ta hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
+#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol{padding-left:22px;margin:4px 0}
+#aar-editor li,.quote-ta li,.priority-ta li{margin:2px 0}
+#aar-editor ul,.quote-ta ul,.priority-ta ul{list-style-type:disc}
+#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul{list-style-type:circle}
+#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul{list-style-type:square}
+#aar-editor ol,.quote-ta ol,.priority-ta ol{list-style-type:decimal}
+#aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol{list-style-type:lower-alpha}
+#aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol{list-style-type:lower-roman}
 /* Richtext contenteditable */
-.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text2);font-style:italic;line-height:1.6;word-break:break-word;min-height:1.4em}
+.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text2);line-height:1.6;word-break:break-word;min-height:1.4em}
 .quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 
 /* ── Annual ── */
@@ -306,9 +310,11 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   .nav-btn{padding:4px 12px;font-size:20px}
   .btn{padding:6px 10px;font-size:11px;min-height:34px}
 
-  /* Quote */
-  .quote-card{padding:10px 14px;margin-bottom:10px}
-  .priority-card{padding:10px 14px;margin-bottom:10px}
+  /* Quote / Priority */
+  .quote-card{padding:10px 14px;margin-bottom:0}
+  .priority-card{padding:10px 14px;min-height:60px}
+  .top-row{flex-direction:column;gap:8px}
+  .top-row .priority-card{width:100%}
 
   /* Stats */
   .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
@@ -791,8 +797,11 @@ function render(){
   if(view==='year'){
     app.appendChild(mkAnnual());
   } else {
-    app.appendChild(mkQuote());
-    app.appendChild(mkPriority());
+    const topRow=document.createElement('div');
+    topRow.className='top-row';
+    topRow.appendChild(mkPriority());
+    topRow.appendChild(mkQuote());
+    app.appendChild(topRow);
     app.appendChild(mkStats());
     app.appendChild(mkGridHorizontal());
     if(editMode){const ap=mkArchivedPanel();if(ap)app.appendChild(ap);}
@@ -857,9 +866,9 @@ function mkQuote(){
 }
 function mkPriority(){
   const d=document.createElement('div');
-  d.className='quote-card';
+  d.className='priority-card';
   d.innerHTML=`
-    <div class="quote-ta" id="pta" contenteditable="true"
+    <div class="priority-ta" id="pta" contenteditable="true"
       oninput="savePriority(this.innerHTML)"
       onkeydown="richtextKD(event)"
     ></div>`;
