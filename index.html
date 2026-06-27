@@ -555,7 +555,7 @@ function gradeColor(){
   const grade=TIDE_GRADES.find(g=>pct>=g.min)||TIDE_GRADES[TIDE_GRADES.length-1];
   const map={
     'var(--green)' :'#22C55E',
-    'var(--accent)':'#6366F1',
+    'var(--accent)':'#00F5D4',
     'var(--amber)' :'#F59E0B',
     '#EA580C'      :'#EA580C',
     'var(--red)'   :'#EF4444',
@@ -834,21 +834,21 @@ function mkHeader(){
       <div class="app-logo">TIDE</div>
       <div class="month-nav">
         <button class="nav-btn" onclick="prevMo()">&#8249;</button>
-        <div class="month-lbl">${archived?'&#128274; ':''}${MON[CM]} ${CY}</div>
+        <div class="month-lbl">${archived?`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;opacity:.7"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`:''}${MON[CM]} ${CY}</div>
         <button class="nav-btn" onclick="nextMo()">&#8250;</button>
       </div>
       ${!isNow?`<button class="btn btn-today" onclick="goToday()">Today</button>`:''}
       ${view!=='year'?(
         archived
-          ? `<button class="btn" onclick="unarchiveMonth()" title="Unarchive this month">Unarchive</button>`
+          ? `<button class="btn" onclick="unarchiveMonth()" title="Unarchive this month" style="padding:4px 8px;line-height:0;color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>`
           : hasSnap
-            ? `<button class="btn" onclick="archiveMonth()" title="Re-lock this month">Archive Month</button><button class="btn" onclick="useCurrentHabits()" title="Replace frozen habits with current habits">Use Current Habits</button>`
-            : `<button class="btn" onclick="archiveMonth()" title="Archive this month">Archive Month</button>`
+            ? `<button class="btn" onclick="archiveMonth()" title="Re-lock this month" style="padding:4px 8px;line-height:0;color:var(--text3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0"/></svg></button><button class="btn" onclick="useCurrentHabits()" title="Replace frozen habits with current habits">Use Current Habits</button>`
+            : `<button class="btn" onclick="archiveMonth()" title="Archive this month" style="padding:4px 8px;line-height:0;color:var(--text3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0"/></svg></button>`
       ):''}
     </div>
     <div class="hdr-r">
       <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
-      <button class="btn" onclick="toggleDark()"><span class="mob-hide">${darkMode?'Day Mode':'Night Mode'}</span><span class="mob-show">${darkMode?'&#9728;':'&#9790;'}</span></button>
+      <button class="btn" onclick="toggleDark()" title="${darkMode?'Day Mode':'Night Mode'}" style="padding:4px 8px;line-height:0;color:var(--text2)">${darkMode?`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`:`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}</button>
       <button class="btn ${view==='year'?'btn-on':''}" onclick="toggleView()"><span class="mob-hide">${view==='year'?'&#8592; Month View':'Year Overview'}</span><span class="mob-show">${view==='year'?'Month':'Year'}</span></button>
       ${view!=='year'?`<button class="btn btn-on" onclick="toggleLayout()" title="Switch layout"><span class="mob-hide">${gridLayout==='horizontal'?'&#8597; Vertical':'&#8596; Horizontal'}</span><span class="mob-show">${gridLayout==='horizontal'?'&#8597;':'&#8596;'}</span></button>`:''}
     </div>`;
@@ -1034,8 +1034,8 @@ function buildChart(){
   });
   datasets.push({
     label:'Overall',data:overall,
-    borderColor:'red',backgroundColor:'rgba(99,102,241,0.4)',
-    borderWidth:5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:5,
+    borderColor:cc.overall,backgroundColor:cc.fill,
+    borderWidth:2.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:5,
   });
   groups.forEach(g=>{
     datasets.push({
@@ -1050,14 +1050,6 @@ function buildChart(){
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      animation:{onComplete(ctx){
-        if(!ctx.initial) return;
-        const chart=ctx.chart;
-        const ds=chart.data.datasets.find(d=>d.label==='Overall');
-        if(!ds||!chart.chartArea) return;
-        ds.backgroundColor=chartFillGradient(chart.ctx,chart.chartArea);
-        chart.update('none');
-      }},
       plugins:{
         legend:{position:'top',align:'end',labels:{boxWidth:20,boxHeight:2,font:{size:10,family:"'Inter',system-ui"},color:cc.legend,padding:10}},
         tooltip:{
@@ -2786,7 +2778,7 @@ function buildHzChart(){
   datasets.push({
     label:'Overall',data:overall,
     borderColor:cc.overall,backgroundColor:cc.fill,
-    borderWidth:2.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:5,
+    borderWidth:2.5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:5,
   });
   groups.forEach(g=>{
     datasets.push({
@@ -2818,6 +2810,11 @@ function buildHzChart(){
       }
     }
   });
+  requestAnimationFrame(()=>{
+    if(!hzChartInst||!hzChartInst.chartArea) return;
+    const ds=hzChartInst.data.datasets.find(d=>d.label==='Overall');
+    if(ds){ds.backgroundColor=chartFillGradient(hzChartInst.ctx,hzChartInst.chartArea);hzChartInst.update('none');}
+  });
 }
 
 function updateHzChart(){
@@ -2828,6 +2825,10 @@ function updateHzChart(){
     const g=groups.find(gg=>gg.name===ds.label);
     if(g) ds.data=g.data;
   });
+  if(hzChartInst.chartArea){
+    const ds=hzChartInst.data.datasets.find(d=>d.label==='Overall');
+    if(ds) ds.backgroundColor=chartFillGradient(hzChartInst.ctx,hzChartInst.chartArea);
+  }
   hzChartInst.options.animation={duration:400,easing:'easeOutQuart'};
   hzChartInst.update();
 }
