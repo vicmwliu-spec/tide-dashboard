@@ -761,24 +761,19 @@ function allTimeTotal(){
 
 function cumulData(){
   const days=dim(CY,CM);
-  const today=new Date();
   const h=activeGroups().flatMap(g=>g.habits.map(hb=>({...hb,gid:g.id})));
   if(!h.length) return {overall:[],groups:[]};
-  let cd=0,ct=0;
   const overall=[];
   for(let d=1;d<=days;d++){
     const p=dayProg(d);
-    cd+=p.done;ct+=p.total;
-    overall.push({x:d,y:ct?Math.round(cd/ct*100):0});
+    overall.push({x:d,y:p.pct});
   }
   const groups=activeGroups().map(g=>{
-    let gd=0,gt=0;
     const pts=[];
     for(let d=1;d<=days;d++){
       let done=0,tot=0;
       g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;if(isChk(hb.id,d))done++;}});
-      gd+=done;gt+=tot;
-      pts.push({x:d,y:gt?Math.round(gd/gt*100):0});
+      pts.push({x:d,y:tot?Math.floor(done/tot*100):0});
     }
     return {id:g.id,name:g.name,color:g.color,data:pts};
   });
