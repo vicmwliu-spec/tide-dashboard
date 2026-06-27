@@ -76,7 +76,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* ── Chart ── */
 .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
 .card-title{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:14px}
-.chart-wrap{position:relative;height:150px;overflow:hidden}
+.chart-wrap{position:relative;height:230px;overflow:hidden}
 
 /* ── Grid ── */
 .grid-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px;box-shadow:var(--shadow)}
@@ -322,7 +322,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   .stat-val{font-size:22px}
 
   /* Chart */
-  .chart-wrap{height:110px}
+  .chart-wrap{height:160px}
 
   /* Grid */
   .grid-card{margin-bottom:10px}
@@ -2518,7 +2518,7 @@ function buildHzTable(){
   const chartTh=document.createElement('th');
   chartTh.colSpan=days;
   chartTh.className='hz-chart-td';
-  chartTh.innerHTML=`<div style="position:relative;height:180px;width:100%"><div style="position:absolute;top:8px;left:10px;z-index:1;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);white-space:nowrap;pointer-events:none">Slight Edge Curve</div><canvas id="hz-pc"></canvas></div>`;
+  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div style="position:absolute;top:8px;left:10px;z-index:1;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);white-space:nowrap;pointer-events:none">Slight Edge Curve</div><canvas id="hz-pc"></canvas></div>`;
   rA.appendChild(chartTh);
   const donePh1=document.createElement('th');
   donePh1.className='sr sr-2 st hz-sum-th first-sum';
