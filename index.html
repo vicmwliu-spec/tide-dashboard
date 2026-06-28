@@ -922,12 +922,12 @@ function buildStats(){
   const maxGrpFn=g=>({val:`${g.maxRate}%`,color:'var(--text3)'});
   const maxGrade=isCur&&dLeft>0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
   const maxRateBlock=isCur&&dLeft>0?`
-    <div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% SE</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div>
+    <div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% CR</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div>
     <div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>`
     :`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
   return `
     <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub" id="sv-poss">of ${poss} possible this month</div><div id="sv-comp-grps">${_grpRows(monthGroups,'gt',compGrpFn)}</div></div>
-    <div class="stat"><div class="stat-lbl">${MON[CM]} SLIGHT EDGE</div>
+    <div class="stat"><div class="stat-lbl">${MON[CM]} MASTERY</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-month-grade" style="color:${monthGrade?monthGrade.color:'var(--text3)'}">${monthGrade?monthGrade.letter:'—'}</span>
         <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${rate}%</span>
@@ -935,7 +935,7 @@ function buildStats(){
       <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name:''}</div>
       <div id="sv-month-grps">${_grpRows(monthGroups,'gt')}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
     <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>
-    <div class="stat"><div class="stat-lbl">Today's Slight Edge</div>
+    <div class="stat"><div class="stat-lbl">Today's Mastery</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-today-grade" style="color:${todayGrade?todayGrade.color:'var(--text3)'}">${todayGrade?todayGrade.letter:'—'}</span>
         ${todayGrade?`<span style="font-size:16px;font-weight:600;color:${todayGrade.color}" id="sv-today-rate">${tPct}%</span>`:'<span id="sv-today-rate"></span>'}
@@ -973,7 +973,7 @@ function updStats(){
   if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name:'';
   if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt');
   const maxGrade=isCur&&dLeft>0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
-  if(maxRateEl&&isCur&&dLeft>0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% SE</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}`;
+  if(maxRateEl&&isCur&&dLeft>0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% CR</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}`;
   const maxRateGrpsEl=document.getElementById('sv-max-rate-grps');
   if(maxRateGrpsEl&&isCur&&dLeft>0) maxRateGrpsEl.innerHTML=_grpRows(monthGroups,'gt',maxGrpFn);
   if(todayGradeEl){
@@ -1001,7 +1001,7 @@ function mkChart(){
   const d=document.createElement('div');
   d.className='chart-card';
   d.innerHTML=`<div class="grid-bar">
-    <div class="grid-bar-l">Slight Edge Curve</div>
+    <div class="grid-bar-l">Mastery Curve</div>
     <div style="display:flex;gap:8px">
       ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}
       <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
@@ -1076,7 +1076,7 @@ function updateChart(){
 function mkHzChart(){
   const d=document.createElement('div');
   d.className='chart-card';
-  d.innerHTML=`<div class="card-title">Slight Edge Curve</div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
+  d.innerHTML=`<div class="card-title">Mastery Curve</div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
   setTimeout(()=>buildHzChart(),0);
   return d;
 }
@@ -1176,7 +1176,7 @@ function buildTHead(){
 
   const pctH=document.createElement('th');
   pctH.className='sr sr-1 st hz-sum-th';pctH.rowSpan=2;
-  pctH.textContent='SE %';r1.appendChild(pctH);
+  pctH.textContent='M %';r1.appendChild(pctH);
 
   thead.appendChild(r1);
 
@@ -1353,7 +1353,7 @@ function buildTFoot(){
 
   const rows={
     done:mkAnaRow('Done'),
-    rate:mkAnaRow('Slight Edge %'),
+    rate:mkAnaRow('Mastery %'),
   };
 
   activeGroups().forEach((g,gi)=>{
@@ -1728,7 +1728,7 @@ function mkTide(){
     <div style="display:flex;flex-direction:column;align-items:center;padding:20px 0 16px">
       <div id="tide-letter" style="font-size:72px;font-weight:700;line-height:1;color:${grade.color};letter-spacing:-.02em">${grade.letter}</div>
       <div id="tide-name" style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${grade.color};margin-top:8px">${grade.name}</div>
-      <div id="tide-pct" style="font-size:14px;font-weight:500;color:var(--text3);margin-top:10px">${pct}% SLIGHT EDGE</div>
+      <div id="tide-pct" style="font-size:14px;font-weight:500;color:var(--text3);margin-top:10px">${pct}% MASTERY</div>
       ${fTideLine}
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px">
@@ -1746,7 +1746,7 @@ function updTide(){
   const pctEl=document.getElementById('tide-pct');
   if(letterEl){letterEl.textContent=grade.letter;letterEl.style.color=grade.color;}
   if(nameEl){nameEl.textContent=grade.name;nameEl.style.color=grade.color;}
-  if(pctEl) pctEl.textContent=`${pct}% SLIGHT EDGE`;
+  if(pctEl) pctEl.textContent=`${pct}% MASTERY`;
   const fEl=document.getElementById('tide-fathom-line');
   if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fg.label} &middot; ${fp}%`;}else fEl.style.display='none';}
   activeGroups().forEach(g=>{
@@ -2565,7 +2565,7 @@ function buildHzTable(){
   const chartTh=document.createElement('th');
   chartTh.colSpan=days;
   chartTh.className='hz-chart-td';
-  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div style="position:absolute;top:8px;left:10px;z-index:1;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);white-space:nowrap;pointer-events:none">Slight Edge Curve</div><canvas id="hz-pc"></canvas></div>`;
+  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div style="position:absolute;top:8px;left:10px;z-index:1;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);white-space:nowrap;pointer-events:none">Mastery Curve</div><canvas id="hz-pc"></canvas></div>`;
   rA.appendChild(chartTh);
   const donePh1=document.createElement('th');
   donePh1.className='sr sr-2 st hz-sum-th first-sum';
@@ -2576,7 +2576,7 @@ function buildHzTable(){
   pctPh1.className='sr sr-1 st hz-sum-th';
   pctPh1.rowSpan=4;
   pctPh1.style.verticalAlign='bottom';
-  pctPh1.textContent='SE %';
+  pctPh1.textContent='M %';
   rA.appendChild(donePh1);rA.appendChild(pctPh1);
   thead.appendChild(rA);
 
@@ -2943,7 +2943,7 @@ function mkFathomGrid(){
   const donePh=document.createElement('th');
   donePh.className='sr sr-2 st hz-sum-th first-sum';donePh.rowSpan=3;donePh.style.verticalAlign='bottom';donePh.textContent='Done';
   const pctPh=document.createElement('th');
-  pctPh.className='sr sr-1 st hz-sum-th';pctPh.rowSpan=3;pctPh.style.verticalAlign='bottom';pctPh.textContent='SE %';
+  pctPh.className='sr sr-1 st hz-sum-th';pctPh.rowSpan=3;pctPh.style.verticalAlign='bottom';pctPh.textContent='M %';
   rA.appendChild(donePh);rA.appendChild(pctPh);
   thead.appendChild(rA);
 
