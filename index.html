@@ -747,7 +747,7 @@ function monthStats(){
     const maxRate=(gt+gFutPoss)?Math.floor((gd+gFutPoss)/(gt+gFutPoss)*100):0;
     return {...g,pct:gt?Math.floor(gd/gt*100):0,gt,gd,maxRate};
   });
-  return {comp,poss,rate,dLeft,td,isCur,maxRate,monthGroups};
+  return {comp,poss,rate,dLeft,td,isCur,maxRate,monthGroups,futPoss};
 }
 
 function allTimeTotal(){
@@ -911,7 +911,7 @@ function _grpRows(groups,filterKey,getVal){
 }
 
 function buildStats(){
-  const {comp,poss,rate,dLeft,isCur,maxRate,monthGroups}=monthStats();
+  const {comp,poss,rate,dLeft,isCur,maxRate,monthGroups,futPoss}=monthStats();
   const rc=rate>=80?'var(--green)':rate>=50?'var(--amber)':'var(--red)';
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
@@ -921,9 +921,14 @@ function buildStats(){
   const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
   const maxGrpFn=g=>({val:`${g.maxRate}%`,color:'var(--text3)'});
   const maxGrade=isCur&&dLeft>0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
+  const nextGrade=monthGrade?TIDE_GRADES.slice().reverse().find(g=>g.min>monthGrade.min):TIDE_GRADES[TIDE_GRADES.length-1];
+  const totalPoss=poss+futPoss;
+  const neededForNext=nextGrade&&totalPoss>0?Math.ceil(nextGrade.min/100*totalPoss)-comp:null;
+  const canReachNext=neededForNext!==null&&neededForNext>0;
   const maxRateBlock=isCur&&dLeft>0?`
     <div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% CR</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div>
-    <div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>`
+    <div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>
+    ${canReachNext?'<div style="margin-top:4px;font-size:11px;color:var(--text3);font-weight:500">'+neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name+'</div>':''}`
     :`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
   return `
     <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub" id="sv-poss">of ${poss} possible this month</div><div id="sv-comp-grps">${_grpRows(monthGroups,'gt',compGrpFn)}</div></div>
@@ -947,7 +952,7 @@ function buildStats(){
 }
 
 function updStats(){
-  const {comp,poss,rate,isCur,dLeft,maxRate,monthGroups}=monthStats();
+  const {comp,poss,rate,isCur,dLeft,maxRate,monthGroups,futPoss}=monthStats();
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
   const monthGrade=poss===0?null:TIDE_GRADES.find(g=>rate>=g.min);
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
@@ -1814,7 +1819,7 @@ function mkAnnual(){
         <div style="font-size:24px;font-weight:600;color:var(--border);margin-top:2px">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:5px">Not started</div>
       `}
-      ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fGrade.label} · ${q.fc}/${q.fp}</div>`:''}
+      ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fGrade.label} · ${Math.floor(q.fc/q.fp*100)}%</div>`:''}
       ${q.bestPct!==null?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${q.bestPct}%</span>${q.bestGrade?` · <span style="font-weight:600;color:var(--text3)">${q.bestGrade.letter} ${q.bestGrade.name}</span>`:''}</div>`:''}
     </div>`).join('');
 
@@ -1876,7 +1881,7 @@ function mkAnnual(){
           </div>
           <div class="mo-bar"><div class="mo-fill" style="width:${rate}%;background:${barC}"></div></div>
           <div class="mo-stat">${rate}% · ${comp}/${poss||'—'}</div>
-          ${fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">${fGrade.label} · ${fc}/${fp}</div>`:''}
+          ${fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">${fGrade.label} · ${Math.floor(fc/fp*100)}%</div>`:''}
         </div>`;
       }).join('')}
     </div>`;
