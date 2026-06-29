@@ -2405,7 +2405,7 @@ function deleteGroup(gid){
 }
 
 function renameGroup(gid,name){
-  const g=D.groups.find(g=>g.id===gid);
+  const g=activeGroups().find(g=>g.id===gid);
   if(g){g.name=name.trim()||g.name;save()}
 }
 function changeGroupStartDate(gid,date){
@@ -2463,7 +2463,7 @@ function mkArchivedPanel(){
 }
 
 function renameHabit(hid,name){
-  for(const g of D.groups){
+  for(const g of activeGroups()){
     const h=g.habits.find(h=>h.id===hid);
     if(h){h.name=name.trim()||h.name;save();return}
   }
