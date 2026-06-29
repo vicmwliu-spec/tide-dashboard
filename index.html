@@ -197,6 +197,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .add-hbt-btn:hover{border-color:var(--text2);color:var(--text2)}
 .color-dot-btn{display:none;width:12px;height:12px;border-radius:50%;border:2px solid rgba(0,0,0,.12);cursor:pointer;padding:0;flex-shrink:0}
 .edit-mode .color-dot-btn{display:block}
+.grade-tip{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:7px 10px;box-shadow:var(--shadow-md);z-index:1000;font-size:11px;pointer-events:none;white-space:nowrap}
 .color-popup{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:8px;box-shadow:var(--shadow-md);z-index:1000;display:flex;flex-wrap:wrap;gap:5px;width:112px}
 .csw{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .1s}
 .csw:hover{border-color:var(--text1)}
@@ -925,10 +926,11 @@ function buildStats(){
   const totalPoss=poss+futPoss;
   const neededForNext=nextGrade&&totalPoss>0?Math.ceil(nextGrade.min/100*totalPoss)-comp:null;
   const canReachNext=neededForNext!==null&&neededForNext>0;
+  const gradeRows=monthGrade?TIDE_GRADES.filter(g=>g.min>monthGrade.min).map(g=>{const n=Math.ceil(g.min/100*totalPoss)-comp;return n>0?{letter:g.letter,name:g.name,count:n,color:g.color}:null;}).filter(Boolean):[];
   const maxRateBlock=isCur&&dLeft>0?`
     <div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% CR</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div>
     <div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>
-    ${canReachNext?'<div style="margin-top:4px;font-size:11px;color:var(--text3);font-weight:500">'+neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name+'</div>':''}`
+    ${canReachNext?'<div style="margin-top:4px;font-size:11px;color:var(--text3);font-weight:500;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':'')+'>'+neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name+(poss-comp>0?' · '+(poss-comp)+' missed':'')+'</div>':''}`
     :`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
   return `
     <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub" id="sv-poss">of ${poss} possible this month</div><div id="sv-comp-grps">${_grpRows(monthGroups,'gt',compGrpFn)}</div></div>
@@ -1920,6 +1922,20 @@ function openColorPop(e,gid){
   document.body.appendChild(pop);
 }
 
+function openGradeTip(e){
+  closeGradeTip();
+  const rows=JSON.parse(e.currentTarget.dataset.grades||'[]');
+  if(!rows.length) return;
+  const tip=document.createElement('div');
+  tip.id='gtip';tip.className='grade-tip';
+  tip.innerHTML=rows.map(r=>`<div style="color:var(--text3);font-weight:500">${r.count} more → ${r.letter} ${r.name}</div>`).join('');
+  document.body.appendChild(tip);
+  const rect=e.currentTarget.getBoundingClientRect();
+  tip.style.left=rect.left+'px';
+  tip.style.top=(rect.bottom+4)+'px';
+  setTimeout(()=>{const tr=tip.getBoundingClientRect();if(tr.bottom>window.innerHeight-8)tip.style.top=(rect.top-tr.height-4)+'px';},0);
+}
+function closeGradeTip(){const t=document.getElementById('gtip');if(t)t.remove();}
 function closePop(e){
   if(colorPopTarget&&!e.target.closest('#cpop')){
     const p=document.getElementById('cpop');
