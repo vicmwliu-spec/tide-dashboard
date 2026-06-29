@@ -1988,6 +1988,23 @@ function richtextKD(e){
     if(e.key==='i'){e.preventDefault();document.execCommand('italic',false,null)}
     if(e.key==='u'){e.preventDefault();document.execCommand('underline',false,null)}
   }
+  // "--" → em dash
+  if(e.key==='-'){
+    const sel0=window.getSelection();
+    if(sel0&&sel0.rangeCount){
+      const rng0=sel0.getRangeAt(0);
+      const nd0=rng0.startContainer;
+      if(nd0.nodeType===Node.TEXT_NODE&&nd0.textContent.slice(0,rng0.startOffset).endsWith('-')){
+        e.preventDefault();
+        const r0=document.createRange();
+        r0.setStart(nd0,rng0.startOffset-1);r0.setEnd(nd0,rng0.startOffset);
+        sel0.removeAllRanges();sel0.addRange(r0);
+        document.execCommand('delete');
+        document.execCommand('insertText',false,'—');
+        return;
+      }
+    }
+  }
   // "---" + Enter → horizontal rule separator
   if(e.key==='Enter'&&!e.shiftKey){
     const sel2=window.getSelection();
