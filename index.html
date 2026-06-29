@@ -1214,6 +1214,16 @@ function buildTHead(){
             <button class="del-btn" onclick="deleteHabit('${g.id}','${h.id}')" title="Archive">&#10005;</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${freqBtns}</div>
+          <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">Why</span>
+              <input value="${esc(h.why||'')}" placeholder="…" onchange="updateHabitField('${h.id}','why',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">MVP</span>
+              <input value="${esc(h.mvp||'')}" placeholder="…" onchange="updateHabitField('${h.id}','mvp',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+            </div>
+          </div>
         </div>`;
         th.draggable=true;
         th.ondragstart=e=>{_dg={type:'habit',gid:g.id,hid:h.id};th.classList.add('dnd-drag');e.dataTransfer.effectAllowed='move';e.stopPropagation()};
@@ -1234,7 +1244,8 @@ function buildTHead(){
           _dropHabit(g.id,h.id,e.clientX<left+width/2);
         };
       } else {
-        th.innerHTML=`<span>${esc(h.name)}</span>`;
+        const _htip=(h.why||h.mvp)?` data-why="${(h.why||'').replace(/"/g,'&quot;')}" data-mvp="${(h.mvp||'').replace(/"/g,'&quot;')}" onmouseenter="openHabitTip(event)" onmouseleave="closeHabitTip()" style="cursor:default"`:'';
+        th.innerHTML=`<span${_htip}>${esc(h.name)}</span>`;
       }
       r2.appendChild(th);
     });
@@ -1961,6 +1972,21 @@ function openColorPop(e,gid){
   document.body.appendChild(pop);
 }
 
+function openHabitTip(e){
+  closeHabitTip();
+  const why=e.currentTarget.dataset.why||'';
+  const mvp=e.currentTarget.dataset.mvp||'';
+  if(!why&&!mvp) return;
+  const tip=document.createElement('div');
+  tip.id='hbtip';tip.className='grade-tip';
+  tip.innerHTML=(why?`<div style="font-size:11px;color:var(--text2);margin-bottom:${mvp?4:0}px">${esc(why)}</div>`:'')
+    +(mvp?`<div style="font-size:10px;color:var(--text3)">MVP: ${esc(mvp)}</div>`:'');
+  document.body.appendChild(tip);
+  const rect=e.currentTarget.getBoundingClientRect();
+  tip.style.left=rect.left+'px';tip.style.top=(rect.bottom+4)+'px';
+  setTimeout(()=>{const tr=tip.getBoundingClientRect();if(tr.bottom>window.innerHeight-8)tip.style.top=(rect.top-tr.height-4)+'px';},0);
+}
+function closeHabitTip(){const t=document.getElementById('hbtip');if(t)t.remove();}
 function openWeekGrpTip(e){
   closeWeekGrpTip();
   const groups=JSON.parse(e.currentTarget.dataset.groups||'[]');
@@ -2552,6 +2578,10 @@ function mkArchivedPanel(){
   return panel;
 }
 
+function updateHabitField(hid,field,val){
+  const h=activeGroups().flatMap(g=>g.habits).find(h=>h.id===hid);
+  if(h){h[field]=val;save();}
+}
 function renameHabit(hid,name){
   for(const g of activeGroups()){
     const h=g.habits.find(h=>h.id===hid);
@@ -2793,6 +2823,16 @@ function buildHzTable(){
             <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteHabit('${g.id}','${h.id}')" title="Archive">&#10005;</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${hfreqBtns}</div>
+          <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">Why</span>
+              <input value="${esc(h.why||'')}" placeholder="…" onchange="updateHabitField('${h.id}','why',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">MVP</span>
+              <input value="${esc(h.mvp||'')}" placeholder="…" onchange="updateHabitField('${h.id}','mvp',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+            </div>
+          </div>
         </div>`;
         tr.draggable=true;
         tr.ondragstart=e=>{_dg={type:'habit',gid:g.id,hid:h.id};tr.classList.add('dnd-drag');e.dataTransfer.effectAllowed='move'};
@@ -2813,7 +2853,8 @@ function buildHzTable(){
           _dropHabit(g.id,h.id,e.clientY<top+height/2);
         };
       } else {
-        nameTd.innerHTML=`<div class="hz-habit-name">${esc(h.name)}</div><div class="hz-habit-grp" style="color:${g.color}">${esc(g.name)}</div>`;
+        const _hztip=(h.why||h.mvp)?` data-why="${(h.why||'').replace(/"/g,'&quot;')}" data-mvp="${(h.mvp||'').replace(/"/g,'&quot;')}" onmouseenter="openHabitTip(event)" onmouseleave="closeHabitTip()" style="cursor:default"`:'';
+        nameTd.innerHTML=`<div class="hz-habit-name"${_hztip}>${esc(h.name)}</div><div class="hz-habit-grp" style="color:${g.color}">${esc(g.name)}</div>`;
       }
       tr.appendChild(nameTd);
 
