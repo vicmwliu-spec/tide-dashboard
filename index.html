@@ -62,8 +62,9 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
 .priority-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Top row ── */
-.top-row{display:flex;gap:14px;margin-bottom:14px;align-items:flex-start}
+.top-row{display:flex;gap:14px;margin-bottom:14px;align-items:stretch}
 .top-row .quote-card{flex:1;margin-bottom:0}
+.top-left-col{width:35%;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
 .top-row .priority-card{width:35%;flex-shrink:0}
 
 /* ── Stats ── */
@@ -152,18 +153,20 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .aar-btn{display:block;background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:500;padding:2px 5px;border-radius:3px;line-height:1.4;margin-top:3px;font-family:var(--font);letter-spacing:.03em;white-space:nowrap}
 .aar-btn:hover{background:var(--border2);color:var(--text1)}
 .aar-btn.aar-has{color:var(--accent);font-weight:600}
-#aar-editor hr,.quote-ta hr,.priority-ta hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
-#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol{padding-left:22px;margin:4px 0}
-#aar-editor li,.quote-ta li,.priority-ta li{margin:2px 0}
-#aar-editor ul,.quote-ta ul,.priority-ta ul{list-style-type:disc}
-#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul{list-style-type:circle}
-#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul{list-style-type:square}
-#aar-editor ol,.quote-ta ol,.priority-ta ol{list-style-type:decimal}
-#aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol{list-style-type:lower-alpha}
-#aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol{list-style-type:lower-roman}
+#aar-editor hr,.quote-ta hr,.priority-ta hr,.intention-ta hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
+#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.intention-ta ul,.intention-ta ol{padding-left:22px;margin:4px 0}
+#aar-editor li,.quote-ta li,.priority-ta li,.intention-ta li{margin:2px 0}
+#aar-editor ul,.quote-ta ul,.priority-ta ul,.intention-ta ul{list-style-type:disc}
+#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.intention-ta ul ul{list-style-type:circle}
+#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.intention-ta ul ul ul{list-style-type:square}
+#aar-editor ol,.quote-ta ol,.priority-ta ol,.intention-ta ol{list-style-type:decimal}
+#aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol,.intention-ta ol ol{list-style-type:lower-alpha}
+#aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol,.intention-ta ol ol ol{list-style-type:lower-roman}
 /* Richtext contenteditable */
 .quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text2);line-height:1.6;word-break:break-word;min-height:1.4em}
 .quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
+.intention-ta{width:100%;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text2);line-height:1.6;word-break:break-word;min-height:1.4em;margin-top:4px}
+.intention-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 
 /* ── Annual ── */
 .annual-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
@@ -315,6 +318,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   .quote-card{padding:10px 14px;margin-bottom:0}
   .priority-card{padding:10px 14px;min-height:60px}
   .top-row{flex-direction:column;gap:8px}
+  .top-left-col{width:100%}
   .top-row .priority-card{width:100%}
 
   /* Stats */
@@ -876,6 +880,13 @@ function mkPriority(){
   setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=D.priority||''},0);
   return d;
 }
+function mkIntention(){
+  const d=document.createElement('div');
+  d.className='stat';
+  d.innerHTML=`<div class="intention-ta" id="sv-intention" contenteditable="true" oninput="saveIntention(this.innerHTML)" onkeydown="richtextKD(event)"></div>`;
+  setTimeout(()=>{const el=document.getElementById('sv-intention');if(el)el.innerHTML=md(CY,CM).intention||'';},0);
+  return d;
+}
 
 // ─────────────────────────────────────────
 //  STATS
@@ -884,7 +895,8 @@ function mkStats(){
   const d=document.createElement('div');
   d.className='stats-row';
   d.id='stats-row';
-  d.innerHTML=buildStats();
+  d.appendChild(mkIntention());
+  d.insertAdjacentHTML('beforeend',buildStats());
   return d;
 }
 
@@ -898,6 +910,7 @@ function _fathomStatLine(id,pct,label,hasData){
   </div>`;
 }
 
+function gradeCol(pct,grades){return(grades.find(g=>pct>=g.min)||grades[grades.length-1]).color}
 function _grpRows(groups,filterKey,getVal){
   return groups.filter(g=>g[filterKey]>0).map(g=>{
     const def={val:`${g.pct}%`,color:g.pct>=80?'var(--green)':g.pct>=50?'var(--amber)':'var(--red)'};
@@ -930,17 +943,16 @@ function buildStats(){
   const maxRateBlock=isCur&&dLeft>0?`
     <div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% CR</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div>
     <div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>
-    ${canReachNext?'<div style="margin-top:4px;font-size:11px;color:var(--text3);font-weight:500;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':'')+'>'+neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name+(poss-comp>0?' · '+(poss-comp)+' missed':'')+'</div>':''}`
+    ${canReachNext?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':'')+'>'+neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name+(poss-comp>0?' · '+(poss-comp)+' missed':'')+'</div>':''}`
     :`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
   return `
-    <div class="stat"><div class="stat-lbl">Completed</div><div class="stat-val" id="sv-comp">${comp}</div><div class="stat-sub" id="sv-poss">of ${poss} possible this month</div><div id="sv-comp-grps">${_grpRows(monthGroups,'gt',compGrpFn)}</div></div>
     <div class="stat"><div class="stat-lbl">${MON[CM]} SLIGHT EDGE</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-month-grade" style="color:${monthGrade?monthGrade.color:'var(--text3)'}">${monthGrade?monthGrade.letter:'—'}</span>
         <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${rate}%</span>
       </div>
-      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name:''}</div>
-      <div id="sv-month-grps">${_grpRows(monthGroups,'gt')}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
+      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':''}</div>
+      <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
     <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>
     <div class="stat"><div class="stat-lbl">Today's Slight Edge</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
@@ -948,9 +960,10 @@ function buildStats(){
         ${todayGrade?`<span style="font-size:16px;font-weight:600;color:${todayGrade.color}" id="sv-today-rate">${tPct}%</span>`:'<span id="sv-today-rate"></span>'}
       </div>
       <div class="stat-sub" id="sv-today-sub">${todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:'No habits set'}</div>
-      <div id="sv-today-grps">${_grpRows(tGroups,'total')}</div>
+      <div id="sv-today-grps">${_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas)}
-    </div>`;
+    </div>
+`;
 }
 
 function updStats(){
@@ -958,11 +971,7 @@ function updStats(){
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
   const monthGrade=poss===0?null:TIDE_GRADES.find(g=>rate>=g.min);
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
-  const compGrpFn=g=>({val:`${g.gd}/${g.gt}`,color:'var(--text2)'});
   const maxGrpFn=g=>({val:`${g.maxRate}%`,color:'var(--text3)'});
-  const compEl=document.getElementById('sv-comp');
-  const possEl=document.getElementById('sv-poss');
-  const compGrpsEl=document.getElementById('sv-comp-grps');
   const monthGradeEl=document.getElementById('sv-month-grade');
   const rateEl=document.getElementById('sv-rate');
   const monthSubEl=document.getElementById('sv-month-sub');
@@ -972,13 +981,11 @@ function updStats(){
   const todayRateEl=document.getElementById('sv-today-rate');
   const todaySubEl=document.getElementById('sv-today-sub');
   const todayGrpsEl=document.getElementById('sv-today-grps');
-  if(compEl) compEl.textContent=comp;
-  if(possEl) possEl.textContent=`of ${poss} possible this month`;
-  if(compGrpsEl) compGrpsEl.innerHTML=_grpRows(monthGroups,'gt',compGrpFn);
+
   if(monthGradeEl){monthGradeEl.textContent=monthGrade?monthGrade.letter:'—';monthGradeEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
   if(rateEl){rateEl.textContent=rate+'%';rateEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
-  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name:'';
-  if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt');
+  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':'';
+  if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}));
   const maxGrade=isCur&&dLeft>0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
   if(maxRateEl&&isCur&&dLeft>0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}% CR</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}`;
   const maxRateGrpsEl=document.getElementById('sv-max-rate-grps');
@@ -992,7 +999,7 @@ function updStats(){
     if(todayGrade) todayRateEl.style.color=todayGrade.color;
   }
   if(todaySubEl) todaySubEl.textContent=todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:'No habits set';
-  if(todayGrpsEl) todayGrpsEl.innerHTML=_grpRows(tGroups,'total');
+  if(todayGrpsEl) todayGrpsEl.innerHTML=_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}));
   const fmEl=document.getElementById('sv-fathom-month');
   const ftEl=document.getElementById('sv-fathom-today');
   const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
@@ -1260,6 +1267,8 @@ function buildTBody(){
     for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
     wkData[s.week]=wt>0?{pct:Math.round(wd/wt*100),done:wd,total:wt}:null;
   });
+  const weekAllStats={};
+  allWeeksStats().forEach(w=>{weekAllStats[w.week]=w;});
   const totalHabitCols=activeGroups().reduce((s,g)=>s+g.habits.length+(editMode?1:0),0);
   for(let d=1;d<=days;d++){
     // Insert week separator before the first day of each week
@@ -1274,7 +1283,9 @@ function buildTBody(){
       const weekStarted=todayD<0||spans.find(s=>s.week===wn)?.start<=todayD;
       const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
       const badgeText=wg?`${wg.letter} · ${wd.pct}%`:'—';
-      const badge=weekStarted?`<span class="wk-badge" style="${badgeStyle}">${badgeText}</span>`:'';
+      const wStats=weekAllStats[wn];
+      const gd_json=wStats?JSON.stringify(wStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
+      const badge=weekStarted?`<span class="wk-badge" style="${badgeStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${gd_json}">${badgeText}</span>`:'';
       const wAarHas=!!getWeekAAR(wn);
       sepTd.innerHTML=`<span class="week-lbl-text">Week ${wn}</span>${badge}<button id="week-aar-btn-${wn}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${wn})" title="Weekly Review" style="display:inline;margin-left:6px;margin-top:0;padding:1px 5px">✎</button>`;
       const fillTd=document.createElement('td');
@@ -1343,8 +1354,8 @@ function buildDayRow(d,todayD){
   const pc2=document.createElement('td');
   pc2.className='sr sr-1 sum-c';pc2.id=`ps-${d}`;
   if(!isFuture){
-    const c=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
-    pc2.innerHTML=`<span style="color:${c};font-weight:600">${pct}%</span>`;
+    const g=pct>0?(TODAY_GRADES.find(gr=>pct>=gr.min)||null):null;
+    pc2.innerHTML=`<span style="color:${gradeCol(pct,TODAY_GRADES)};font-weight:600">${pct}%</span>`;
   } else {
     pc2.innerHTML=`<span style="color:var(--text3)">—</span>`;
   }
@@ -1367,7 +1378,7 @@ function buildTFoot(){
     g.habits.forEach((h2,hi)=>{
       const {actual,pct,last}=habitProg(h2.id);
       const isSep=gi>0&&hi===0;
-      const pctC=pct>=80?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+      const pctC=gradeCol(pct,TIDE_GRADES);
       const pctBg=pillBg(pct);
 
       const mkTd=(id,html,extra='')=>{
@@ -1379,7 +1390,8 @@ function buildTFoot(){
       };
 
       rows.done.appendChild(mkTd(`da-${h2.id}`,`${actual}<span style="color:var(--text3);font-size:9px">/${last}</span>`));
-      rows.rate.appendChild(mkTd(`ra-${h2.id}`,`<span class="pill" style="background:${pctBg};color:${pctC}">${pct}%</span>`));
+      const hGrade=TIDE_GRADES.find(g=>pct>=g.min);
+      rows.rate.appendChild(mkTd(`ra-${h2.id}`,`<span class="pill" style="background:${pctBg};color:${pctC}">${hGrade?hGrade.letter+' ':''}${pct}%</span>`));
     });
     if(editMode){
       ['done','rate'].forEach(k=>{
@@ -1455,7 +1467,7 @@ function doSkipToggle(hid,day,color){
     if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pc};border-radius:2px"></div></div>`;
     const {pct:dp}=dayProg(day);
     const dpEl=document.getElementById(`hzdp-${day}`);
-    if(dpEl){const c=dp===100?'var(--green)':dp>=50?'var(--amber)':'var(--red)';dpEl.innerHTML=`<span style="color:${c};font-size:10px;font-weight:700">${dp}%</span>`;}
+    if(dpEl){const c=gradeCol(dp,TODAY_GRADES);dpEl.innerHTML=`<span style="color:${c};font-size:10px;font-weight:700">${dp}%</span>`;}
     updStats();updateHzChart();updTide();
   }
 }
@@ -1470,17 +1482,18 @@ function partialUpdate(hid,day){
   const isFuture=false;
   if(ds&&!isFuture) ds.innerHTML=`${done}<span style="color:var(--text3);font-size:9px">/${total}</span>`;
   if(ps&&!isFuture){
-    const c=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
-    ps.innerHTML=`<span style="color:${c};font-weight:600">${pct}%</span>`;
+    const g=pct>0?(TODAY_GRADES.find(gr=>pct>=gr.min)||null):null;
+    ps.innerHTML=`<span style="color:${gradeCol(pct,TODAY_GRADES)};font-weight:600">${pct}%</span>`;
   }
   // habit footer
   const {actual,pct:hp,last}=habitProg(hid);
-  const pctC=hp>=80?'var(--green)':hp>=50?'var(--amber)':'var(--red)';
+  const pctC=gradeCol(hp,TIDE_GRADES);
   const pctBg=pillBg(hp);
   const da=document.getElementById(`da-${hid}`);
   const ra=document.getElementById(`ra-${hid}`);
   if(da) da.innerHTML=`${actual}<span style="color:var(--text3);font-size:9px">/${last}</span>`;
-  if(ra) ra.innerHTML=`<span class="pill" style="background:${pctBg};color:${pctC}">${hp}%</span>`;
+  const hpGrade=TIDE_GRADES.find(g=>hp>=g.min);
+  if(ra) ra.innerHTML=`<span class="pill" style="background:${pctBg};color:${pctC}">${hpGrade?hpGrade.letter+' ':''}${hp}%</span>`;
   // stats & chart
   updStats();
   updateChart();
@@ -1536,6 +1549,32 @@ const FATHOM_GRADES=[
 const FATHOM_COLOR='#6B7FA8'; // checkbox color
 function fgColor(g){ return darkMode?g.dcolor:g.color; }
 function fathomGrade(pct){ return FATHOM_GRADES.find(g=>pct>=g.min)||FATHOM_GRADES[FATHOM_GRADES.length-1]; }
+
+function allWeeksStats(){
+  const spans=getWeekSpans(CY,CM);
+  const today=new Date();
+  const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
+  const todayD=isCur?today.getDate():dim(CY,CM);
+  return spans.map(s=>{
+    const lastD=Math.min(s.end,todayD);
+    let wd=0,wt=0;
+    if(lastD>=s.start) for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
+    const started=s.start<=todayD;
+    const pct=wt>0?Math.round(wd/wt*100):0;
+    const grade=wt>0?WEEK_GRADES.find(g=>pct>=g.min):null;
+    const groups=activeGroups().map(g=>{
+      const hs=g.habits.filter(hb=>!hb.archived);
+      let gd=0,gt=0;
+      if(lastD>=s.start) for(let d=s.start;d<=lastD;d++){
+        const dow=new Date(CY,CM,d).getDay();
+        hs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){gt++;if(isChk(hb.id,d))gd++;}});
+      }
+      return {...g,gd,gt,pct:gt?Math.round(gd/gt*100):0};
+    });
+    return {week:s.week,pct,done:wd,total:wt,grade,started,groups};
+  });
+}
+
 function weekStats(){
   const todayD=now.getFullYear()===CY&&now.getMonth()===CM?now.getDate():-1;
   if(todayD===-1) return {pct:0,done:0,total:0,hasData:false,weekNum:0};
@@ -1922,6 +1961,23 @@ function openColorPop(e,gid){
   document.body.appendChild(pop);
 }
 
+function openWeekGrpTip(e){
+  closeWeekGrpTip();
+  const groups=JSON.parse(e.currentTarget.dataset.groups||'[]');
+  if(!groups.length) return;
+  const tip=document.createElement('div');
+  tip.id='wgtip';tip.className='grade-tip';
+  tip.innerHTML=groups.filter(g=>g.gt>0).map(g=>{
+    const c=gradeCol(g.pct,WEEK_GRADES);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><span style="width:5px;height:5px;border-radius:50%;background:${g.color};flex-shrink:0;display:inline-block"></span>${esc(g.name)}</span><span style="font-size:10px;font-weight:600;font-variant-numeric:tabular-nums"><span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${c}"> · ${g.pct}%</span></span></div>`;
+  }).join('');
+  document.body.appendChild(tip);
+  const rect=e.currentTarget.getBoundingClientRect();
+  tip.style.left=rect.left+'px';
+  tip.style.top=(rect.bottom+4)+'px';
+  setTimeout(()=>{const tr=tip.getBoundingClientRect();if(tr.bottom>window.innerHeight-8)tip.style.top=(rect.top-tr.height-4)+'px';},0);
+}
+function closeWeekGrpTip(){const t=document.getElementById('wgtip');if(t)t.remove();}
 function openGradeTip(e){
   closeGradeTip();
   const rows=JSON.parse(e.currentTarget.dataset.grades||'[]');
@@ -1962,6 +2018,7 @@ function toggleEdit(){if(isMonthArchived())return;editMode=!editMode;render()}
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
 function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
+function saveIntention(v){const m=md(CY,CM);m.intention=(v==='<br>')?'':v;save()}
 
 function resetMonth(){
   if(!confirm(`Reset ${MON[CM]} ${CY}? All completions, notes, and quotes for this month will be cleared.`)) return;
@@ -2631,7 +2688,7 @@ function buildHzTable(){
     td.className='st hz-chk-c'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
     td.style.cssText=`padding:3px 2px;cursor:default;background:${isToday?'var(--today-bg)':'var(--surface2)'};border-bottom:1px solid var(--border2)`;
     if(isFuture){td.innerHTML=`<span style="color:var(--text3);font-size:9px">—</span>`}
-    else{const c=pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';td.innerHTML=`<span style="color:${c};font-size:10px;font-weight:700">${pct}%</span>`}
+    else{td.innerHTML=`<span style="color:${gradeCol(pct,TODAY_GRADES)};font-size:10px;font-weight:700">${pct}%</span>`}
     rB.appendChild(td);
   }
   thead.appendChild(rB);
@@ -2640,7 +2697,9 @@ function buildHzTable(){
   const rC=document.createElement('tr');
   const weekSpans=getWeekSpans(CY,CM);
   const hzWkData={};
-  weekSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);let wd=0,wt=0;for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}hzWkData[s.week]=wt>0?{pct:Math.round(wd/wt*100)}:null;});
+  weekSpans.forEach(s=>{const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);let wd=0,wt=0;for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}hzWkData[s.week]=wt>0?{pct:Math.round(wd/wt*100),done:wd,total:wt}:null;});
+  const hzWeekAllStats={};
+  allWeeksStats().forEach(w=>{hzWeekAllStats[w.week]=w;});
   weekSpans.forEach((ws,wi)=>{
     const th=document.createElement('th');
     th.className='st hz-week-hdr-th'+(wi>0?' week-start-sep':'');
@@ -2650,8 +2709,10 @@ function buildHzTable(){
     const wg=wd?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
     const started=todayD<0||ws.start<=todayD;
     const bStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
+    const hzWStats=hzWeekAllStats[ws.week];
+    const hzGdJson=hzWStats?JSON.stringify(hzWStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
     const wAarHas=!!getWeekAAR(ws.week);
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
     rC.appendChild(th);
   });
   thead.appendChild(rC);
@@ -2822,7 +2883,7 @@ function doHzToggle(hid,day,color){
   // update daily % row (in thead)
   const {pct:dp}=dayProg(day);
   const dpEl=document.getElementById(`hzdp-${day}`);
-  if(dpEl){const c=dp===100?'var(--green)':dp>=50?'var(--amber)':'var(--red)';dpEl.innerHTML=`<span style="color:${c};font-size:10px;font-weight:700">${dp}%</span>`}
+  if(dpEl){dpEl.innerHTML=`<span style="color:${gradeCol(dp,TODAY_GRADES)};font-size:10px;font-weight:700">${dp}%</span>`;}
   // refresh chart + stats
   updStats();
   updateHzChart();
