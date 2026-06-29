@@ -456,6 +456,7 @@ let view = 'month'; // 'month'|'year'
 let gridLayout = 'horizontal'; // 'vertical'|'horizontal'
 let chartInst = null;
 let hzChartInst = null;
+let chartSoloState = null;
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
 let _aarDay = null; // currently open AAR day
@@ -558,6 +559,7 @@ function chartConf(){
     tipBg:  d?'#1A1A1E':'#111111',
     tipBdr: d?'#2E2E33':'#333333',
     tipBdy: d?'#8E8EA0':'#AAAAAA',
+    cumul:  d?'rgba(168,162,158,0.5)':'rgba(120,113,108,0.5)',
   };
 }
 
@@ -786,6 +788,24 @@ function cumulData(){
   });
   return {overall,groups};
 }
+function firstActiveDay(){
+  const days=dim(CY,CM);
+  for(let d=1;d<=days;d++){if(dayProg(d).total>0)return d;}
+  return 1;
+}
+function cumulProgressData(){
+  const days=dim(CY,CM);
+  const now=new Date();
+  const todayD=(CY===now.getFullYear()&&CM===now.getMonth()+1)?now.getDate():days;
+  let monthTotal=0;
+  for(let d=1;d<=days;d++) monthTotal+=dayProg(d).total;
+  if(!monthTotal) return [];
+  const pts=[];let done=0;
+  for(let d=1;d<=days;d++){
+    if(d<=todayD){const p=dayProg(d);done+=p.done;pts.push({x:d,y:Math.round(done/monthTotal*100)});}
+  }
+  return pts;
+}
 
 // ─────────────────────────────────────────
 //  RENDER MAIN
@@ -800,6 +820,12 @@ function render(){
   if(hzChartInst){hzChartInst.destroy();hzChartInst=null}
   app.appendChild(mkHeader());
   if(view==='year'){
+    const seCard=document.createElement('div');
+    seCard.className='chart-card';
+    seCard.style.marginBottom='14px';
+    seCard.innerHTML=`<div style="margin-bottom:10px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge</span></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
+    app.appendChild(seCard);
+    setTimeout(()=>buildSlightEdgeChart('se-all-time'),0);
     app.appendChild(mkAnnual());
   } else {
     const topRow=document.createElement('div');
@@ -1026,6 +1052,50 @@ function mkChart(){
   return d;
 }
 
+function _refreshPresetBtns(){
+  const el=document.getElementById('hz-preset-btns');
+  if(!el)return;
+  const refLabels=window._lgRefLabels||['Perfection','Trajectory'];
+  const grpNames=window._lgGrpNames||[];
+  const bs=(key,labels,text)=>{
+    const active=chartSoloState===key;
+    return `<button class="btn chart-preset-btn" data-key="${key}" onclick="soloChart('${key}',window._lgPresets['${key}'])" style="font-size:9px;padding:1px 5px;opacity:${active?'1':'0.45'}">${text}</button>`;
+  };
+  // Build preset map: each preset = its own labels + P+T
+  window._lgPresets={
+    'PT': refLabels,
+    'Overall': ['Overall',...refLabels],
+  };
+  grpNames.forEach(n=>{ window._lgPresets[n]=[n,...refLabels]; });
+  let html=bs('PT',window._lgPresets['PT'],'P+T');
+  html+=bs('Overall',window._lgPresets['Overall'],'Overall');
+  grpNames.forEach(n=>{ html+=bs(n,window._lgPresets[n],n); });
+  el.innerHTML=html;
+}
+function _applyChartVisibility(showFn){
+  [chartInst,hzChartInst].forEach(ch=>{
+    if(!ch)return;
+    ch.data.datasets.forEach((ds,i)=>{
+      const meta=ch.getDatasetMeta(i);
+      meta.hidden=!showFn(ds.label);
+    });
+    ch.update('none');
+  });
+  _refreshPresetBtns();
+}
+function soloChart(key,labels){
+  if(chartSoloState===key){chartSoloState=null;_applyChartVisibility(()=>true);}
+  else{chartSoloState=key;const show=labels||(window._lgPresets&&window._lgPresets[key])||[];_applyChartVisibility(l=>show.includes(l));}
+}
+function toggleChartDs(label){
+  chartSoloState=null;
+  [chartInst,hzChartInst].forEach(ch=>{
+    if(!ch)return;
+    const i=ch.data.datasets.findIndex(d=>d.label===label);
+    if(i>=0){const m=ch.getDatasetMeta(i);m.hidden=!m.hidden;ch.update('none');}
+  });
+  _refreshPresetBtns();
+}
 function buildChart(){
   const cv=document.getElementById('pc');
   if(!cv) return;
@@ -1034,24 +1104,10 @@ function buildChart(){
   const days=dim(CY,CM);
   const cc=chartConf();
   const datasets=[];
-  datasets.push({
-    label:'Perfection',
-    data:Array.from({length:days},(_,i)=>({x:i+1,y:Math.round((i+1)/days*100)})),
-    borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],
-    tension:0,fill:false,pointRadius:0,pointHoverRadius:0,
-  });
-  datasets.push({
-    label:'Overall',data:overall,
-    borderColor:cc.overall,backgroundColor:cc.fill,
-    borderWidth:2.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:5,
-  });
-  groups.forEach(g=>{
-    datasets.push({
-      label:g.name,data:g.data,
-      borderColor:g.color,backgroundColor:'transparent',
-      borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,
-    });
-  });
+  datasets.push({label:'Perfection',data:(()=>{const fad=firstActiveDay();let mt=0;for(let d=1;d<=days;d++)mt+=dayProg(d).total;if(!mt)return[];const pts=[];let acc=0;for(let d=fad;d<=days;d++){acc+=dayProg(d).total;pts.push({x:d,y:Math.round(acc/mt*100)});}return pts;})(),borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0});
+  datasets.push({label:'Trajectory',data:cumulProgressData(),borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3});
+  datasets.push({label:'Overall',data:overall,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:5});
+  groups.forEach(g=>{datasets.push({label:g.name,data:g.data,borderColor:g.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4});});
   chartInst=new Chart(cv,{
     type:'line',
     data:{labels:Array.from({length:days},(_,i)=>i+1),datasets},
@@ -1073,18 +1129,22 @@ function buildChart(){
       }
     }
   });
+  _refreshPresetBtns();
 }
 
 function updateChart(){
   if(!chartInst){buildChart();return}
   const {overall,groups}=cumulData();
+  const cp=cumulProgressData();
   chartInst.data.datasets.forEach(ds=>{
     if(ds.label==='Overall') ds.data=overall;
+    if(ds.label==='Trajectory') ds.data=cp;
     const g=groups.find(gg=>gg.name===ds.label);
     if(g) ds.data=g.data;
   });
   chartInst.options.animation={duration:400,easing:'easeOutQuart'};
   chartInst.update();
+  _refreshPresetBtns();
 }
 
 function mkHzChart(){
@@ -1821,6 +1881,104 @@ function updTide(){
 // ─────────────────────────────────────────
 //  ANNUAL VIEW
 // ─────────────────────────────────────────
+function allTimeSlightEdgeData(){
+  const keys=Object.keys(D.months).sort();
+  if(!keys.length) return {actual:[],success:[],failure:[],monthMarkers:[]};
+  const today=new Date();
+  const actual=[],success=[],failure=[],monthMarkers=[];
+  let dayIdx=0;
+  let aScore=0,aStreak=0,aMiss=0;
+  let sScore=0,sStreak=0;
+  let fScore=0,fMiss=0;
+  const cap=s=>Math.min(Math.pow(2,s),16);
+  for(const key of keys){
+    const parts=key.split('-');
+    const ky=parseInt(parts[0]),km=parseInt(parts[1]);
+    const mo=D.months[key];
+    if(!mo) continue;
+    const daysInMo=dim(ky,km-1);
+    const moGroups=mo.snapshot?mo.snapshot.groups:D.groups;
+    monthMarkers.push({x:dayIdx+1,label:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][km-1]} ${ky}`});
+    for(let d=1;d<=daysInMo;d++){
+      const date=new Date(ky,km-1,d);
+      if(date>today) break;
+      dayIdx++;
+      let done=0,total=0;
+      for(const g of moGroups){
+        for(const h of g.habits){
+          if(h.archived) continue;
+          if(h.freq&&h.freq.length&&!h.freq.includes(date.getDay())) continue;
+          if(h.startDate&&date<new Date(h.startDate)) continue;
+          if(mo.skips?.[h.id]?.[d]) continue;
+          total++;
+          if(mo.completions?.[h.id]?.[d]) done++;
+        }
+      }
+      if(total===0){
+        actual.push({x:dayIdx,y:Math.round(aScore*10)/10});
+        success.push({x:dayIdx,y:Math.round(sScore*10)/10});
+        failure.push({x:dayIdx,y:Math.round(fScore*10)/10});
+        continue;
+      }
+      const pct=Math.round(done/total*100);
+      // actual
+      if(pct>=50){aScore+=cap(aStreak);aStreak++;aMiss=0;}
+      else{aScore-=cap(aMiss);aMiss++;aStreak=0;}
+      // success (always 100%)
+      sScore+=cap(sStreak);sStreak++;
+      // failure (always 0%)
+      fScore-=cap(fMiss);fMiss++;
+      actual.push({x:dayIdx,y:Math.round(aScore*10)/10});
+      success.push({x:dayIdx,y:Math.round(sScore*10)/10});
+      failure.push({x:dayIdx,y:Math.round(fScore*10)/10});
+    }
+  }
+  return {actual,success,failure,monthMarkers,totalDays:dayIdx};
+}
+
+function buildSlightEdgeChart(canvasId){
+  const cv=document.getElementById(canvasId);
+  if(!cv) return;
+  const {actual,success,failure,monthMarkers,totalDays}=allTimeSlightEdgeData();
+  if(!totalDays) return;
+  const cc=chartConf();
+  const sqLine=Array.from({length:totalDays},(_,i)=>({x:i+1,y:0}));
+  const markerSet=new Set(monthMarkers.map(m=>m.x));
+  const markerMap=Object.fromEntries(monthMarkers.map(m=>[m.x,m.label]));
+  new Chart(cv,{
+    type:'line',
+    data:{datasets:[
+      {label:'Mastery',data:success,borderColor:'#10B981',backgroundColor:'rgba(16,185,129,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
+      {label:'Neglect',data:failure,borderColor:'#EF4444',backgroundColor:'rgba(239,68,68,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
+      {label:'Mediocrity',data:sqLine,borderColor:'#64748B',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
+      {label:'Life Path',data:actual,borderColor:'#10B981',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
+       segment:{borderColor:ctx=>ctx.p0.parsed.y>=0?'#10B981':'#DC2626'}},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:0},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'top',align:'end',labels:{boxWidth:20,boxHeight:2,font:{size:10,family:"'Inter',system-ui"},color:cc.legend,padding:10}},
+        tooltip:{
+          backgroundColor:cc.tipBg,titleColor:'#fff',bodyColor:cc.tipBdy,
+          borderColor:cc.tipBdr,borderWidth:1,padding:9,
+          titleFont:{size:11},bodyFont:{size:10},
+          callbacks:{title:c=>{const m=markerMap[c[0].parsed.x];return m||`Day ${c[0].parsed.x}`;},
+            label:c=>c.dataset.label==='Mediocrity'?null:` ${c.dataset.label}: ${c.parsed.y}`}
+        }
+      },
+      scales:{
+        x:{type:'linear',min:1,max:totalDays,
+          ticks:{font:{size:10,family:"'Inter',system-ui"},color:cc.ticks,maxRotation:0,
+            callback:v=>markerSet.has(v)?markerMap[v]:''},
+          grid:{color:cc.grid},border:{display:false}},
+        y:{ticks:{display:false},grid:{display:false},border:{display:false}}
+      }
+    }
+  });
+}
+
 function mkAnnual(){
   const d=document.createElement('div');
   d.className='chart-card';
@@ -2690,7 +2848,7 @@ function buildHzTable(){
   const chartTh=document.createElement('th');
   chartTh.colSpan=days;
   chartTh.className='hz-chart-td';
-  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div style="position:absolute;top:8px;left:10px;z-index:1;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);white-space:nowrap;pointer-events:none">Slight Edge Curve</div><canvas id="hz-pc"></canvas></div>`;
+  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div id="hz-preset-btns" style="position:absolute;top:7px;left:10px;z-index:1;display:flex;gap:3px"></div><canvas id="hz-pc"></canvas></div>`;
   rA.appendChild(chartTh);
   const donePh1=document.createElement('th');
   donePh1.className='sr sr-2 st hz-sum-th first-sum';
@@ -2949,24 +3107,12 @@ function buildHzChart(){
   const {overall,groups}=cumulData();
   const cc=chartConf();
   const datasets=[];
-  datasets.push({
-    label:'Perfection',
-    data:Array.from({length:days},(_,i)=>({x:i+1,y:Math.round((i+1)/days*100)})),
-    borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],
-    tension:0,fill:false,pointRadius:0,pointHoverRadius:0,
-  });
-  datasets.push({
-    label:'Overall',data:overall,
-    borderColor:cc.overall,backgroundColor:cc.fill,
-    borderWidth:2.5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:5,
-  });
-  groups.forEach(g=>{
-    datasets.push({
-      label:g.name,data:g.data,
-      borderColor:g.color,backgroundColor:'transparent',
-      borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,
-    });
-  });
+  datasets.push({label:'Perfection',data:(()=>{const fad=firstActiveDay();let mt=0;for(let d=1;d<=days;d++)mt+=dayProg(d).total;if(!mt)return[];const pts=[];let acc=0;for(let d=fad;d<=days;d++){acc+=dayProg(d).total;pts.push({x:d,y:Math.round(acc/mt*100)});}return pts;})(),borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0});
+  datasets.push({label:'Trajectory',data:cumulProgressData(),borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3});
+  datasets.push({label:'Overall',data:overall,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:5});
+  groups.forEach(g=>{datasets.push({label:g.name,data:g.data,borderColor:g.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4});});
+  window._lgGrpNames=groups.map(g=>g.name);
+  window._lgRefLabels=['Perfection','Trajectory'];
   hzChartInst=new Chart(canvas,{
     type:'line',
     data:{labels:Array.from({length:days},(_,i)=>i+1),datasets},
@@ -2995,13 +3141,16 @@ function buildHzChart(){
     const ds=hzChartInst.data.datasets.find(d=>d.label==='Overall');
     if(ds){ds.backgroundColor=chartFillGradient(hzChartInst.ctx,hzChartInst.chartArea);hzChartInst.update('none');}
   });
+  _refreshPresetBtns();
 }
 
 function updateHzChart(){
   if(!hzChartInst){buildHzChart();return}
   const {overall,groups}=cumulData();
+  const cp=cumulProgressData();
   hzChartInst.data.datasets.forEach(ds=>{
     if(ds.label==='Overall') ds.data=overall;
+    if(ds.label==='Trajectory') ds.data=cp;
     const g=groups.find(gg=>gg.name===ds.label);
     if(g) ds.data=g.data;
   });
@@ -3011,6 +3160,7 @@ function updateHzChart(){
   }
   hzChartInst.options.animation={duration:400,easing:'easeOutQuart'};
   hzChartInst.update();
+  _refreshPresetBtns();
 }
 
 // ─────────────────────────────────────────
