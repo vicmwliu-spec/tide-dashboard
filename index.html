@@ -853,12 +853,18 @@ function render(){
     seCard.className='chart-card';
     seCard.style.marginBottom='14px';
     const _seoc=D.chartColors||{};
-    const _sedots=[
-      {key:'seSuccess',color:_seoc.seSuccess||'#F59E0B',label:'Success'},
-      {key:'seFailure',color:_seoc.seFailure||'#DC2626',label:'Regret'},
-      {key:'sePath',   color:_seoc.sePath   ||'#6366F1',label:'Life Path'},
-    ].map(({key,color,label})=>`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`).join('');
-    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge</span><div style="display:flex;gap:6px;align-items:center">${_sedots}</div></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
+    const _survivalColor=darkMode?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.2)';
+    const _seLegendItems=[
+      {key:'seSuccess',color:_seoc.seSuccess||'#F59E0B',label:'Success',dashed:false},
+      {key:'seFailure',color:_seoc.seFailure||'#DC2626',label:'Regret',dashed:false},
+      {key:null,color:_survivalColor,label:'Survival',dashed:true},
+      {key:'sePath',color:_seoc.sePath||'#6366F1',label:'Life Path',dashed:false},
+    ].map(({key,color,label,dashed})=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+      ${key?`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`:`<div style="width:11px;height:11px"></div>`}
+      <div style="width:20px;height:2px;${dashed?`background:repeating-linear-gradient(90deg,${color} 0,${color} 4px,transparent 4px,transparent 8px)`:`background:${color}`}"></div>
+      <span style="font-size:10px;color:var(--text3);white-space:nowrap">${label}</span>
+    </div>`).join('');
+    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge</span><div style="display:flex;gap:14px;align-items:flex-end">${_seLegendItems}</div></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
     app.appendChild(seCard);
     setTimeout(()=>buildSlightEdgeChart('se-all-time'),0);
     app.appendChild(mkAnnual());
@@ -2380,7 +2386,7 @@ function buildSlightEdgeChart(canvasId){
       animation:{duration:0},
       interaction:{mode:'index',intersect:false},
       plugins:{
-        legend:{position:'top',align:'end',labels:{boxWidth:20,boxHeight:2,font:{size:10,family:"'Inter',system-ui"},color:cc.legend,padding:10,filter:item=>item.text!=='Survival'&&!item.text.startsWith('_')}},
+        legend:{display:false},
         tooltip:{
           backgroundColor:cc.tipBg,titleColor:'#fff',bodyColor:cc.tipBdy,
           borderColor:cc.tipBdr,borderWidth:1,padding:9,
