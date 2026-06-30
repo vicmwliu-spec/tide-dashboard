@@ -1105,8 +1105,17 @@ function buildClockSVG(){
     const anchor=cosA>0.15?'start':cosA<-0.15?'end':'middle';
     const baseColor=_visColor(b.color);
     const lblColor=(_isLightColor(b.color)||_isDarkColor(b.color))?baseColor:_lighten(b.color,0.35);
-    labels+=`<line x1="${lx1.toFixed(1)}" y1="${ly1.toFixed(1)}" x2="${lx2.toFixed(1)}" y2="${ly2.toFixed(1)}" stroke="${lblColor}" stroke-width="1.2" opacity=".7" style="pointer-events:none"/>`;
-    labels+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="7" font-weight="700" letter-spacing=".04em" fill="${lblColor}" font-family="Inter,system-ui" style="pointer-events:none">${b.name}</text>`;
+    const estW=b.name.length*7*0.62;
+    const overflowLeft=anchor==='end'&&tx<estW;
+    const overflowRight=anchor==='start'&&tx>(220-estW);
+    if(overflowLeft||overflowRight){
+      const [ix,iy]=pt(TB_RM,midA);
+      const arcTxtColor=darkMode?'rgba(255,255,255,0.85)':'rgba(255,255,255,0.9)';
+      labels+=`<text x="${ix.toFixed(1)}" y="${iy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="5.5" font-weight="700" letter-spacing=".04em" fill="${arcTxtColor}" font-family="Inter,system-ui" style="pointer-events:none">${b.name}</text>`;
+    } else {
+      labels+=`<line x1="${lx1.toFixed(1)}" y1="${ly1.toFixed(1)}" x2="${lx2.toFixed(1)}" y2="${ly2.toFixed(1)}" stroke="${lblColor}" stroke-width="1.2" opacity=".7" style="pointer-events:none"/>`;
+      labels+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="7" font-weight="700" letter-spacing=".04em" fill="${lblColor}" font-family="Inter,system-ui" style="pointer-events:none">${b.name}</text>`;
+    }
   });
   // Current time dot
   const nowA=_tbAngle(nowMin),[nx,ny]=pt(TB_RO-1,nowA);
