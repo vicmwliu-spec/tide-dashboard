@@ -1124,8 +1124,8 @@ function buildClockSVG(){
       centerDur=(dh?dh+'h ':'')+(dm?dm+'m':'');
     }
   }
-  const center=`<text x="${CX}" y="${CY-(centerDur?14:10)}" text-anchor="middle" dominant-baseline="middle" font-size="24" font-weight="800" fill="${cc.overall}" font-family="Inter,system-ui" letter-spacing="-.02em" style="pointer-events:none">${centerMain}</text>
-  <text x="${CX}" y="${CY+(centerDur?4:13)}" text-anchor="middle" dominant-baseline="middle" font-size="${centerSubSize}" font-weight="700" fill="${cc.ticks}" font-family="Inter,system-ui" letter-spacing=".06em" style="pointer-events:none">${centerSub}</text>
+  const center=`<text x="${CX}" y="${CY-(centerDur?14:6)}" text-anchor="middle" dominant-baseline="middle" font-size="24" font-weight="800" fill="${cc.overall}" font-family="Inter,system-ui" letter-spacing="-.02em" style="pointer-events:none">${centerMain}</text>
+  <text x="${CX}" y="${CY+(centerDur?4:17)}" text-anchor="middle" dominant-baseline="middle" font-size="${centerSubSize}" font-weight="700" fill="${cc.ticks}" font-family="Inter,system-ui" letter-spacing=".06em" style="pointer-events:none">${centerSub}</text>
   ${centerDur?`<text x="${CX}" y="${CY+18}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-weight="600" fill="${cc.ticks}" font-family="Inter,system-ui" letter-spacing=".05em" opacity=".7" style="pointer-events:none">${centerDur}</text>`:''}` ;
   // Invisible click target for adding new blocks
   const clickRing=`<path d="${ap(TB_RI,TB_RO,-90+360,-90)}" fill="transparent" style="cursor:crosshair" id="tb-ring-bg"/>`;
