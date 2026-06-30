@@ -68,7 +68,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .top-row .priority-card{width:35%;flex-shrink:0}
 
 /* ── Stats ── */
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;align-items:start}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;box-shadow:var(--shadow)}
 .stat-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:5px}
 .stat-val{font-size:26px;font-weight:700;letter-spacing:-.5px;line-height:1}
@@ -1130,7 +1130,7 @@ function buildClockSVG(){
   // Invisible click target for adding new blocks
   const clickRing=`<path d="${ap(TB_RI,TB_RO,-90+360,-90)}" fill="transparent" style="cursor:crosshair" id="tb-ring-bg"/>`;
   const trackFill=`<path d="${ap(TB_RI,TB_RO,-90,270)}" fill="${darkMode?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)'}" style="pointer-events:none"/>`;
-  const svg=`<svg id="tb-svg" viewBox="-38 -38 296 296" width="100%" height="100%" style="overflow:hidden;display:block">
+  const svg=`<svg id="tb-svg" viewBox="-38 -38 296 296" width="100%" height="100%" style="overflow:visible;display:block">
     <circle cx="${CX}" cy="${CY}" r="${TB_RO}" fill="none" stroke="${cc.grid}" stroke-width="1" opacity=".6"/>
     <circle cx="${CX}" cy="${CY}" r="${TB_RI}" fill="none" stroke="${cc.grid}" stroke-width=".6" opacity=".3"/>
     ${defs}${trackFill}${clickRing}${ticks}${arcs}${labels}${center}${nowDot}
