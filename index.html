@@ -2366,11 +2366,9 @@ function buildSlightEdgeChart(canvasId){
   seChartInst=new Chart(cv,{
     type:'line',
     data:{datasets:[
-      {label:'Success',data:success,borderColor:oc.seSuccess||'#F59E0B',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:0},
-      {label:'Regret',data:failure,borderColor:oc.seFailure||'#DC2626',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:0},
+      {label:'Success',data:success,borderColor:oc.seSuccess||'#F59E0B',backgroundColor:oc.seSuccess?(oc.seSuccess+'2a'):'rgba(245,158,11,0.1)',borderWidth:1.5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:0},
+      {label:'Regret',data:failure,borderColor:oc.seFailure||'#DC2626',backgroundColor:oc.seFailure?(oc.seFailure+'2a'):'rgba(220,38,38,0.1)',borderWidth:1.5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:0},
       {label:'Survival',data:sqLine,borderColor:darkMode?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.2)',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
-      {label:'_lpPos',data:actual.map(p=>({x:p.x,y:Math.max(p.y,0)})),borderColor:'rgba(0,0,0,0)',backgroundColor:oc.seSuccess?oc.seSuccess+'44':'rgba(245,158,11,0.25)',borderWidth:0,tension:0,fill:'origin',pointRadius:0,pointHoverRadius:0},
-      {label:'_lpNeg',data:actual.map(p=>({x:p.x,y:Math.min(p.y,0)})),borderColor:'rgba(0,0,0,0)',backgroundColor:oc.seFailure?oc.seFailure+'44':'rgba(220,38,38,0.25)',borderWidth:0,tension:0,fill:'origin',pointRadius:0,pointHoverRadius:0},
       {label:'Life Path',data:actual,borderColor:oc.sePath||'#6366F1',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
        segment:{borderColor:ctx=>{const y=actual[ctx.p0DataIndex]?.y??0;return y>=0?(oc.seSuccess||'#F59E0B'):(oc.seFailure||'#DC2626');}}},
     ]},
@@ -2385,7 +2383,7 @@ function buildSlightEdgeChart(canvasId){
           borderColor:cc.tipBdr,borderWidth:1,padding:9,
           titleFont:{size:11},bodyFont:{size:10},
           callbacks:{title:c=>{const m=markerMap[c[0].parsed.x];return m||`Day ${c[0].parsed.x}`;},
-            label:c=>{if(c.dataset.label==='Survival'||c.dataset.label.startsWith('_'))return null;const v=c.parsed.y;return ` ${c.dataset.label}: ${v>=0?'+':''}${v}%`;}}
+            label:c=>{if(c.dataset.label==='Survival')return null;const v=c.parsed.y;return ` ${c.dataset.label}: ${v>=0?'+':''}${v}%`;}}
         }
       },
       scales:{
