@@ -3358,7 +3358,15 @@ function buildHzTable(){
   const chartTh=document.createElement('th');
   chartTh.colSpan=days;
   chartTh.className='hz-chart-td';
-  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div id="hz-preset-btns" style="position:absolute;top:7px;left:10px;z-index:1;display:flex;gap:3px"></div><canvas id="hz-pc"></canvas></div>`;
+  const _ccc=chartConf();
+  const _ccdots=[
+    {key:'overall',color:_ccc.overall,label:'Overall'},
+    {key:'ref',color:_ccc.ref,label:'Perfection'},
+    {key:'cumul',color:_ccc.cumul,label:'Trajectory'},
+    {key:'fill',color:(D.chartColors&&D.chartColors.fill)||_ccc.fill,label:'Fill'},
+  ].map(({key,color,label})=>`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`).join('')
+  +D.groups.map(g=>`<span class="chart-color-dot" title="${g.name}" style="background:${g.color}" onclick="openColorPop(event,'${g.id}')"></span>`).join('');
+  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div id="hz-preset-btns" style="position:absolute;top:7px;left:10px;z-index:1;display:flex;gap:3px"></div><div id="hz-color-dots" style="position:absolute;top:8px;right:8px;z-index:1;display:flex;gap:6px;align-items:center">${_ccdots}</div><canvas id="hz-pc"></canvas></div>`;
   rA.appendChild(chartTh);
   const donePh1=document.createElement('th');
   donePh1.className='sr sr-2 st hz-sum-th first-sum';
