@@ -3198,6 +3198,20 @@ function applyFathomStartDateSkips(fid,startDateIso){
 // ─────────────────────────────────────────
 //  HORIZONTAL GRID (days as columns, habits as rows)
 // ─────────────────────────────────────────
+function _bindTouchScroll(el){
+  if(!el||el._touchScrollBound)return;
+  el._touchScrollBound=true;
+  let sx=0,sl=0,dragging=false;
+  el.addEventListener('touchstart',e=>{
+    sx=e.touches[0].clientX;sl=el.scrollLeft;dragging=true;
+  },{passive:true});
+  el.addEventListener('touchmove',e=>{
+    if(!dragging)return;
+    const dx=sx-e.touches[0].clientX;
+    el.scrollLeft=sl+dx;
+  },{passive:true});
+  el.addEventListener('touchend',()=>{dragging=false;},{passive:true});
+}
 function mkGridHorizontal(){
   const card=document.createElement('div');
   card.className='grid-card'+(editMode?' edit-mode':'');
@@ -3212,7 +3226,7 @@ function mkGridHorizontal(){
   scroll.id='hz-scroll';
   scroll.appendChild(buildHzTable());
   card.appendChild(bar);card.appendChild(scroll);
-  setTimeout(()=>buildHzChart(),0);
+  setTimeout(()=>{buildHzChart();_bindTouchScroll(document.getElementById('hz-scroll'));},0);
   return card;
 }
 
@@ -3735,6 +3749,7 @@ function mkFathomGrid(){
   t.appendChild(tbody);
   scroll.appendChild(t);
   card.appendChild(scroll);
+  setTimeout(()=>_bindTouchScroll(document.getElementById('fathom-scroll')),0);
   return card;
 }
 
