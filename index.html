@@ -342,17 +342,16 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 
   /* Grid */
   .grid-card{margin-bottom:10px}
-  /* overflow:hidden clips visually and lets Android Chrome route touch to child scroll */
-  #fathom-card{overflow:hidden}
-  .grid-card{overflow:hidden}
-  /* Horizontal scroll containers: pan-y only so browser owns vertical (page scroll),
-     leaving horizontal unclaimed — allows e.preventDefault() in JS to work for h-swipes */
+  /* overflow:clip clips visually but does NOT create a BFC/scroll container,
+     so Android Chrome routes horizontal touch directly into the child #fathom-scroll */
+  #fathom-card{overflow:clip}
+  /* touch-action:pan-x tells the browser to natively handle horizontal scroll here;
+     vertical swipes fall through to the page */
   #fathom-scroll,#hz-scroll{
     overflow-x:scroll;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior-x:contain;
-    will-change:scroll-position;
-    touch-action:pan-y;
+    touch-action:pan-x;
   }
   /* Larger touch targets for checkboxes */
   .chk-box{width:30px;height:30px;border-radius:7px}
@@ -3227,7 +3226,6 @@ function mkGridHorizontal(){
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
   scroll.appendChild(buildHzTable());
-  _bindTouchScroll(scroll);
   card.appendChild(bar);card.appendChild(scroll);
   setTimeout(()=>buildHzChart(),0);
   return card;
@@ -3751,7 +3749,6 @@ function mkFathomGrid(){
   });
   t.appendChild(tbody);
   scroll.appendChild(t);
-  _bindTouchScroll(scroll);
   card.appendChild(scroll);
   return card;
 }
