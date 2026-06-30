@@ -944,15 +944,16 @@ function _tbMouseDown(e){
   if(!block)return;
   const curMin=_tbMouseMin(e);
   const ds=((curMin-block.startMin)+1440)%1440,de=((curMin-block.endMin)+1440)%1440;
-  const mode=ds<45?'start':de<45||de>1395?'end':'move';
+  const mode=ds<20?'start':de<20||de>1420?'end':'move';
   _tbDrag={id,orig:{...block},origMin:curMin,mode,sx:e.clientX,sy:e.clientY,moved:false};
+  const _t=document.getElementById('tb-tip');if(_t)_t.style.display='none';
   document.addEventListener('mousemove',_tbMouseMove);
   document.addEventListener('mouseup',_tbMouseUp,{once:true});
 }
 function _tbMouseMove(e){
   if(!_tbDrag)return;
   const dx=e.clientX-_tbDrag.sx,dy=e.clientY-_tbDrag.sy;
-  if(!_tbDrag.moved&&Math.sqrt(dx*dx+dy*dy)<5)return;
+  if(!_tbDrag.moved&&Math.sqrt(dx*dx+dy*dy)<12)return;
   _tbDrag.moved=true;
   document.body.style.cursor='grabbing';
   const curMin=_tbMouseMin(e);
@@ -1056,7 +1057,7 @@ function buildClockSVG(){
     const durMin=span%60,durHr=Math.floor(span/60);
     const durStr=(durHr?durHr+'h ':'')+(durMin?durMin+'m':'');
     const arcStroke=_isLightColor(b.color)?'stroke="rgba(0,0,0,0.18)" stroke-width="1.5"':_isDarkColor(b.color)?'stroke="rgba(255,255,255,0.25)" stroke-width="1.5"':'';
-    arcs+=`<path d="${ap(bRI[idx],bRO[idx],a1,a2)}" fill="${b.color}" opacity=".88" ${arcStroke} style="cursor:grab" data-tbid="${b.id}" data-tipname="${b.name.replace(/"/g,'&quot;')}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}" class="tb-arc"/>`;
+    arcs+=`<path d="${ap(bRI[idx],bRO[idx],a1,a2)}" fill="${b.color}" opacity=".68" ${arcStroke} style="cursor:grab;filter:drop-shadow(0 0 4px ${b.color}88)" data-tbid="${b.id}" data-tipname="${b.name.replace(/"/g,'&quot;')}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}" class="tb-arc"/>`;
     lblMeta.push({b,span,midA});
   });
   // Feathered shadow seam at boundaries between same-color adjacent blocks
@@ -1088,7 +1089,8 @@ function buildClockSVG(){
     const [lx1,ly1]=pt(rLine,midA),[lx2,ly2]=pt(rText-4,midA),[tx,ty]=pt(rText+2,midA);
     const cosA=Math.cos(midA*Math.PI/180);
     const anchor=cosA>0.15?'start':cosA<-0.15?'end':'middle';
-    const lblColor=_visColor(b.color);
+    const baseColor=_visColor(b.color);
+    const lblColor=(_isLightColor(b.color)||_isDarkColor(b.color))?baseColor:_lighten(b.color,0.35);
     labels+=`<line x1="${lx1.toFixed(1)}" y1="${ly1.toFixed(1)}" x2="${lx2.toFixed(1)}" y2="${ly2.toFixed(1)}" stroke="${lblColor}" stroke-width="1.2" opacity=".7" style="pointer-events:none"/>`;
     labels+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="7.5" font-weight="700" letter-spacing=".05em" fill="${lblColor}" font-family="Inter,system-ui" style="pointer-events:none">${b.name}</text>`;
   });
@@ -1098,12 +1100,19 @@ function buildClockSVG(){
   // Center time + day display — shows drag range while dragging
   const fmt=m=>`${String(Math.floor((m%1440)/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
   let centerMain=timeStr,centerSub=DAY_NAMES[todayDow].toUpperCase(),centerSubSize='8';
+  let centerDur='';
   if(_tbDrag&&_tbDrag.moved){
     const db=(D.timeBlocks||[]).find(b=>b.id===_tbDrag.id);
-    if(db){centerMain=fmt(db.startMin);centerSub=`→ ${fmt(db.endMin)}`;centerSubSize='10';}
+    if(db){
+      centerMain=fmt(db.startMin);centerSub=`→ ${fmt(db.endMin)}`;centerSubSize='10';
+      const sp=((db.endMin-db.startMin)+1440)%1440;
+      const dh=Math.floor(sp/60),dm=sp%60;
+      centerDur=(dh?dh+'h ':'')+(dm?dm+'m':'');
+    }
   }
-  const center=`<text x="${CX}" y="${CY-10}" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="800" fill="${cc.overall}" font-family="Inter,system-ui" letter-spacing="-.02em" style="pointer-events:none">${centerMain}</text>
-  <text x="${CX}" y="${CY+13}" text-anchor="middle" dominant-baseline="middle" font-size="${centerSubSize}" font-weight="700" fill="${cc.ticks}" font-family="Inter,system-ui" letter-spacing=".06em" style="pointer-events:none">${centerSub}</text>`;
+  const center=`<text x="${CX}" y="${CY-(centerDur?14:10)}" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="800" fill="${cc.overall}" font-family="Inter,system-ui" letter-spacing="-.02em" style="pointer-events:none">${centerMain}</text>
+  <text x="${CX}" y="${CY+(centerDur?4:13)}" text-anchor="middle" dominant-baseline="middle" font-size="${centerSubSize}" font-weight="700" fill="${cc.ticks}" font-family="Inter,system-ui" letter-spacing=".06em" style="pointer-events:none">${centerSub}</text>
+  ${centerDur?`<text x="${CX}" y="${CY+18}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-weight="600" fill="${cc.ticks}" font-family="Inter,system-ui" letter-spacing=".05em" opacity=".7" style="pointer-events:none">${centerDur}</text>`:''}` ;
   // Invisible click target for adding new blocks
   const clickRing=`<path d="${ap(TB_RI,TB_RO,-90+360,-90)}" fill="transparent" style="cursor:crosshair" id="tb-ring-bg"/>`;
   const svg=`<svg id="tb-svg" viewBox="0 0 220 220" width="220" height="220" style="overflow:visible;display:block">
@@ -1124,7 +1133,7 @@ function buildClockSVG(){
   if(svg_tip){
     svg_tip.addEventListener('mouseover',e=>{
       const a=e.target.closest('.tb-arc');
-      if(a&&a.dataset.tipname){
+      if(a&&a.dataset.tipname&&!_tbDrag){
         tbTip.innerHTML=`<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="width:8px;height:8px;border-radius:50%;background:${a.dataset.tipcolor};flex-shrink:0;display:inline-block"></span><span style="font-size:12px;font-weight:700;color:var(--text1);letter-spacing:-.01em">${a.dataset.tipname}</span></div><div style="font-size:11px;color:var(--text2);font-weight:500;padding-left:15px">${a.dataset.tiptime}</div><div style="font-size:10px;color:var(--text3);font-weight:500;padding-left:15px;margin-top:2px">${a.dataset.tipdur}</div>`;
         tbTip.style.display='block';
       } else tbTip.style.display='none';
@@ -1208,11 +1217,18 @@ function openTimeBlockModal(block){
       customColorBtn.style.border='2.5px solid var(--text1)';
       customColorBtn.dataset.custom=ev.target.value;
     });
+    // Pre-fill if block's current color is a custom (not in palette)
+    if(!TB_COLORS.includes(b.color)){
+      customColorBtn.querySelector('input').value=b.color;
+      customColorBtn.dataset.custom=b.color;
+      customColorBtn.style.border='2.5px solid var(--text1)';
+      document.querySelectorAll('#tb-overlay [data-color]').forEach(s=>s.style.border='2.5px solid transparent');
+    }
   }
 }
 function closeTimeBlockModal(){const el=document.getElementById('tb-overlay');if(el)el.remove();}
 function tbToggleDay(btn){const on=btn.style.background.includes('var(--text1)');btn.style.background=on?'var(--surface2)':'var(--text1)';btn.style.color=on?'var(--text3)':'var(--bg)';}
-function tbPickColor(btn){document.querySelectorAll('#tb-overlay [data-color]').forEach(b=>b.style.border='2.5px solid transparent');btn.style.border='2.5px solid var(--text1)';}
+function tbPickColor(btn){document.querySelectorAll('#tb-overlay [data-color]').forEach(b=>b.style.border='2.5px solid transparent');const cb=document.getElementById('tb-custom-color');if(cb)cb.style.border='2.5px solid transparent';btn.style.border='2.5px solid var(--text1)';}
 function saveTimeBlockFromModal(id){
   const name=(document.getElementById('tb-name').value||'').trim();if(!name)return;
   const sv=document.getElementById('tb-start').value,ev=document.getElementById('tb-end').value;
@@ -2450,6 +2466,12 @@ function openColorPop(e,gid){
   customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
   customIn.addEventListener('input',ev=>{ev.stopPropagation();setGroupColor(gid,ev.target.value);});
   customIn.addEventListener('change',ev=>{ev.stopPropagation();pop.remove();colorPopTarget=null;});
+  // Pre-fill custom input if current group color is not in palette
+  const grpForPop=D.groups.find(g=>g.id===gid);
+  if(grpForPop&&!PAL.includes(grpForPop.color)){
+    customIn.value=grpForPop.color;
+    customSw.classList.add('csw-active');
+  }
   customSw.appendChild(customIn);
   customSw.onclick=ev=>ev.stopPropagation();
   pop.appendChild(customSw);
