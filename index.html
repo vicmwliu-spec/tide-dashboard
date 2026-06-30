@@ -2371,7 +2371,7 @@ function buildSlightEdgeChart(canvasId){
       {label:'Survival',data:sqLine,borderColor:darkMode?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.2)',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
       {label:'_lpPos',data:actual.map(p=>({x:p.x,y:Math.max(p.y,0)})),borderColor:'transparent',backgroundColor:oc.seSuccess?oc.seSuccess+'22':'rgba(245,158,11,0.15)',borderWidth:0,tension:0,fill:'origin',pointRadius:0,pointHoverRadius:0},
       {label:'_lpNeg',data:actual.map(p=>({x:p.x,y:Math.min(p.y,0)})),borderColor:'transparent',backgroundColor:oc.seFailure?oc.seFailure+'22':'rgba(220,38,38,0.15)',borderWidth:0,tension:0,fill:'origin',pointRadius:0,pointHoverRadius:0},
-      {label:'Life Path',data:actual,borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
+      {label:'Life Path',data:actual,borderColor:oc.sePath||'#6366F1',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
        segment:{borderColor:ctx=>ctx.p0.parsed.y>=0?(oc.seSuccess||'#F59E0B'):(oc.seFailure||'#DC2626')}},
     ]},
     options:{
