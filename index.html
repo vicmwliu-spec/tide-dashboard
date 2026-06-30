@@ -854,10 +854,10 @@ function render(){
     seCard.style.marginBottom='14px';
     const _seoc=D.chartColors||{};
     const _sedots=[
-      {key:'seSuccess',color:_seoc.seSuccess||'#10B981',label:'Mastery'},
-      {key:'seFailure',color:_seoc.seFailure||'#EF4444',label:'Neglect'},
-      {key:'seMedian', color:_seoc.seMedian ||'#64748B',label:'Mediocrity'},
-      {key:'sePath',   color:_seoc.sePath   ||'#10B981',label:'Life Path'},
+      {key:'seSuccess',color:_seoc.seSuccess||'#F59E0B',label:'Mastery'},
+      {key:'seFailure',color:_seoc.seFailure||'#DC2626',label:'Neglect'},
+      {key:'seMedian', color:_seoc.seMedian ||'#B8A99A',label:'Mediocrity'},
+      {key:'sePath',   color:_seoc.sePath   ||'#6366F1',label:'Life Path'},
     ].map(({key,color,label})=>`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`).join('');
     seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge</span><div style="display:flex;gap:6px;align-items:center">${_sedots}</div></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
     app.appendChild(seCard);
@@ -2367,11 +2367,11 @@ function buildSlightEdgeChart(canvasId){
   seChartInst=new Chart(cv,{
     type:'line',
     data:{datasets:[
-      {label:'Mastery',data:success,borderColor:oc.seSuccess||'#10B981',backgroundColor:oc.seSuccess?(oc.seSuccess+'22'):'rgba(16,185,129,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
-      {label:'Neglect',data:failure,borderColor:oc.seFailure||'#EF4444',backgroundColor:oc.seFailure?(oc.seFailure+'22'):'rgba(239,68,68,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
-      {label:'Mediocrity',data:sqLine,borderColor:oc.seMedian||'#64748B',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
-      {label:'Life Path',data:actual,borderColor:oc.sePath||'#10B981',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
-       segment:{borderColor:ctx=>ctx.p0.parsed.y>=0?(oc.sePath||'#10B981'):(oc.seFailure||'#DC2626')}},
+      {label:'Mastery',data:success,borderColor:oc.seSuccess||'#F59E0B',backgroundColor:oc.seSuccess?(oc.seSuccess+'22'):'rgba(245,158,11,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
+      {label:'Neglect',data:failure,borderColor:oc.seFailure||'#DC2626',backgroundColor:oc.seFailure?(oc.seFailure+'22'):'rgba(220,38,38,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
+      {label:'Mediocrity',data:sqLine,borderColor:oc.seMedian||'#B8A99A',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
+      {label:'Life Path',data:actual,borderColor:oc.sePath||'#6366F1',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
+       segment:{borderColor:ctx=>ctx.p0.parsed.y>=0?(oc.sePath||'#6366F1'):(oc.seFailure||'#DC2626')}},
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
