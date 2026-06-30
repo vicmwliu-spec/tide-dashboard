@@ -1027,7 +1027,7 @@ function buildClockSVG(){
   // 4 cardinal time labels — outside ring
   [[0,'12A'],[360,'6A'],[720,'12P'],[1080,'6P']].forEach(([m,lbl])=>{
     const a=_tbAngle(m),[x,y]=pt(TB_RO+13,a);
-    ticks+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="700" fill="${cc.ticks}" font-family="Inter,system-ui" opacity=".9">${lbl}</text>`;
+    ticks+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="7.5" font-weight="400" fill="${cc.ticks}" font-family="Inter,system-ui" opacity=".45">${lbl}</text>`;
   });
   // Detect time-range overlaps and assign radial lanes so both colors stay visible
   const _span=b=>((b.endMin-b.startMin)+1440)%1440;
@@ -1110,7 +1110,6 @@ function buildClockSVG(){
   });
   // Current time dot
   const nowA=_tbAngle(nowMin),[nx,ny]=pt(TB_RO-1,nowA);
-  const nowHand=`<line x1="${CX}" y1="${CY}" x2="${nx.toFixed(2)}" y2="${ny.toFixed(2)}" stroke="${darkMode?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.15)'}" stroke-width="1" style="pointer-events:none"/>`;
   const nowDot=`<circle cx="${nx.toFixed(2)}" cy="${ny.toFixed(2)}" r="5" fill="${darkMode?'#fff':'#18181B'}" stroke="${darkMode?'#1A1A1E':'#fff'}" stroke-width="1.5" style="pointer-events:none"/>`;
   // Center time + day display — shows drag range while dragging
   const fmt=m=>`${String(Math.floor((m%1440)/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
@@ -1134,7 +1133,7 @@ function buildClockSVG(){
   const svg=`<svg id="tb-svg" viewBox="0 0 220 220" width="100%" height="100%" style="overflow:visible;display:block">
     <circle cx="${CX}" cy="${CY}" r="${TB_RO}" fill="none" stroke="${cc.grid}" stroke-width="1" opacity=".6"/>
     <circle cx="${CX}" cy="${CY}" r="${TB_RI}" fill="none" stroke="${cc.grid}" stroke-width=".6" opacity=".3"/>
-    ${defs}${trackFill}${clickRing}${ticks}${arcs}${labels}${center}${nowHand}${nowDot}
+    ${defs}${trackFill}${clickRing}${ticks}${arcs}${labels}${center}${nowDot}
   </svg>`;
   wrap.innerHTML=svg;
   wrap.querySelectorAll('.tb-arc').forEach(el=>{
