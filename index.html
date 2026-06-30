@@ -931,7 +931,7 @@ function mkPriority(){
 }
 // ─── TIME BLOCK CLOCK ────────────────────────────────────────────
 const TB_COLORS=['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EC4899','#14B8A6','#FACC15','#6366F1','#EF4444','#06B6D4'];
-const TB_RO=106,TB_RI=80,TB_RM=93;
+const TB_RO=112,TB_RI=86,TB_RM=99;
 function _tbUuid(){return Math.random().toString(36).slice(2,10);}
 function _tbAngle(min){return (min/1440)*360-90;}
 function _tbPt(r,deg){const rad=deg*Math.PI/180;return [110+r*Math.cos(rad),110+r*Math.sin(rad)];}
