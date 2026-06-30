@@ -1099,14 +1099,14 @@ function buildClockSVG(){
   }
   // Render external radial labels
   lblMeta.forEach(({b,midA,tier})=>{
-    const rLine=TB_RO+2,rText=TB_RO+16+tier*18;
+    const rLine=TB_RO+2,rText=TB_RO+11+tier*14;
     const [lx1,ly1]=pt(rLine,midA),[lx2,ly2]=pt(rText-4,midA),[tx,ty]=pt(rText+2,midA);
     const cosA=Math.cos(midA*Math.PI/180);
     const anchor=cosA>0.15?'start':cosA<-0.15?'end':'middle';
     const baseColor=_visColor(b.color);
     const lblColor=(_isLightColor(b.color)||_isDarkColor(b.color))?baseColor:_lighten(b.color,0.35);
     labels+=`<line x1="${lx1.toFixed(1)}" y1="${ly1.toFixed(1)}" x2="${lx2.toFixed(1)}" y2="${ly2.toFixed(1)}" stroke="${lblColor}" stroke-width="1.2" opacity=".7" style="pointer-events:none"/>`;
-    labels+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="7.5" font-weight="700" letter-spacing=".05em" fill="${lblColor}" font-family="Inter,system-ui" style="pointer-events:none">${b.name}</text>`;
+    labels+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="6" font-weight="700" letter-spacing=".03em" fill="${lblColor}" font-family="Inter,system-ui" style="pointer-events:none">${b.name}</text>`;
   });
   // Current time dot
   const nowA=_tbAngle(nowMin),[nx,ny]=pt(TB_RO-1,nowA);
