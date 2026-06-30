@@ -356,8 +356,8 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   .chk-c{padding:5px 4px}
   .hz-chk-c{padding:5px 2px}
   .hz-day-th{min-width:30px;padding:4px 1px}
-  /* Both tables: free-scroll on mobile */
-  #hz-tbl,#fathom-tbl{table-layout:auto;min-width:max-content;width:auto}
+  /* Both tables: fixed layout so colgroup widths are respected; JS sets explicit minWidth */
+  #hz-tbl,#fathom-tbl{table-layout:fixed;width:auto}
 
   /* TIDE notes card */
   .notes-card{padding:14px 16px}
