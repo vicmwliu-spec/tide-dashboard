@@ -1549,13 +1549,7 @@ function mkHzChart(){
     </div>
     <div style="margin-top:10px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px;transition:width .4s"></div></div>`;
   } else {
-    const _cc=chartConf();const _grps=D.groups;
-    d.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div class="card-title" style="margin-bottom:0">Slight Edge Curve</div><div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">${[
-      {key:'overall',color:_cc.overall,label:'Overall'},
-      {key:'ref',color:_cc.ref,label:'Perfection'},
-      {key:'cumul',color:_cc.cumul,label:'Trajectory'},
-      {key:'fill',color:(D.chartColors&&D.chartColors.fill)||_cc.fill,label:'Fill'},
-    ].map(({key,color,label})=>`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`).join('')}${_grps.map(g=>`<span class="chart-color-dot" title="${g.name}" style="background:${g.color}" onclick="openColorPop(event,'${g.id}')"></span>`).join('')}</div></div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
+    d.innerHTML=`<div class="card-title">Slight Edge Curve</div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
     setTimeout(()=>buildHzChart(),0);
   }
   return d;
@@ -3365,15 +3359,7 @@ function buildHzTable(){
   const chartTh=document.createElement('th');
   chartTh.colSpan=days;
   chartTh.className='hz-chart-td';
-  const _ccc=chartConf();
-  const _ccdots=[
-    {key:'overall',color:_ccc.overall,label:'Overall'},
-    {key:'ref',color:_ccc.ref,label:'Perfection'},
-    {key:'cumul',color:_ccc.cumul,label:'Trajectory'},
-    {key:'fill',color:(D.chartColors&&D.chartColors.fill)||_ccc.fill,label:'Fill'},
-  ].map(({key,color,label})=>`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`).join('')
-  +D.groups.map(g=>`<span class="chart-color-dot" title="${g.name}" style="background:${g.color}" onclick="openColorPop(event,'${g.id}')"></span>`).join('');
-  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div id="hz-preset-btns" style="position:absolute;top:7px;left:10px;z-index:1;display:flex;gap:3px"></div><div id="hz-color-dots" style="position:absolute;top:8px;right:8px;z-index:1;display:flex;gap:6px;align-items:center">${_ccdots}</div><canvas id="hz-pc"></canvas></div>`;
+  chartTh.innerHTML=`<div style="position:relative;height:230px;width:100%"><div id="hz-preset-btns" style="position:absolute;top:7px;left:10px;z-index:1;display:flex;gap:3px"></div><canvas id="hz-pc"></canvas></div>`;
   rA.appendChild(chartTh);
   const donePh1=document.createElement('th');
   donePh1.className='sr sr-2 st hz-sum-th first-sum';
