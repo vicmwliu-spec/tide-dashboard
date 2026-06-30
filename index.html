@@ -464,14 +464,14 @@ function defaultData(){
     aarTemplates:[],
     fathom:{items:[]},
     priority:'',
-    chartColors:{overall:null,ref:null,cumul:null,fill:null},
+    chartColors:{overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null},
   };
 }
 
 // ─────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────
-let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null};return d }catch{ return defaultData() } })();
+let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
 let darkMode = localStorage.getItem('tide_dark')==='1';
 if(darkMode) document.documentElement.classList.add('dark');
 const now = new Date();
@@ -850,7 +850,14 @@ function render(){
     const seCard=document.createElement('div');
     seCard.className='chart-card';
     seCard.style.marginBottom='14px';
-    seCard.innerHTML=`<div style="margin-bottom:10px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge</span></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
+    const _seoc=D.chartColors||{};
+    const _sedots=[
+      {key:'seSuccess',color:_seoc.seSuccess||'#10B981',label:'Mastery'},
+      {key:'seFailure',color:_seoc.seFailure||'#EF4444',label:'Neglect'},
+      {key:'seMedian', color:_seoc.seMedian ||'#64748B',label:'Mediocrity'},
+      {key:'sePath',   color:_seoc.sePath   ||'#10B981',label:'Life Path'},
+    ].map(({key,color,label})=>`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`).join('');
+    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge</span><div style="display:flex;gap:6px;align-items:center">${_sedots}</div></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
     app.appendChild(seCard);
     setTimeout(()=>buildSlightEdgeChart('se-all-time'),0);
     app.appendChild(mkAnnual());
@@ -2356,18 +2363,18 @@ function buildSlightEdgeChart(canvasId){
   if(!cv) return;
   const {actual,success,failure,monthMarkers,totalDays}=allTimeSlightEdgeData();
   if(!totalDays) return;
-  const cc=chartConf();
+  const cc=chartConf();const oc=D.chartColors||{};
   const sqLine=Array.from({length:totalDays},(_,i)=>({x:i+1,y:0}));
   const markerSet=new Set(monthMarkers.map(m=>m.x));
   const markerMap=Object.fromEntries(monthMarkers.map(m=>[m.x,m.label]));
   new Chart(cv,{
     type:'line',
     data:{datasets:[
-      {label:'Mastery',data:success,borderColor:'#10B981',backgroundColor:'rgba(16,185,129,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
-      {label:'Neglect',data:failure,borderColor:'#EF4444',backgroundColor:'rgba(239,68,68,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
-      {label:'Mediocrity',data:sqLine,borderColor:'#64748B',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
-      {label:'Life Path',data:actual,borderColor:'#10B981',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
-       segment:{borderColor:ctx=>ctx.p0.parsed.y>=0?'#10B981':'#DC2626'}},
+      {label:'Mastery',data:success,borderColor:oc.seSuccess||'#10B981',backgroundColor:oc.seSuccess?(oc.seSuccess+'22'):'rgba(16,185,129,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
+      {label:'Neglect',data:failure,borderColor:oc.seFailure||'#EF4444',backgroundColor:oc.seFailure?(oc.seFailure+'22'):'rgba(239,68,68,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
+      {label:'Mediocrity',data:sqLine,borderColor:oc.seMedian||'#64748B',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
+      {label:'Life Path',data:actual,borderColor:oc.sePath||'#10B981',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5,
+       segment:{borderColor:ctx=>ctx.p0.parsed.y>=0?(oc.sePath||'#10B981'):(oc.seFailure||'#DC2626')}},
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
@@ -2581,7 +2588,7 @@ function openChartColorPop(e,key){
     const sw=document.createElement('div');
     sw.className='csw'+(cur===c?' csw-active':'');
     sw.style.background=c;
-    sw.onclick=(ev)=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=c;save();buildHzChart();render();pop.remove();chartColorPopKey=null};
+    sw.onclick=(ev)=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=c;save();buildHzChart();buildSlightEdgeChart('se-all-time');render();pop.remove();chartColorPopKey=null};
     pop.appendChild(sw);
   });
   // Reset swatch
@@ -2589,7 +2596,7 @@ function openChartColorPop(e,key){
   resetSw.className='csw';resetSw.title='Reset to default';
   resetSw.style.cssText='background:var(--surface2);border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text3)';
   resetSw.textContent='↺';
-  resetSw.onclick=(ev)=>{ev.stopPropagation();if(D.chartColors)D.chartColors[key]=null;save();buildHzChart();render();pop.remove();chartColorPopKey=null};
+  resetSw.onclick=(ev)=>{ev.stopPropagation();if(D.chartColors)D.chartColors[key]=null;save();buildHzChart();buildSlightEdgeChart('se-all-time');render();pop.remove();chartColorPopKey=null};
   pop.appendChild(resetSw);
   // Custom color swatch
   const customSw=document.createElement('div');
@@ -2600,7 +2607,7 @@ function openChartColorPop(e,key){
   customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
   const curForInput=(D.chartColors&&D.chartColors[key]);
   if(curForInput&&!PAL.includes(curForInput)){customIn.value=curForInput;customSw.classList.add('csw-active');}
-  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;buildHzChart();});
+  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;buildHzChart();buildSlightEdgeChart('se-all-time');});
   customIn.addEventListener('change',ev=>{ev.stopPropagation();save();render();pop.remove();chartColorPopKey=null;});
   customSw.appendChild(customIn);customSw.onclick=ev=>ev.stopPropagation();
   pop.appendChild(customSw);
