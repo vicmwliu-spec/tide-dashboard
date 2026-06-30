@@ -3201,16 +3201,17 @@ function applyFathomStartDateSkips(fid,startDateIso){
 function _bindTouchScroll(el){
   if(!el||el._touchScrollBound)return;
   el._touchScrollBound=true;
-  let sx=0,sl=0,dragging=false;
+  let sx=0,sy=0,sl=0,axis=null;
   el.addEventListener('touchstart',e=>{
-    sx=e.touches[0].clientX;sl=el.scrollLeft;dragging=true;
+    const t=e.touches[0];sx=t.clientX;sy=t.clientY;sl=el.scrollLeft;axis=null;
   },{passive:true});
   el.addEventListener('touchmove',e=>{
-    if(!dragging)return;
-    const dx=sx-e.touches[0].clientX;
-    el.scrollLeft=sl+dx;
-  },{passive:true});
-  el.addEventListener('touchend',()=>{dragging=false;},{passive:true});
+    const t=e.touches[0];
+    const dx=t.clientX-sx,dy=t.clientY-sy;
+    if(!axis) axis=Math.abs(dx)>Math.abs(dy)?'x':'y';
+    if(axis==='x'){e.preventDefault();el.scrollLeft=sl-dx;}
+  },{passive:false});
+  el.addEventListener('touchend',()=>{axis=null;},{passive:true});
 }
 function mkGridHorizontal(){
   const card=document.createElement('div');
@@ -3225,8 +3226,9 @@ function mkGridHorizontal(){
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
   scroll.appendChild(buildHzTable());
+  _bindTouchScroll(scroll);
   card.appendChild(bar);card.appendChild(scroll);
-  setTimeout(()=>{buildHzChart();_bindTouchScroll(document.getElementById('hz-scroll'));},0);
+  setTimeout(()=>buildHzChart(),0);
   return card;
 }
 
@@ -3748,8 +3750,8 @@ function mkFathomGrid(){
   });
   t.appendChild(tbody);
   scroll.appendChild(t);
+  _bindTouchScroll(scroll);
   card.appendChild(scroll);
-  setTimeout(()=>_bindTouchScroll(document.getElementById('fathom-scroll')),0);
   return card;
 }
 
