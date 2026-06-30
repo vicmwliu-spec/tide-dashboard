@@ -345,13 +345,14 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   /* overflow:hidden clips visually and lets Android Chrome route touch to child scroll */
   #fathom-card{overflow:hidden}
   .grid-card{overflow:hidden}
-  /* Horizontal scroll containers: let h-swipes through, v-swipes scroll page */
+  /* Horizontal scroll containers: pan-y only so browser owns vertical (page scroll),
+     leaving horizontal unclaimed — allows e.preventDefault() in JS to work for h-swipes */
   #fathom-scroll,#hz-scroll{
     overflow-x:scroll;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior-x:contain;
     will-change:scroll-position;
-    touch-action:pan-x pan-y;
+    touch-action:pan-y;
   }
   /* Larger touch targets for checkboxes */
   .chk-box{width:30px;height:30px;border-radius:7px}
