@@ -482,6 +482,7 @@ let view = 'month'; // 'month'|'year'
 let gridLayout = 'horizontal'; // 'vertical'|'horizontal'
 let chartInst = null;
 let hzChartInst = null;
+let seChartInst = null;
 let chartSoloState = null;
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
@@ -845,6 +846,7 @@ function render(){
   app.innerHTML='';
   if(chartInst){chartInst.destroy();chartInst=null}
   if(hzChartInst){hzChartInst.destroy();hzChartInst=null}
+  if(seChartInst){seChartInst.destroy();seChartInst=null}
   app.appendChild(mkHeader());
   if(view==='year'){
     const seCard=document.createElement('div');
@@ -2357,11 +2359,12 @@ function buildSlightEdgeChart(canvasId){
   if(!cv) return;
   const {actual,success,failure,monthMarkers,totalDays}=allTimeSlightEdgeData();
   if(!totalDays) return;
+  if(seChartInst){seChartInst.destroy();seChartInst=null}
   const cc=chartConf();const oc=D.chartColors||{};
   const sqLine=Array.from({length:totalDays},(_,i)=>({x:i+1,y:0}));
   const markerSet=new Set(monthMarkers.map(m=>m.x));
   const markerMap=Object.fromEntries(monthMarkers.map(m=>[m.x,m.label]));
-  new Chart(cv,{
+  seChartInst=new Chart(cv,{
     type:'line',
     data:{datasets:[
       {label:'Mastery',data:success,borderColor:oc.seSuccess||'#10B981',backgroundColor:oc.seSuccess?(oc.seSuccess+'22'):'rgba(16,185,129,0.07)',borderWidth:1.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:0},
@@ -2582,7 +2585,7 @@ function openChartColorPop(e,key){
     const sw=document.createElement('div');
     sw.className='csw'+(cur===c?' csw-active':'');
     sw.style.background=c;
-    sw.onclick=(ev)=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=c;save();buildHzChart();buildSlightEdgeChart('se-all-time');render();pop.remove();chartColorPopKey=null};
+    sw.onclick=(ev)=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=c;save();render();pop.remove();chartColorPopKey=null};
     pop.appendChild(sw);
   });
   // Reset swatch
@@ -2590,7 +2593,7 @@ function openChartColorPop(e,key){
   resetSw.className='csw';resetSw.title='Reset to default';
   resetSw.style.cssText='background:var(--surface2);border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text3)';
   resetSw.textContent='↺';
-  resetSw.onclick=(ev)=>{ev.stopPropagation();if(D.chartColors)D.chartColors[key]=null;save();buildHzChart();buildSlightEdgeChart('se-all-time');render();pop.remove();chartColorPopKey=null};
+  resetSw.onclick=(ev)=>{ev.stopPropagation();if(D.chartColors)D.chartColors[key]=null;save();render();pop.remove();chartColorPopKey=null};
   pop.appendChild(resetSw);
   // Custom color swatch
   const customSw=document.createElement('div');
@@ -2601,7 +2604,7 @@ function openChartColorPop(e,key){
   customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
   const curForInput=(D.chartColors&&D.chartColors[key]);
   if(curForInput&&!PAL.includes(curForInput)){customIn.value=curForInput;customSw.classList.add('csw-active');}
-  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;buildHzChart();buildSlightEdgeChart('se-all-time');});
+  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;buildSlightEdgeChart('se-all-time');});
   customIn.addEventListener('change',ev=>{ev.stopPropagation();save();render();pop.remove();chartColorPopKey=null;});
   customSw.appendChild(customIn);customSw.onclick=ev=>ev.stopPropagation();
   pop.appendChild(customSw);
