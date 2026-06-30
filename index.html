@@ -358,6 +358,11 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   .hz-day-th{min-width:30px;padding:4px 1px}
   /* Both tables: fixed layout so colgroup widths are respected; JS sets explicit minWidth */
   #hz-tbl,#fathom-tbl{table-layout:fixed;width:auto}
+  /* Disable sticky columns on mobile — they confuse Android scroll width calculation */
+  #hz-tbl .sl,#hz-tbl .sr,#hz-tbl .sr-1,#hz-tbl .sr-2,
+  #fathom-tbl .sl,#fathom-tbl .sr,#fathom-tbl .sr-1,#fathom-tbl .sr-2{
+    position:relative!important;right:unset!important;left:unset!important
+  }
 
   /* TIDE notes card */
   .notes-card{padding:14px 16px}
