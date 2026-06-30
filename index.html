@@ -931,7 +931,7 @@ function mkPriority(){
 }
 // ─── TIME BLOCK CLOCK ────────────────────────────────────────────
 const TB_COLORS=['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EC4899','#14B8A6','#FACC15','#6366F1','#EF4444','#06B6D4'];
-const TB_RO=120,TB_RI=94,TB_RM=107;
+const TB_RO=98,TB_RI=74,TB_RM=86;
 function _tbUuid(){return Math.random().toString(36).slice(2,10);}
 function _tbAngle(min){return (min/1440)*360-90;}
 function _tbPt(r,deg){const rad=deg*Math.PI/180;return [110+r*Math.cos(rad),110+r*Math.sin(rad)];}
@@ -996,7 +996,7 @@ let _tbClockTimer=null;
 function mkTimeBlockCard(){
   const d=document.createElement('div');
   d.className='stat tb-clock-stat';
-  d.style.cssText='padding:10px 12px;display:flex;flex-direction:column;align-items:center;position:relative';
+  d.style.cssText='padding:10px 12px 24px 12px;display:flex;flex-direction:column;align-items:center;position:relative';
   d.innerHTML=`<div id="tb-clock-wrap" style="width:100%;max-width:280px;aspect-ratio:1;margin:0 auto"></div>`;
   setTimeout(()=>{buildClockSVG();if(_tbClockTimer)clearInterval(_tbClockTimer);_tbClockTimer=setInterval(buildClockSVG,60000);},0);
   return d;
@@ -1130,7 +1130,7 @@ function buildClockSVG(){
   // Invisible click target for adding new blocks
   const clickRing=`<path d="${ap(TB_RI,TB_RO,-90+360,-90)}" fill="transparent" style="cursor:crosshair" id="tb-ring-bg"/>`;
   const trackFill=`<path d="${ap(TB_RI,TB_RO,-90,270)}" fill="${darkMode?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)'}" style="pointer-events:none"/>`;
-  const svg=`<svg id="tb-svg" viewBox="-38 -38 296 296" width="100%" height="100%" style="overflow:visible;display:block">
+  const svg=`<svg id="tb-svg" viewBox="0 0 220 220" width="100%" height="100%" style="overflow:visible;display:block">
     <circle cx="${CX}" cy="${CY}" r="${TB_RO}" fill="none" stroke="${cc.grid}" stroke-width="1" opacity=".6"/>
     <circle cx="${CX}" cy="${CY}" r="${TB_RI}" fill="none" stroke="${cc.grid}" stroke-width=".6" opacity=".3"/>
     ${defs}${trackFill}${clickRing}${ticks}${arcs}${labels}${center}${nowDot}
