@@ -2370,8 +2370,8 @@ function buildSlightEdgeChart(canvasId){
   seChartInst=new Chart(cv,{
     type:'line',
     data:{datasets:[
-      {label:'Success',data:success,borderColor:successColor,backgroundColor:lpUp?_hex2rgba(successColor,0.12):'transparent',borderWidth:1.5,tension:.4,fill:lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
-      {label:'Regret',data:failure,borderColor:regretColor,backgroundColor:!lpUp?_hex2rgba(regretColor,0.12):'transparent',borderWidth:1.5,tension:.4,fill:!lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
+      {label:'Success',data:success,borderColor:successColor,backgroundColor:lpUp?_hex2rgba(successColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
+      {label:'Regret',data:failure,borderColor:regretColor,backgroundColor:!lpUp?_hex2rgba(regretColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:!lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
       {label:'Survival',data:sqLine,borderColor:darkMode?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.2)',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
       {label:'Life Path',data:actual,borderColor:oc.sePath||'#6366F1',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5},
     ]},
