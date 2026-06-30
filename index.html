@@ -345,13 +345,11 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   /* overflow:clip clips visually but does NOT create a BFC/scroll container,
      so Android Chrome routes horizontal touch directly into the child #fathom-scroll */
   #fathom-card{overflow:clip}
-  /* touch-action:pan-x tells the browser to natively handle horizontal scroll here;
-     vertical swipes fall through to the page */
+  /* pan-y: browser owns vertical (page scroll); horizontal is unclaimed so pointer capture JS drives it */
   #fathom-scroll,#hz-scroll{
     overflow-x:scroll;
     -webkit-overflow-scrolling:touch;
-    overscroll-behavior-x:contain;
-    touch-action:pan-x;
+    touch-action:pan-y;
   }
   /* Larger touch targets for checkboxes */
   .chk-box{width:30px;height:30px;border-radius:7px}
@@ -3199,19 +3197,25 @@ function applyFathomStartDateSkips(fid,startDateIso){
 //  HORIZONTAL GRID (days as columns, habits as rows)
 // ─────────────────────────────────────────
 function _bindTouchScroll(el){
-  if(!el||el._touchScrollBound)return;
-  el._touchScrollBound=true;
-  let sx=0,sy=0,sl=0,axis=null;
-  el.addEventListener('touchstart',e=>{
-    const t=e.touches[0];sx=t.clientX;sy=t.clientY;sl=el.scrollLeft;axis=null;
-  },{passive:true});
-  el.addEventListener('touchmove',e=>{
-    const t=e.touches[0];
-    const dx=t.clientX-sx,dy=t.clientY-sy;
-    if(!axis) axis=Math.abs(dx)>Math.abs(dy)?'x':'y';
-    if(axis==='x'){e.preventDefault();el.scrollLeft=sl-dx;}
-  },{passive:false});
-  el.addEventListener('touchend',()=>{axis=null;},{passive:true});
+  if(!el||el._ptScrollBound)return;
+  el._ptScrollBound=true;
+  let pid=null,sx=0,sy=0,sl=0,axis=null;
+  el.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse')return;
+    pid=e.pointerId;sx=e.clientX;sy=e.clientY;sl=el.scrollLeft;axis=null;
+    el.setPointerCapture(pid);
+  });
+  el.addEventListener('pointermove',e=>{
+    if(e.pointerId!==pid)return;
+    const dx=e.clientX-sx,dy=e.clientY-sy;
+    if(!axis&&Math.sqrt(dx*dx+dy*dy)>6){
+      axis=Math.abs(dx)>=Math.abs(dy)?'x':'y';
+      if(axis==='y'){el.releasePointerCapture(pid);pid=null;return;}
+    }
+    if(axis==='x')el.scrollLeft=sl-dx;
+  });
+  el.addEventListener('pointerup',()=>{pid=null;axis=null;});
+  el.addEventListener('pointercancel',()=>{pid=null;axis=null;});
 }
 function mkGridHorizontal(){
   const card=document.createElement('div');
@@ -3226,6 +3230,7 @@ function mkGridHorizontal(){
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
   scroll.appendChild(buildHzTable());
+  _bindTouchScroll(scroll);
   card.appendChild(bar);card.appendChild(scroll);
   setTimeout(()=>buildHzChart(),0);
   return card;
@@ -3749,6 +3754,7 @@ function mkFathomGrid(){
   });
   t.appendChild(tbody);
   scroll.appendChild(t);
+  _bindTouchScroll(scroll);
   card.appendChild(scroll);
   return card;
 }
