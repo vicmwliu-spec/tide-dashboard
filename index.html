@@ -843,10 +843,10 @@ function render(){
   _keepSel=false;
   if(!wasSel) _sel.clear();
   const app=document.getElementById('app');
-  app.innerHTML='';
   if(chartInst){chartInst.destroy();chartInst=null}
   if(hzChartInst){hzChartInst.destroy();hzChartInst=null}
   if(seChartInst){seChartInst.destroy();seChartInst=null}
+  app.innerHTML='';
   app.appendChild(mkHeader());
   if(view==='year'){
     const seCard=document.createElement('div');
