@@ -181,9 +181,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .mo-stat{font-size:10px;color:var(--text3)}
 
 /* ── Edit controls ── */
-.del-btn{display:none;background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1;vertical-align:middle}
+.arch-btn{display:none;background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 2px;line-height:1;opacity:.6;flex-shrink:0}
+.edit-mode .arch-btn{display:inline}
+.arch-btn:hover{color:var(--text1);opacity:1}
+.del-btn{display:none;background:none;border:none;cursor:pointer;color:#EF4444;font-size:13px;padding:0 2px;line-height:1;opacity:.55;flex-shrink:0}
 .edit-mode .del-btn{display:inline}
-.del-btn:hover{color:#EF4444}
+.del-btn:hover{opacity:1}
 .clr-btn{display:none;background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px;line-height:1;opacity:.55;flex-shrink:0;}
 .edit-mode .clr-btn{display:inline}
 .clr-btn:hover{color:#EF4444;opacity:1;}
@@ -211,6 +214,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 
 /* ── Edit mode input states ── */
 .edit-mode .grp-name-in,.edit-mode .hbt-in,.edit-mode .goal-in{cursor:text;border-radius:3px}
+.edit-mode .grp-name-in{max-width:160px;min-width:50px}
 .edit-mode .grp-name-in:focus,.edit-mode .hbt-in:focus,.edit-mode .goal-in:focus{background:#FFFBEB;outline:1px solid #FDE68A}
 
 /* ── Start date pill ── */
@@ -279,6 +283,11 @@ tr.dnd-ins-b>td,tr.dnd-ins-b>th{box-shadow:inset 0 -3px 0 var(--accent) !importa
 html.dark .chk-c.sel,html.dark .hz-chk-c.sel{background:rgba(59,130,246,.18)!important}
 #sel-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text1);color:var(--bg);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:500;display:none;align-items:center;gap:12px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25);white-space:nowrap;pointer-events:none}
 #sel-bar .sel-hint{opacity:.55;font-weight:400}
+#edit-bar{position:fixed;bottom:24px;right:24px;background:#4338CA;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;display:none;align-items:center;gap:8px;z-index:9998;box-shadow:0 4px 16px rgba(0,0,0,.25);cursor:pointer;user-select:none;white-space:nowrap}
+#edit-bar:hover{background:#3730A3}
+#arch-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text1);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:500;display:none;align-items:center;gap:10px;z-index:9997;box-shadow:0 4px 16px rgba(0,0,0,.25);white-space:nowrap}
+#arch-toast button{background:rgba(255,255,255,.18);border:none;color:inherit;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;cursor:pointer;font-family:var(--font)}
+#arch-toast button:hover{background:rgba(255,255,255,.3)}
 
 /* ── Misc ── */
 .empty-state{text-align:center;padding:48px 24px;color:var(--text3)}
@@ -377,6 +386,8 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   #tb-overlay>div{max-width:calc(100vw - 32px)!important;width:100%!important}
   /* Selection bar: above iOS home bar */
   #sel-bar{bottom:max(20px,env(safe-area-inset-bottom,20px))}
+  #edit-bar{bottom:max(20px,env(safe-area-inset-bottom,20px));right:16px}
+  #arch-toast{bottom:max(20px,env(safe-area-inset-bottom,20px))}
 }
 
 /* ── Small phones (≤480px) ── */
@@ -426,6 +437,8 @@ html.dark .dnd-grip:hover{color:var(--text2)}
 <body>
 <div id="app"></div>
 <div id="sel-bar"><span id="sel-count"></span><span class="sel-hint">Space to cycle &nbsp;·&nbsp; Esc to clear</span></div>
+<div id="edit-bar" onclick="_exitCurrentEditMode()">✎ Editing · ✓ Done</div>
+<div id="arch-toast"><span id="arch-toast-msg">Habit archived</span><button onclick="undoArchive()">Undo</button></div>
 
 <script>
 // ─────────────────────────────────────────
@@ -479,6 +492,9 @@ const now = new Date();
 let CY = now.getFullYear();
 let CM = now.getMonth();
 let editMode = false;
+let fathomEditMode = false;
+let _lastArchived = null;
+let _toastTimer = null;
 let view = 'month'; // 'month'|'year'
 let gridLayout = 'horizontal'; // 'vertical'|'horizontal'
 let chartInst = null;
@@ -677,7 +693,7 @@ function activeGroups(){
 }
 function activeFathomItems(){
   const m=D.months[mk(CY,CM)];
-  return (m&&m.snapshot)?m.snapshot.fathomItems:(D.fathom?.items||[]);
+  return (m&&m.snapshot)?m.snapshot.fathomItems:(D.fathom?.items||[]).filter(i=>!i.archived);
 }
 function isMonthArchived(){
   const m=D.months[mk(CY,CM)];
@@ -888,6 +904,7 @@ function render(){
     _sel.forEach(id=>{const el=document.getElementById(id);if(el)el.classList.add('sel');else _sel.delete(id)});
   }
   _updSelBar();
+  _updEditBar();
 }
 
 // ─────────────────────────────────────────
@@ -1364,8 +1381,10 @@ function buildStats(){
   const canReachNext=!isFuture&&neededForNext!==null&&neededForNext>0;
   const gradeRows=monthGrade?TIDE_GRADES.filter(g=>g.min>monthGrade.min).map(g=>{const n=Math.ceil(g.min/100*poss)-comp;return n>0?{letter:g.letter,name:g.name,count:n,color:g.color}:null;}).filter(Boolean):[];
   const bestPossibleLine=isCur&&dLeft>0?`<div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div><div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>`:`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
-  const nextGradeText=canReachNext?neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name+(poss-comp>0?' · '+(poss-comp)+' missed':''):'';
-  const nextGradeLine='<div id="sv-next-grade"'+(canReachNext?' style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':'')+'>'+(nextGradeText):'')+'</div>';
+  const _inc=isCur?((poss-tTotal)-(comp-tDone)):poss-comp;
+  const _incLine=_inc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_inc} incomplete</div>`:'';
+  const nextGradeText=canReachNext?neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name:'';
+  const nextGradeLine='<div id="sv-next-grade"'+(canReachNext?' style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':'')+'>'+(nextGradeText)+_incLine:'')+'</div>';
   const maxRateBlock=`${bestPossibleLine}${nextGradeLine}`;
   const nextTodayGrade=todayGrade?TODAY_GRADES.slice().reverse().find(g=>g.min>todayGrade.min):TODAY_GRADES.slice().reverse().find(g=>g.min>0);
   const neededForNextToday=nextTodayGrade&&tTotal>0?Math.ceil(nextTodayGrade.min/100*tTotal)-tDone:null;
@@ -1429,7 +1448,7 @@ function updStats(){
   const todayNextEl=document.getElementById('sv-today-next');
   if(todayNextEl){const ntg=todayGrade?TODAY_GRADES.slice().reverse().find(g=>g.min>todayGrade.min):TODAY_GRADES.slice().reverse().find(g=>g.min>0);const nnt=ntg&&tTotal>0?Math.ceil(ntg.min/100*tTotal)-tDone:null;todayNextEl.innerHTML=nnt>0?`${nnt} more → ${ntg.letter} ${ntg.name}`:'';todayNextEl.style.display=nnt>0?'':'none';}
   const nextGradeEl=document.getElementById('sv-next-grade');
-  if(nextGradeEl){const ng=monthGrade?TIDE_GRADES.slice().reverse().find(g=>g.min>monthGrade.min):TIDE_GRADES.slice().reverse().find(g=>g.min>0);const nfn=ng&&poss>0?Math.ceil(ng.min/100*poss)-comp:null;const cr=!isFuture&&nfn!==null&&nfn>0;if(cr){const gRows=monthGrade?TIDE_GRADES.filter(g=>g.min>monthGrade.min).map(g=>{const n=Math.ceil(g.min/100*poss)-comp;return n>0?{letter:g.letter,name:g.name,count:n,color:g.color}:null;}).filter(Boolean):[];nextGradeEl.setAttribute('style','margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default');if(gRows.length){nextGradeEl.setAttribute('onmouseenter','openGradeTip(event)');nextGradeEl.setAttribute('onmouseleave','closeGradeTip()');nextGradeEl.setAttribute('data-grades',JSON.stringify(gRows));}else{nextGradeEl.removeAttribute('onmouseenter');nextGradeEl.removeAttribute('onmouseleave');nextGradeEl.removeAttribute('data-grades');}nextGradeEl.textContent=nfn+' more → '+ng.letter+' '+ng.name+(poss-comp>0?' · '+(poss-comp)+' missed':'');}else{nextGradeEl.removeAttribute('style');nextGradeEl.removeAttribute('onmouseenter');nextGradeEl.removeAttribute('onmouseleave');nextGradeEl.removeAttribute('data-grades');nextGradeEl.textContent='';}}
+  if(nextGradeEl){const ng=monthGrade?TIDE_GRADES.slice().reverse().find(g=>g.min>monthGrade.min):TIDE_GRADES.slice().reverse().find(g=>g.min>0);const nfn=ng&&poss>0?Math.ceil(ng.min/100*poss)-comp:null;const cr=!isFuture&&nfn!==null&&nfn>0;if(cr){const gRows=monthGrade?TIDE_GRADES.filter(g=>g.min>monthGrade.min).map(g=>{const n=Math.ceil(g.min/100*poss)-comp;return n>0?{letter:g.letter,name:g.name,count:n,color:g.color}:null;}).filter(Boolean):[];nextGradeEl.setAttribute('style','margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default');if(gRows.length){nextGradeEl.setAttribute('onmouseenter','openGradeTip(event)');nextGradeEl.setAttribute('onmouseleave','closeGradeTip()');nextGradeEl.setAttribute('data-grades',JSON.stringify(gRows));}else{nextGradeEl.removeAttribute('onmouseenter');nextGradeEl.removeAttribute('onmouseleave');nextGradeEl.removeAttribute('data-grades');}const _inc2=isCur?((poss-tTotal)-(comp-tDone)):poss-comp;const _incL2=_inc2>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_inc2} incomplete</div>`:'';nextGradeEl.innerHTML=nfn+' more → '+ng.letter+' '+ng.name+_incL2;}else{nextGradeEl.removeAttribute('style');nextGradeEl.removeAttribute('onmouseenter');nextGradeEl.removeAttribute('onmouseleave');nextGradeEl.removeAttribute('data-grades');nextGradeEl.textContent='';}}
   const fmEl=document.getElementById('sv-fathom-month');
   const ftEl=document.getElementById('sv-fathom-today');
   const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
@@ -1707,13 +1726,16 @@ function buildTHead(){
       if(editMode){
         const freq=h.freq&&h.freq.length<7?h.freq:[0,1,2,3,4,5,6];
         const freqBtns=['S','M','T','W','T','F','S'].map((lbl,i)=>`<button class="freq-day-btn${freq.includes(i)?' freq-on':''}" onclick="event.stopPropagation();toggleHabitFreqDay('${h.id}',${i})" title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}">${lbl}</button>`).join('');
-        th.innerHTML=`<div style="display:flex;flex-direction:column;gap:3px;padding:2px 4px">
+        th.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;padding:2px 4px">
           <div style="display:flex;align-items:center;gap:3px">
             <span class="dnd-grip">⠿</span>
-            <input class="hbt-in" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
+            <input class="hbt-in" style="flex:1;min-width:0;width:auto" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;padding-left:16px">
             <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(h.startDate||todayStr())}<input type="date" value="${h.startDate||todayStr()}" onchange="changeHabitStartDate('${h.id}',this.value)"/></span>
-            <button class="clr-btn" onclick="clearHabitHistory('${h.id}')" title="Clear all history">⊗</button>
-            <button class="del-btn" onclick="deleteHabit('${g.id}','${h.id}')" title="Archive">&#10005;</button>
+            <button class="arch-btn" style="display:inline" onclick="archiveHabit('${g.id}','${h.id}')" title="Archive">⊟</button>
+            <button class="clr-btn" style="display:inline" onclick="clearHabitHistory('${h.id}')" title="Clear history">⊗</button>
+            <button class="del-btn" style="display:inline" onclick="confirmDeleteHabit('${g.id}','${h.id}')" title="Delete permanently">✕</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${freqBtns}</div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
@@ -2264,8 +2286,14 @@ function fathomQuarterStats(qi){
 
 function mkTide(){
   const qi=Math.floor(new Date().getMonth()/3);
-  const {pct}=quarterStats(qi);
+  const {pct,comp:qComp,poss:qPoss}=quarterStats(qi);
   const grade=QUARTER_GRADES.find(g=>pct>=g.min)||QUARTER_GRADES[QUARTER_GRADES.length-1];
+  const nextQGrade=QUARTER_GRADES.slice().reverse().find(g=>g.min>grade.min);
+  const qNeeded=nextQGrade&&qPoss>0?Math.ceil(nextQGrade.min/100*qPoss)-qComp:null;
+  const {done:_tqDone,total:_tqTotal}=todayStats();
+  const _qInc=(qPoss-_tqTotal)-(qComp-_tqDone);
+  const _qIncLine=_qInc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_qInc} incomplete</div>`:'';
+  const qHintLine=qNeeded>0?`<div id="tide-next-grade" style="font-size:11px;font-weight:600;color:var(--text3);margin-top:6px">${qNeeded} more → ${nextQGrade.letter} ${nextQGrade.name}${_qIncLine}</div>`:`<div id="tide-next-grade"></div>`;
   const grpCards=activeGroups().map(g=>{
     const gp=grpQuarterScore(g,qi);
     const gg=TIDE_GRADES.find(x=>gp>=x.min)||TIDE_GRADES[TIDE_GRADES.length-1];
@@ -2288,6 +2316,7 @@ function mkTide(){
       <div id="tide-letter" style="font-size:72px;font-weight:700;line-height:1;color:${grade.color};letter-spacing:-.02em">${grade.letter}</div>
       <div id="tide-name" style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${grade.color};margin-top:8px">${grade.name}</div>
       <div id="tide-pct" style="font-size:14px;font-weight:500;color:var(--text3);margin-top:10px">${pct}% SLIGHT EDGE</div>
+      ${qHintLine}
       ${fTideLine}
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px">
@@ -2425,6 +2454,7 @@ function buildSlightEdgeChart(canvasId){
 function mkAnnual(){
   const d=document.createElement('div');
   d.className='chart-card';
+  const {done:_taDone,total:_taTotal}=todayStats();
 
   // ── Annual score ──
   const yr=annualStats();
@@ -2447,7 +2477,7 @@ function mkAnnual(){
     }
     if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
     const isCurQ=CY===now.getFullYear()&&qi===Math.floor(now.getMonth()/3);
-    let bestPct=null,bestGrade=null,qNeededForNext=null,qNextGrade=null;
+    let bestPct=null,bestGrade=null,qNeededForNext=null,qNextGrade=null,qIncomplete=0;
     if(isCurQ&&s.hasData){
       const remainInMonth=dim(CY,now.getMonth())-now.getDate();
       let futureDays=remainInMonth;
@@ -2457,9 +2487,17 @@ function mkAnnual(){
       bestGrade=QUARTER_GRADES.find(g=>bestPct>=g.min)||null;
       const curGrade=s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null;
       qNextGrade=curGrade?QUARTER_GRADES.slice().reverse().find(g=>g.min>curGrade.min):QUARTER_GRADES[QUARTER_GRADES.length-1];
-      if(qNextGrade){const totalPoss=s.poss+futPoss;const needed=Math.ceil(qNextGrade.min/100*totalPoss)-s.comp;if(needed>0)qNeededForNext=needed;}
+      if(qNextGrade){const needed=Math.ceil(qNextGrade.min/100*s.poss)-s.comp;if(needed>0)qNeededForNext=needed;}
+      qIncomplete=Math.max(0,(s.poss-_taTotal)-(s.comp-_taDone));
+    } else if(!isCurQ&&s.hasData){
+      qIncomplete=Math.max(0,s.poss-s.comp);
+      const curGrade=QUARTER_GRADES.find(g=>s.pct>=g.min);
+      qNextGrade=curGrade?QUARTER_GRADES.slice().reverse().find(g=>g.min>curGrade.min):QUARTER_GRADES[QUARTER_GRADES.length-1];
+      if(qNextGrade){const needed=Math.ceil(qNextGrade.min/100*s.poss)-s.comp;if(needed>0)qNeededForNext=needed;}
     }
-    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp,bestPct,bestGrade,qNeededForNext,qNextGrade,isCurQ};
+    const _curGradeForRows=s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null;
+    const qGradeRows=_curGradeForRows&&s.poss>0?QUARTER_GRADES.filter(g=>g.min>_curGradeForRows.min).map(g=>{const n=Math.ceil(g.min/100*s.poss)-s.comp;return n>0?{letter:g.letter,name:g.name,count:n,color:g.color}:null;}).filter(Boolean):[];
+    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp,bestPct,bestGrade,qNeededForNext,qNextGrade,isCurQ,qIncomplete,qGradeRows};
   });
 
   const qHtml=quarters.map(q=>`
@@ -2477,7 +2515,7 @@ function mkAnnual(){
       `}
       ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fGrade.label} · ${Math.floor(q.fc/q.fp*100)}%</div>`:''}
       ${q.bestPct!==null?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${q.bestPct}%</span>${q.bestGrade?` · <span style="font-weight:600;color:var(--text3)">${q.bestGrade.letter} ${q.bestGrade.name}</span>`:''}</div>`:''}
-      ${q.qNeededForNext&&q.qNextGrade?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3);font-weight:600">${q.qNeededForNext} more → ${q.qNextGrade.letter} ${q.qNextGrade.name}</div>`:''}
+      ${q.qNeededForNext&&q.qNextGrade?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3);font-weight:600;cursor:default"${q.qGradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(q.qGradeRows).replace(/"/g,'&quot;')+'"':''}>${q.qNeededForNext} more → ${q.qNextGrade.letter} ${q.qNextGrade.name}</div>${q.qIncomplete>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${q.qIncomplete} incomplete</div>`:''}`:q.qIncomplete>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:9px;color:var(--text3);font-weight:500;opacity:.7">${q.qIncomplete} incomplete</div>`:''}
     </div>`).join('');
 
   d.innerHTML=`
@@ -2709,13 +2747,21 @@ function setGroupColor(gid,color){
 // ─────────────────────────────────────────
 //  ACTIONS
 // ─────────────────────────────────────────
-function _navRender(){if(isMonthArchived()&&editMode)editMode=false;render()}
+function _navRender(){if(isMonthArchived()&&(editMode||fathomEditMode)){editMode=false;fathomEditMode=false;}render()}
 function prevMo(){CM===0?(CM=11,CY--):CM--;_navRender()}
 function nextMo(){CM===11?(CM=0,CY++):CM++;_navRender()}
 function goToday(){CY=now.getFullYear();CM=now.getMonth();_navRender()}
 function goMonth(m){CM=m;view='month';_navRender()}
 function toggleView(){view=view==='year'?'month':'year';render()}
-function toggleEdit(){if(isMonthArchived())return;editMode=!editMode;render()}
+function toggleEdit(){if(isMonthArchived())return;editMode=!editMode;if(editMode)fathomEditMode=false;render();}
+function toggleFathomEdit(){fathomEditMode=!fathomEditMode;if(fathomEditMode)editMode=false;render();}
+function _updEditBar(){const b=document.getElementById('edit-bar');if(!b)return;const on=editMode||fathomEditMode;b.style.display=on?'flex':'none';b.textContent=(editMode?'✎ Editing Habits':fathomEditMode?'✎ Editing Fathom':'✎ Editing')+' · ✓ Done';}
+function _exitCurrentEditMode(){if(editMode)editMode=false;else if(fathomEditMode)fathomEditMode=false;render();}
+function hasHabitHistory(hid){return Object.values(D.months).some(m=>m?.completions?.[hid]&&Object.values(m.completions[hid]).some(v=>v));}
+function archiveHabit(gid,hid){const g=D.groups.find(g=>g.id===gid);const h=g?.habits.find(h=>h.id===hid);if(h){h.archived=true;_lastArchived={type:'habit',gid,hid};save();_showArchiveToast('Habit archived');render();}}
+function confirmDeleteHabit(gid,hid){const g=D.groups.find(g=>g.id===gid);const h=g?.habits.find(h=>h.id===hid);const name=h?`"${h.name}"`:' this habit';const msg=hasHabitHistory(hid)?`Permanently delete ${name} and all its completion history?\n\nThis cannot be undone.`:`Delete ${name}?\n\nThis cannot be undone.`;if(confirm(msg))purgeHabit(gid,hid);}
+function _showArchiveToast(msg='Habit archived'){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
+function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchived=null;clearTimeout(_toastTimer);const t=document.getElementById('arch-toast');if(t)t.style.display='none';if(a.type==='fathom')restoreFathomItem(a.id);else restoreHabit(a.gid,a.hid);}
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
 function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
@@ -3229,7 +3275,7 @@ function purgeHabit(gid,hid){
   save();render();
 }
 function clearHabitHistory(hid){
-  if(!confirm('Clear all logged history for this habit? The habit stays active but all past completions and skips are erased.')) return;
+  if(!confirm('Clear all logged history for this habit? The habit stays active but all past completions and skips are erased.\n\nThis cannot be undone.')) return;
   Object.values(D.months).forEach(mo=>{
     const inSnapshot=mo.snapshot?.groups?.some(sg=>sg.habits.some(sh=>sh.id===hid));
     if(!inSnapshot){if(mo.completions?.[hid])mo.completions[hid]={};if(mo.skips?.[hid])mo.skips[hid]={};}
@@ -3510,13 +3556,16 @@ function buildHzTable(){
       if(editMode){
         const hfreq=h.freq&&h.freq.length<7?h.freq:[0,1,2,3,4,5,6];
         const hfreqBtns=['S','M','T','W','T','F','S'].map((lbl,i)=>`<button class="freq-day-btn${hfreq.includes(i)?' freq-on':''}" onclick="event.stopPropagation();toggleHabitFreqDay('${h.id}',${i})" title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}">${lbl}</button>`).join('');
-        nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:3px;overflow:hidden">
+        nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;overflow:hidden">
           <div style="display:flex;align-items:center;gap:2px">
             <span class="dnd-grip" style="margin-right:1px">⠿</span>
-            <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
+            <input class="hbt-in" style="text-align:left;flex:1;min-width:0;width:auto" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;padding-left:16px">
             <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(h.startDate||todayStr())}<input type="date" value="${h.startDate||todayStr()}" onchange="changeHabitStartDate('${h.id}',this.value)"/></span>
-            <button class="clr-btn" style="display:inline" onclick="clearHabitHistory('${h.id}')" title="Clear all history">⊗</button>
-            <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteHabit('${g.id}','${h.id}')" title="Archive">&#10005;</button>
+            <button class="arch-btn" style="display:inline" onclick="archiveHabit('${g.id}','${h.id}')" title="Archive">⊟</button>
+            <button class="clr-btn" style="display:inline" onclick="clearHabitHistory('${h.id}')" title="Clear history">⊗</button>
+            <button class="del-btn" style="display:inline" onclick="confirmDeleteHabit('${g.id}','${h.id}')" title="Delete permanently">✕</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${hfreqBtns}</div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
@@ -3760,7 +3809,7 @@ function mkFathomGrid(){
   const mGrade=mHas?fathomGrade(mPct):null;
 
   const card=document.createElement('div');
-  card.className='grid-card'+(editMode?' edit-mode':'');
+  card.className='grid-card'+(fathomEditMode?' edit-mode':'');
   card.id='fathom-card';
 
   // Bar
@@ -3772,12 +3821,13 @@ function mkFathomGrid(){
     </span>
     <div style="display:flex;align-items:center;gap:8px">
       ${mGrade?`<span style="font-size:11px;font-weight:600;color:${fgColor(mGrade)}">${mGrade.label} &middot; ${mPct}%</span>`:''}
-      ${editMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
+      ${fathomEditMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
+      <button class="btn ${fathomEditMode?'btn-on':''}" onclick="toggleFathomEdit()">${fathomEditMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>`;
   card.appendChild(bar);
 
   // Mobile: compact today-only view instead of full 30-col table
-  if(window.innerWidth<=768&&!editMode){
+  if(window.innerWidth<=768&&!fathomEditMode){
     card.appendChild(buildFathomTodayTable(items,todayD,isCurMo));
     return card;
   }
@@ -3790,10 +3840,10 @@ function mkFathomGrid(){
   t.className='tbl';
   t.id='fathom-tbl';
   // Set explicit min-width in px so mobile browsers can't collapse it via bad max-content calc
-  t.style.minWidth=((editMode?180:100)+days*34+56+56)+'px';
+  t.style.minWidth=((fathomEditMode?180:100)+days*34+56+56)+'px';
 
   const cg=document.createElement('colgroup');
-  const cH=document.createElement('col');cH.style.width=editMode?'180px':'100px';cg.appendChild(cH);
+  const cH=document.createElement('col');cH.style.width=fathomEditMode?'180px':'100px';cg.appendChild(cH);
   const cD=document.createElement('col');cD.span=days;cD.style.width='34px';cg.appendChild(cD);
   const cDn=document.createElement('col');cDn.style.width='56px';cg.appendChild(cDn);
   const cP=document.createElement('col');cP.style.width='56px';cg.appendChild(cP);
@@ -3867,15 +3917,19 @@ function mkFathomGrid(){
     tr.className='hz-row';
     const nameTd=document.createElement('td');
     nameTd.className='sl hz-habit-td';
-    if(editMode){
+    if(fathomEditMode){
       const ifreq=item.freq&&item.freq.length<7?item.freq:[0,1,2,3,4,5,6];
       const ifreqBtns=['S','M','T','W','T','F','S'].map((lbl,i)=>`<button class="freq-day-btn${ifreq.includes(i)?' freq-on-fathom':''}" onclick="event.stopPropagation();toggleFathomFreqDay('${item.id}',${i})" title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}">${lbl}</button>`).join('');
-      nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:3px;">
+      nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;">
         <div style="display:flex;align-items:center;gap:2px;">
           <span class="dnd-grip" style="margin-right:1px">⠿</span>
-          <input class="hbt-in" style="text-align:left;flex:1;min-width:0" value="${esc(item.name)}" onchange="renameFathomItem('${item.id}',this.value)" onclick="event.stopPropagation()" onfocus="expandNameInput(this)" onblur="collapseNameInput(this)"/>
+          <input class="hbt-in" style="text-align:left;flex:1;min-width:0;width:auto" value="${esc(item.name)}" onchange="renameFathomItem('${item.id}',this.value)" onclick="event.stopPropagation()" onfocus="expandNameInput(this)" onblur="collapseNameInput(this)"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;padding-left:16px">
           <span class="sd-pill" onclick="event.stopPropagation();openDatePicker(this)" title="Start date">⊙ ${fmtDate(item.startDate||todayStr())}<input type="date" value="${item.startDate||todayStr()}" onchange="changeFathomStartDate('${item.id}',this.value)"/></span>
-          <button class="del-btn" style="display:inline;flex-shrink:0" onclick="deleteFathomItem('${item.id}')" title="Remove">&#10005;</button>
+          <button class="arch-btn" style="display:inline" onclick="archiveFathomItem('${item.id}')" title="Archive">⊟</button>
+          <button class="clr-btn" style="display:inline" onclick="clearFathomHistory('${item.id}')" title="Clear history">⊗</button>
+          <button class="del-btn" style="display:inline" onclick="confirmDeleteFathomItem('${item.id}')" title="Delete permanently">✕</button>
         </div>
         <div style="display:flex;gap:2px;padding-left:16px">${ifreqBtns}</div>
       </div>`;
@@ -3929,6 +3983,7 @@ function mkFathomGrid(){
   scroll.appendChild(t);
   _bindTouchScroll(scroll);
   card.appendChild(scroll);
+  if(fathomEditMode){const ap=mkArchivedFathomPanel();if(ap)card.appendChild(ap);}
   return card;
 }
 
@@ -4016,10 +4071,44 @@ function changeFathomStartDate(id,date){
   const item=D.fathom?.items?.find(i=>i.id===id);
   if(item){item.startDate=date||todayStr();applyFathomStartDateSkips(item.id,item.startDate);save();render();}
 }
-function deleteFathomItem(id){
-  if(!confirm('Remove this Fathom item?')) return;
-  D.fathom.items=D.fathom.items.filter(i=>i.id!==id);
+function clearFathomHistory(id){
+  const item=(D.fathom?.items||[]).find(i=>i.id===id);
+  const name=item?`"${item.name}"`:'this Fathom item';
+  if(!confirm(`Clear all logged history for ${name}? The item stays active but all past completions and skips are erased.\n\nThis cannot be undone.`)) return;
+  Object.values(D.months).forEach(mo=>{
+    if(mo.fathomCompletions?.[id]) mo.fathomCompletions[id]={};
+    if(mo.fathomSkips?.[id]) mo.fathomSkips[id]={};
+  });
   save();render();
+}
+function archiveFathomItem(id){
+  const item=(D.fathom?.items||[]).find(i=>i.id===id);
+  if(item){item.archived=true;_lastArchived={type:'fathom',id};save();_showArchiveToast('Fathom item archived');render();}
+}
+function restoreFathomItem(id){
+  const item=(D.fathom?.items||[]).find(i=>i.id===id);
+  if(item){item.archived=false;save();render();}
+}
+function confirmDeleteFathomItem(id){
+  const item=(D.fathom?.items||[]).find(i=>i.id===id);
+  const name=item?`"${item.name}"`:'this Fathom item';
+  const hasHist=Object.values(D.months).some(mo=>mo.fathomCompletions?.[id]&&Object.values(mo.fathomCompletions[id]).some(v=>v));
+  const msg=hasHist?`Permanently delete ${name} and all its completion history?\n\nThis cannot be undone.`:`Delete ${name}?\n\nThis cannot be undone.`;
+  if(confirm(msg)){D.fathom.items=(D.fathom.items||[]).filter(i=>i.id!==id);save();render();}
+}
+function deleteFathomItem(id){confirmDeleteFathomItem(id);}
+function mkArchivedFathomPanel(){
+  const allArchived=(D.fathom?.items||[]).filter(i=>i.archived);
+  if(!allArchived.length) return null;
+  const panel=document.createElement('div');
+  panel.className='arch-panel';
+  panel.innerHTML=`<div class="arch-panel-title">Archived Fathom Items</div>`+
+    allArchived.map(item=>`<div class="arch-item">
+      <div class="arch-item-name">${esc(item.name)}</div>
+      <button class="restore-btn" onclick="restoreFathomItem('${item.id}')">Restore</button>
+      <button class="purge-btn" onclick="confirmDeleteFathomItem('${item.id}')">Delete</button>
+    </div>`).join('');
+  return panel;
 }
 
 // ─────────────────────────────────────────
@@ -4113,7 +4202,7 @@ document.addEventListener('click',e=>{
 
 // Space = cycle all selected cells
 document.addEventListener('keydown',e=>{
-  if(e.code==='Escape'){_selClear();return;}
+  if(e.code==='Escape'){_selClear();if(editMode||fathomEditMode){editMode=false;fathomEditMode=false;render();}return;}
   if(e.code!=='Space'||_sel.size===0) return;
   const t=e.target.tagName;
   if(t==='INPUT'||t==='TEXTAREA'||e.target.isContentEditable) return;
