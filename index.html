@@ -1385,7 +1385,7 @@ function buildStats(){
   const _incLine=_inc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_inc} incomplete</div>`:'';
   const nextGradeText=canReachNext?neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name:'';
   const nextGradeLine='<div id="sv-next-grade"'+(canReachNext?' style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':'')+'>'+(nextGradeText)+_incLine:'')+'</div>';
-  const maxRateBlock=`${bestPossibleLine}${nextGradeLine}`;
+  const maxRateBlock=`${bestPossibleLine}`;
   const nextTodayGrade=todayGrade?TODAY_GRADES.slice().reverse().find(g=>g.min>todayGrade.min):TODAY_GRADES.slice().reverse().find(g=>g.min>0);
   const neededForNextToday=nextTodayGrade&&tTotal>0?Math.ceil(nextTodayGrade.min/100*tTotal)-tDone:null;
   const todayNextLine=neededForNextToday>0?`<div id="sv-today-next" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600">${neededForNextToday} more → ${nextTodayGrade.letter} ${nextTodayGrade.name}</div>`:`<div id="sv-today-next"></div>`;
@@ -1396,7 +1396,9 @@ function buildStats(){
         <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${rate}%</span>
       </div>
       <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':''}</div>
-      <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
+      <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
+      ${nextGradeLine}
+      ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
     <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>
     <div class="stat"><div class="stat-lbl">Today's Slight Edge</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
