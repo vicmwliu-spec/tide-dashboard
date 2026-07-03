@@ -3607,7 +3607,7 @@ function buildHzTable(){
       for(let d=1;d<=days;d++){
         const dow=new Date(CY,CM,d).getDay();
         const isToday=d===todayD;
-        const isFuture=false;
+        const isFuture=isCurMo&&d>todayD;
         const isWeekStart=dow===1&&d>1;
         const chk=isChk(h.id,d);
         const skp=isSkip(h.id,d);
@@ -3658,6 +3658,7 @@ function doHzToggle(hid,day,color){
   const days=dim(CY,CM);
   let rowDone=0,rowTotal=0;
   for(let d=1;d<=todayD;d++){
+    if(isFreqExcluded(hid,d)) continue;
     if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}
   }
   const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
