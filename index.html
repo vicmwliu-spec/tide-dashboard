@@ -2835,7 +2835,8 @@ function richtextKD(e){
     if(sel2&&sel2.rangeCount){
       const rng=sel2.getRangeAt(0);
       const nd=rng.startContainer;
-      if(nd.nodeType===Node.TEXT_NODE&&nd.textContent.slice(0,rng.startOffset)==='---'){
+      const _before=nd.nodeType===Node.TEXT_NODE?nd.textContent.slice(0,rng.startOffset):'';
+      if(_before==='---'||_before==='—-'){
         e.preventDefault();
         const r2=document.createRange();
         r2.setStart(nd,0);r2.setEnd(nd,rng.startOffset);
