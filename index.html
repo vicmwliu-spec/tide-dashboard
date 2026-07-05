@@ -989,6 +989,7 @@ function _tbMouseMin(e){
   return Math.round(angle/360*1440/15)*15;
 }
 let _tbDrag=null;
+let _tbTouchPending=null,_tbTouchTimer=null;
 function _tbMouseDown(e){
   e.preventDefault();e.stopPropagation();
   const id=e.currentTarget.dataset.tbid;
@@ -1177,23 +1178,42 @@ function buildClockSVG(){
   wrap.querySelectorAll('.tb-arc').forEach(el=>{
     el.addEventListener('mousedown',_tbMouseDown);
     el.addEventListener('touchstart',e=>{
-      e.preventDefault();
       const t=e.touches[0];
-      _tbMouseDown({preventDefault:()=>{},stopPropagation:()=>{},currentTarget:e.currentTarget,clientX:t.clientX,clientY:t.clientY});
-    },{passive:false});
+      const target=e.currentTarget;
+      const sx=t.clientX,sy=t.clientY;
+      _tbTouchPending={sx,sy};
+      clearTimeout(_tbTouchTimer);
+      _tbTouchTimer=setTimeout(()=>{
+        _tbTouchTimer=null;
+        if(!_tbTouchPending)return;
+        _tbTouchPending=null;
+        _tbMouseDown({preventDefault:()=>{},stopPropagation:()=>{},currentTarget:target,clientX:sx,clientY:sy});
+      },180);
+    },{passive:true});
   });
   if(!wrap._touchBound){
     wrap._touchBound=true;
     document.addEventListener('touchmove',e=>{
-      if(!_tbDrag)return;
-      e.preventDefault();
       const t=e.touches[0];
-      _tbMouseMove({clientX:t.clientX,clientY:t.clientY});
+      if(_tbDrag){
+        e.preventDefault();
+        _tbMouseMove({clientX:t.clientX,clientY:t.clientY});
+        return;
+      }
+      if(_tbTouchPending){
+        const dx=t.clientX-_tbTouchPending.sx,dy=t.clientY-_tbTouchPending.sy;
+        if(Math.sqrt(dx*dx+dy*dy)>10){
+          clearTimeout(_tbTouchTimer);_tbTouchTimer=null;_tbTouchPending=null;
+        }
+      }
     },{passive:false});
-    document.addEventListener('touchend',e=>{
+    const _tbTouchEnd=()=>{
+      clearTimeout(_tbTouchTimer);_tbTouchTimer=null;_tbTouchPending=null;
       if(!_tbDrag)return;
       _tbMouseUp({});
-    });
+    };
+    document.addEventListener('touchend',_tbTouchEnd);
+    document.addEventListener('touchcancel',_tbTouchEnd);
   }
   // Custom instant tooltip
   if(!document.getElementById('tb-tip')){
