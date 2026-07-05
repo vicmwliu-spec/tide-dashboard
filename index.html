@@ -2881,21 +2881,21 @@ function richtextKD(e){
       const nd=rng.startContainer;
       const root=(nd.nodeType===Node.TEXT_NODE?nd.parentElement:nd).closest('[contenteditable]');
       if(root){
-        const lineRange=document.createRange();
-        lineRange.setStart(root,0);
-        lineRange.setEnd(nd,rng.startOffset);
-        const frag=lineRange.cloneContents();
-        let _before='';
-        (function walk(node){
-          for(const child of node.childNodes){
-            if(child.nodeName==='BR'){_before='';}
-            else if(child.nodeType===Node.TEXT_NODE){_before+=child.textContent;}
-            else{walk(child);}
-          }
-        })(frag);
+        const BLOCK=new Set(['BR','DIV','P','LI']);
+        let _before=nd.nodeType===Node.TEXT_NODE?nd.textContent.slice(0,rng.startOffset):'';
+        let startNode=nd,startOffset=nd.nodeType===Node.TEXT_NODE?0:rng.startOffset;
+        const walker=document.createTreeWalker(root,NodeFilter.SHOW_ALL);
+        walker.currentNode=nd;
+        let prev;
+        while((prev=walker.previousNode())){
+          if(BLOCK.has(prev.nodeName)) break;
+          if(prev.nodeType===Node.TEXT_NODE){_before=prev.textContent+_before;startNode=prev;startOffset=0;}
+        }
         if(_before==='---'||_before==='—-'){
           e.preventDefault();
-          sel2.removeAllRanges();sel2.addRange(lineRange);
+          const r2=document.createRange();
+          r2.setStart(startNode,startOffset);r2.setEnd(nd,rng.startOffset);
+          sel2.removeAllRanges();sel2.addRange(r2);
           document.execCommand('delete');
           document.execCommand('insertHTML',false,'<hr><br>');
           return;
