@@ -1844,7 +1844,7 @@ function buildTBody(){
       const badgeText=wg?`${wg.letter} · ${wd.pct}%`:'—';
       const wStats=weekAllStats[wn];
       const gd_json=wStats?JSON.stringify(wStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
-      const badge=weekStarted?`<span class="wk-badge" style="${badgeStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${gd_json}">${badgeText}</span>`:'';
+      const badge=weekStarted?`<span class="wk-badge" id="wk-badge-${wn}" style="${badgeStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${gd_json}">${badgeText}</span>`:'';
       const wAarHas=!!getWeekAAR(wn);
       sepTd.innerHTML=`<span class="week-lbl-text">Week ${wn}</span>${badge}<button id="week-aar-btn-${wn}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${wn})" title="Weekly Review" style="display:inline;margin-left:6px;margin-top:0;padding:1px 5px">✎</button>`;
       const fillTd=document.createElement('td');
@@ -2031,6 +2031,29 @@ function doSkipToggle(hid,day,color){
   }
 }
 
+function updWeekBadges(day){
+  const spans=getWeekSpans(CY,CM);
+  const s=spans.find(sp=>day>=sp.start&&day<=sp.end);
+  if(!s) return;
+  const today=new Date();
+  const todayD=today.getFullYear()===CY&&today.getMonth()===CM?today.getDate():-1;
+  const isPastMonth=CY<today.getFullYear()||(CY===today.getFullYear()&&CM<today.getMonth());
+  const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);
+  let wd=0,wt=0;
+  for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
+  const pct=wt>0?Math.round(wd/wt*100):null;
+  const wg=pct!=null?WEEK_GRADES.find(g=>pct>=g.min):null;
+  const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
+  const badgeText=wg?`${wg.letter} · ${pct}%`:'—';
+  const wStats=allWeeksStats().find(w=>w.week===s.week);
+  const gd_json=wStats?JSON.stringify(wStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
+  document.querySelectorAll(`#wk-badge-${s.week}`).forEach(el=>{
+    el.style.cssText=`${badgeStyle};cursor:default`;
+    el.textContent=badgeText;
+    el.setAttribute('data-groups',gd_json);
+  });
+}
+
 function partialUpdate(hid,day){
   // day row summary
   const {done,total,pct}=dayProg(day);
@@ -2057,6 +2080,7 @@ function partialUpdate(hid,day){
   updStats();
   updateChart();
   updTide();
+  updWeekBadges(day);
 }
 
 
@@ -3522,7 +3546,7 @@ function buildHzTable(){
     const hzWStats=hzWeekAllStats[ws.week];
     const hzGdJson=hzWStats?JSON.stringify(hzWStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
     const wAarHas=!!getWeekAAR(ws.week);
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
     rC.appendChild(th);
   });
   thead.appendChild(rC);
