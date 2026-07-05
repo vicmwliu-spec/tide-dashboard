@@ -2855,15 +2855,27 @@ function richtextKD(e){
     if(sel2&&sel2.rangeCount){
       const rng=sel2.getRangeAt(0);
       const nd=rng.startContainer;
-      const _before=nd.nodeType===Node.TEXT_NODE?nd.textContent.slice(0,rng.startOffset):'';
-      if(_before==='---'||_before==='—-'){
-        e.preventDefault();
-        const r2=document.createRange();
-        r2.setStart(nd,0);r2.setEnd(nd,rng.startOffset);
-        sel2.removeAllRanges();sel2.addRange(r2);
-        document.execCommand('delete');
-        document.execCommand('insertHTML',false,'<hr><br>');
-        return;
+      const root=(nd.nodeType===Node.TEXT_NODE?nd.parentElement:nd).closest('[contenteditable]');
+      if(root){
+        const lineRange=document.createRange();
+        lineRange.setStart(root,0);
+        lineRange.setEnd(nd,rng.startOffset);
+        const frag=lineRange.cloneContents();
+        let _before='';
+        (function walk(node){
+          for(const child of node.childNodes){
+            if(child.nodeName==='BR'){_before='';}
+            else if(child.nodeType===Node.TEXT_NODE){_before+=child.textContent;}
+            else{walk(child);}
+          }
+        })(frag);
+        if(_before==='---'||_before==='—-'){
+          e.preventDefault();
+          sel2.removeAllRanges();sel2.addRange(lineRange);
+          document.execCommand('delete');
+          document.execCommand('insertHTML',false,'<hr><br>');
+          return;
+        }
       }
     }
   }
