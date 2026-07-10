@@ -161,6 +161,10 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .aar-btn{display:block;background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:500;padding:2px 5px;border-radius:3px;line-height:1.4;margin-top:3px;font-family:var(--font);letter-spacing:.03em;white-space:nowrap}
 .aar-btn:hover{background:var(--border2);color:var(--text1)}
 .aar-btn.aar-has{color:var(--accent);font-weight:600}
+.wk-arc-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:none;border:none;cursor:pointer;color:var(--text3);padding:0;border-radius:4px;transition:all .12s;flex-shrink:0}
+.wk-arc-btn:hover{background:var(--border2);color:var(--text1)}
+.wk-arc-btn.wk-arc-on{color:var(--accent)}
+.wk-arc-btn svg{width:12px;height:12px;display:block}
 #aar-editor hr,.quote-ta hr,.priority-ta hr,.intention-ta hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
 #aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.intention-ta ul,.intention-ta ol{padding-left:22px;margin:4px 0}
 #aar-editor li,.quote-ta li,.priority-ta li,.intention-ta li{margin:2px 0}
@@ -3545,10 +3549,13 @@ function buildHzTable(){
     const wArchived=isWeekArchived(ws.week);
     const wHasSnap=(()=>{const m=D.months[mk(CY,CM)];return !!(m&&m.weekSnapshots&&m.weekSnapshots[ws.week]);})();
     const isCurWeek=todayD>0&&ws.start<=todayD&&todayD<=ws.end;
-    const splitBtn=(isCurWeek&&!wArchived)?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();archiveWeekThroughDay(${ws.week},${todayD})" title="Freeze this week's habit list through today only — days after today will pick up whatever habits are live at the time">Archive Through Today</button>`:'';
+    const ICO_LOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+    const ICO_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
+    const ICO_DISCARD='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/></svg>';
+    const splitBtn=(isCurWeek&&!wArchived)?`<button class="wk-arc-btn" onclick="event.stopPropagation();archiveWeekThroughDay(${ws.week},${todayD})" title="Archive through today — earlier days keep this habit list, later days pick up whatever's live">${ICO_CLOCK}</button>`:'';
     const archBtns=!editMode?'':wArchived
-      ?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Unlock this week's habit list">🔒 Archived</button><button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current habits">Use Current</button>`
-      :`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Freeze this week's habit list so it keeps its own history">Archive Week</button>${splitBtn}${wHasSnap?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">Discard Snapshot</button>`:''}`;
+      ?`<button class="wk-arc-btn wk-arc-on" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Archived — click to unlock this week's habit list">${ICO_LOCK}</button><button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current habits">${ICO_DISCARD}</button>`
+      :`<button class="wk-arc-btn" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Archive Week — freeze this week's habit list so it keeps its own history">${ICO_LOCK}</button>${splitBtn}${wHasSnap?`<button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">${ICO_DISCARD}</button>`:''}`;
     th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
     rC.appendChild(th);
   });
