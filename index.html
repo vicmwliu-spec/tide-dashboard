@@ -2735,7 +2735,22 @@ function _updEditBar(){const b=document.getElementById('edit-bar');if(!b)return;
 function _exitCurrentEditMode(){if(editMode)editMode=false;else if(fathomEditMode)fathomEditMode=false;render();}
 function hasHabitHistory(hid){return Object.values(D.months).some(m=>m?.completions?.[hid]&&Object.values(m.completions[hid]).some(v=>v));}
 function archiveHabit(gid,hid){const g=D.groups.find(g=>g.id===gid);const h=g?.habits.find(h=>h.id===hid);if(h){h.archived=true;_lastArchived={type:'habit',gid,hid};save();_showArchiveToast('Habit archived');render();}}
-function confirmDeleteHabit(gid,hid){const g=D.groups.find(g=>g.id===gid);const h=g?.habits.find(h=>h.id===hid);const name=h?`"${h.name}"`:' this habit';const msg=hasHabitHistory(hid)?`Permanently delete ${name} and all its completion history?\n\nThis cannot be undone.`:`Delete ${name}?\n\nThis cannot be undone.`;if(confirm(msg))purgeHabit(gid,hid);}
+function confirmDeleteHabit(gid,hid){
+  const g=D.groups.find(g=>g.id===gid);
+  const h=g?.habits.find(h=>h.id===hid);
+  const name=h?`"${h.name}"`:'this habit';
+  const monthsWithHistory=Object.values(D.months).filter(mo=>mo?.completions?.[hid]&&Object.values(mo.completions[hid]).some(v=>v));
+  const monthsAtRisk=monthsWithHistory.filter(mo=>!_habitInAnySnapshot(mo,hid));
+  let msg;
+  if(monthsWithHistory.length===0){
+    msg=`Delete ${name}?\n\nThis cannot be undone.`;
+  }else if(monthsAtRisk.length===0){
+    msg=`Permanently delete ${name}?\n\nIts completion history is protected by an archived snapshot and will be kept.`;
+  }else{
+    msg=`Permanently delete ${name} and its completion history for ${monthsAtRisk.length} unarchived month${monthsAtRisk.length>1?'s':''}? Completions in archived weeks/months will be kept.\n\nThis cannot be undone.`;
+  }
+  if(confirm(msg))purgeHabit(gid,hid);
+}
 function _showArchiveToast(msg='Habit archived'){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
 function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchived=null;clearTimeout(_toastTimer);const t=document.getElementById('arch-toast');if(t)t.style.display='none';if(a.type==='fathom')restoreFathomItem(a.id);else restoreHabit(a.gid,a.hid);}
 
@@ -3319,7 +3334,6 @@ function restoreHabit(gid,hid){
   if(h){h.archived=false;save();render();}
 }
 function purgeHabit(gid,hid){
-  if(!confirm('Permanently delete this habit and all its recorded history? This cannot be undone.')) return;
   const g=D.groups.find(g=>g.id===gid);
   if(g) g.habits=g.habits.filter(h=>h.id!==hid);
   Object.values(D.months).forEach(mo=>{
@@ -3347,7 +3361,7 @@ function mkArchivedPanel(){
       <div class="arch-item-name">${esc(h.name)}</div>
       <div class="arch-item-grp" style="color:${h.gc}">${esc(h.gn)}</div>
       <button class="restore-btn" onclick="restoreHabit('${h.gid}','${h.id}')">Restore</button>
-      <button class="purge-btn" onclick="purgeHabit('${h.gid}','${h.id}')">Delete</button>
+      <button class="purge-btn" onclick="confirmDeleteHabit('${h.gid}','${h.id}')">Delete</button>
     </div>`).join('');
   return panel;
 }
