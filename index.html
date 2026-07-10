@@ -62,11 +62,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .priority-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap;margin-top:3px;flex-shrink:0}
 .priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
 .priority-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
+/* ── Notes ── */
+.notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
+.notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.notes-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Top row ── */
 .top-row{display:flex;gap:14px;margin-bottom:14px;align-items:stretch}
-.top-row .quote-card{flex:1;margin-bottom:0}
+.top-row .quote-card,.top-row .priority-card,.top-row .notes-card{flex:1;width:0;margin-bottom:0}
 .top-left-col{width:35%;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
-.top-row .priority-card{width:35%;flex-shrink:0}
 
 /* ── Stats ── */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
@@ -338,10 +341,10 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 
   /* Quote / Priority */
   .quote-card{padding:8px 12px;margin-bottom:0;font-size:12px}
-  .priority-card{padding:8px 12px;min-height:0}
+  .priority-card,.notes-card{padding:8px 12px;min-height:0}
   .top-row{flex-direction:column;gap:6px;margin-bottom:10px}
   .top-left-col{width:100%}
-  .top-row .priority-card{width:100%}
+  .top-row .priority-card,.top-row .notes-card{width:100%}
 
   /* Stats */
   .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
@@ -952,6 +955,7 @@ function render(){
     topRow.className='top-row';
     topRow.appendChild(mkPriority());
     topRow.appendChild(mkQuote());
+    topRow.appendChild(mkNotes());
     app.appendChild(topRow);
     app.appendChild(mkStats());
     app.appendChild(mkGridHorizontal());
@@ -1025,6 +1029,17 @@ function mkPriority(){
       onkeydown="richtextKD(event)"
     ></div>`;
   setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=D.priority||''},0);
+  return d;
+}
+function mkNotes(){
+  const d=document.createElement('div');
+  d.className='notes-card';
+  d.innerHTML=`
+    <div class="notes-ta" id="nta" contenteditable="true"
+      oninput="saveNotes(this.innerHTML)"
+      onkeydown="richtextKD(event)"
+    ></div>`;
+  setTimeout(()=>{const nta=document.getElementById('nta');if(nta)nta.innerHTML=D.notes||''},0);
   return d;
 }
 // ─── TIME BLOCK CLOCK ────────────────────────────────────────────
@@ -2756,6 +2771,7 @@ function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchi
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
 function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
+function saveNotes(v){D.notes=(v==='<br>')?'':v;save()}
 
 function resetMonth(){
   if(!confirm(`Reset ${MON[CM]} ${CY}? All completions, notes, and quotes for this month will be cleared.`)) return;
