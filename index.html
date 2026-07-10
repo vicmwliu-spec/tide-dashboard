@@ -33,7 +33,7 @@
   --font:'Inter',system-ui,sans-serif;
 }
 html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-#app{max-width:1600px;margin:0 auto;padding:20px}
+#app{max-width:min(2000px,96vw);margin:0 auto;padding:20px}
 
 /* ── Header ── */
 .hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
@@ -92,6 +92,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:max-content}
 .tbl th,.tbl td{border-bottom:1px solid var(--border2);border-right:1px solid var(--border2)}
 .tbl th:last-child,.tbl td:last-child{border-right:none}
+.week-tbl{margin-bottom:4px}
+.week-bar-r{position:sticky;top:0;z-index:5}
 
 /* Sticky */
 .sl{position:sticky;left:0;z-index:2;background:var(--surface)}
@@ -118,6 +120,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .hbt-row .sum-hdr{min-width:56px;text-align:center;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
 .hbt-row .sum-hdr.first-sum{border-left:2px solid var(--border)}
 .hbt-in{background:none;border:none;outline:none;font-family:var(--font);font-size:11px;font-weight:500;color:var(--text2);text-align:center;cursor:default;width:100%;padding:0}
+.wk-target-in{width:34px;font-family:var(--font);font-size:11px;color:var(--text2);background:var(--bg2,transparent);border:1px solid var(--border2);border-radius:4px;padding:1px 3px;text-align:center}
+.wk-target-badge{display:inline-block;margin-left:6px;font-size:9px;font-weight:600;color:var(--text3);background:var(--border);border-radius:8px;padding:1px 6px;vertical-align:middle}
 
 /* Day rows */
 .day-r{transition:background .08s}
@@ -263,6 +267,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 
 /* ── Horizontal: no-scroll fixed layout ── */
 #hz-tbl{width:100%;min-width:unset;table-layout:fixed}
+#fathom-tbl{width:100%;min-width:unset;table-layout:fixed}
 /* ── Grid fade-in on render ── */
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .grid-card{animation:fadeIn .18s ease}
@@ -632,7 +637,7 @@ function todayStats(){
   const dow=t.getDay();
   const mkey=mk(yr,mo);
   const mdata=D.months[mkey];
-  const todayGroups=(mdata&&mdata.snapshot)?mdata.snapshot.groups:D.groups;
+  const todayGroups=groupsForDay(yr,mo,day);
   const h=todayGroups.flatMap(g=>g.habits.filter(hb=>{
     if(hb.archived) return false;
     if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return false;
@@ -691,6 +696,27 @@ function activeGroups(){
   const m=D.months[mk(CY,CM)];
   return (m&&m.snapshot)?m.snapshot.groups:D.groups;
 }
+function activeGroupsForWeek(y,m,weekIndex){
+  const mo=D.months[mk(y,m)];
+  if(mo&&mo.weekArchived&&mo.weekArchived[weekIndex]&&mo.weekSnapshots&&mo.weekSnapshots[weekIndex]){
+    return mo.weekSnapshots[weekIndex].groups;
+  }
+  return activeGroups();
+}
+function isWeekArchived(weekIndex){
+  const m=D.months[mk(CY,CM)];
+  return !!(m&&m.weekArchived&&m.weekArchived[weekIndex]);
+}
+function weekOfDay(y,m,day){
+  if(m===undefined){ day=y; m=CM; y=CY; }
+  const spans=getWeekSpans(y,m);
+  const s=spans.find(sp=>day>=sp.start&&day<=sp.end);
+  return s?s.week:1;
+}
+function groupsForDay(y,m,day){
+  if(m===undefined){ day=y; m=CM; y=CY; }
+  return activeGroupsForWeek(y,m,weekOfDay(y,m,day));
+}
 function activeFathomItems(){
   const m=D.months[mk(CY,CM)];
   return (m&&m.snapshot)?m.snapshot.fathomItems:(D.fathom?.items||[]).filter(i=>!i.archived);
@@ -714,13 +740,13 @@ function isSkip(hid,day){
   return !!(mo?.skips?.[hid]?.[day]);
 }
 function isFreqExcluded(hid,day){
-  for(const g of activeGroups()){const h=g.habits.find(h=>h.id===hid);if(h){if(!h.freq||h.freq.length>=7)return false;return!h.freq.includes(new Date(CY,CM,day).getDay());}}
+  for(const g of groupsForDay(day)){const h=g.habits.find(h=>h.id===hid);if(h){if(!h.freq||h.freq.length>=7)return false;return!h.freq.includes(new Date(CY,CM,day).getDay());}}
   return false;
 }
 
 function toggle(hid,day){
   let startMoved=false;
-  for(const g of activeGroups()){
+  for(const g of groupsForDay(day)){
     const h=g.habits.find(h=>h.id===hid);
     if(h&&h.startDate){
       const cellDate=new Date(CY,CM,day);
@@ -755,7 +781,7 @@ function skipToggle(hid,day){
 function dayProg(day){
   const cellDate=new Date(CY,CM,day);
   const dow=cellDate.getDay();
-  const h=activeGroups().flatMap(g=>g.habits.map(hb=>({...hb,gid:g.id}))).filter(hb=>{
+  const h=groupsForDay(day).flatMap(g=>g.habits.map(hb=>({...hb,gid:g.id}))).filter(hb=>{
     if(hb.archived) return false;
     if(hb.startDate&&new Date(hb.startDate+'T00:00:00')>cellDate) return false;
     if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return false;
@@ -794,7 +820,12 @@ function monthStats(){
   const monthGroups=activeGroups().map(g=>{
     const hs=g.habits.filter(hb=>!hb.archived);
     let gd=0,gt=0;
-    for(let d=1;d<=td;d++){const dow=new Date(CY,CM,d).getDay();hs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){const chk=isChk(hb.id,d);gt++;if(chk)gd++;}});}
+    for(let d=1;d<=td;d++){
+      const dow=new Date(CY,CM,d).getDay();
+      const dayG=groupsForDay(d).find(dg=>dg.id===g.id);
+      const dayHs=dayG?dayG.habits.filter(hb=>!hb.archived):[];
+      dayHs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){const chk=isChk(hb.id,d);gt++;if(chk)gd++;}});
+    }
     const gFutPoss=hs.length*dLeft;
     const maxRate=(gt+gFutPoss)?Math.floor((gd+gFutPoss)/(gt+gFutPoss)*100):0;
     return {...g,pct:gt?Math.floor(gd/gt*100):0,gt,gd,maxRate};
@@ -1657,18 +1688,73 @@ function mkGrid(){
 }
 
 function buildTable(){
+  const container=document.createElement('div');
+  container.id='main-tbl';
+  const spans=getWeekSpans(CY,CM);
+  spans.forEach(s=>{
+    container.appendChild(buildWeekBar(s));
+    container.appendChild(buildWeekTable(s));
+  });
+  container.appendChild(buildAnalysisTable());
+  return container;
+}
+
+function buildWeekBar(s){
+  const wn=s.week;
+  const bar=document.createElement('div');
+  bar.className='week-bar-r';
+  bar.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2)';
+  const todayD=now.getFullYear()===CY&&now.getMonth()===CM?now.getDate():-1;
+  const isPastMonth=CY<now.getFullYear()||(CY===now.getFullYear()&&CM<now.getMonth());
+  const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);
+  let wd=0,wt=0;
+  for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
+  const wg=wt>0?WEEK_GRADES.find(g=>Math.round(wd/wt*100)>=g.min):null;
+  const weekStarted=todayD<0||s.start<=todayD;
+  const pct=wt>0?Math.round(wd/wt*100):0;
+  const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
+  const badgeText=wg?`${wg.letter} · ${pct}%`:'—';
+  const wStats=allWeeksStats().find(w=>w.week===wn);
+  const gd_json=wStats?JSON.stringify(wStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
+  const badge=weekStarted?`<span class="wk-badge" id="wk-badge-${wn}" style="${badgeStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${gd_json}">${badgeText}</span>`:'';
+  const wAarHas=!!getWeekAAR(wn);
+  const archived=isWeekArchived(wn);
+  const hasSnap=(()=>{const m=D.months[mk(CY,CM)];return !!(m&&m.weekSnapshots&&m.weekSnapshots[wn]);})();
+  const archBtns=archived
+    ?`<button class="btn" style="padding:2px 8px;font-size:11px" onclick="unarchiveWeek(${wn})" title="Unlock this week's habit list">🔒 Archived</button>
+       <button class="btn" style="padding:2px 8px;font-size:11px" onclick="useCurrentWeekHabits(${wn})" title="Discard the frozen list and use your current habits">Use Current Habits</button>`
+    :`<button class="btn" style="padding:2px 8px;font-size:11px" onclick="archiveWeek(${wn})" title="Freeze this week's habit list so it keeps its own history">Archive Week</button>${hasSnap?`<button class="btn" style="padding:2px 8px;font-size:11px" onclick="useCurrentWeekHabits(${wn})" title="Discard the saved frozen list for this week">Discard Snapshot</button>`:''}`;
+  bar.innerHTML=`<span class="week-lbl-text" style="font-weight:700">Week ${wn}</span>${badge}<button id="week-aar-btn-${wn}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${wn})" title="Weekly Review" style="display:inline;padding:1px 5px">✎</button><div style="flex:1"></div>${archBtns}`;
+  return bar;
+}
+
+function buildWeekTable(s){
   const t=document.createElement('table');
-  t.className='tbl';t.id='main-tbl';
-  t.appendChild(buildTHead());
-  t.appendChild(buildTBody());
+  t.className='tbl week-tbl';
+  const groups=activeGroupsForWeek(CY,CM,s.week);
+  const editable=editMode&&!isWeekArchived(s.week);
+  const thead=document.createElement('thead');
+  thead.appendChild(buildGroupHeaderRow(groups,editable));
+  thead.appendChild(buildHabitHeaderRow(groups,editable,s.week));
+  t.appendChild(thead);
+  t.appendChild(buildWeekTBody(s,groups,editable));
+  return t;
+}
+
+function buildAnalysisTable(){
+  const t=document.createElement('table');
+  t.className='tbl';t.id='main-tbl-analysis';
+  const groups=activeGroups();
+  const thead=document.createElement('thead');
+  thead.appendChild(buildGroupHeaderRow(groups,false,'Analysis'));
+  thead.appendChild(buildHabitHeaderRow(groups,false));
+  t.appendChild(thead);
   t.appendChild(buildTFoot());
   return t;
 }
 
 // ── THEAD ──
-function buildTHead(){
-  const thead=document.createElement('thead');
-
+function buildGroupHeaderRow(groups,editable,cornerLabel){
   // Row 1: Group headers
   const r1=document.createElement('tr');
   r1.className='grp-row';
@@ -1676,11 +1762,11 @@ function buildTHead(){
   const dayCorner=document.createElement('th');
   dayCorner.className='sl st';dayCorner.rowSpan=2;
   dayCorner.style.cssText='padding:6px 14px;text-align:left;border-right:2px solid var(--border)';
-  dayCorner.innerHTML=`<span style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Day</span>`;
+  dayCorner.innerHTML=`<span style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">${cornerLabel||'Day'}</span>`;
   r1.appendChild(dayCorner);
 
-  activeGroups().forEach((g,gi)=>{
-    const totalCols=g.habits.length+(editMode?1:0);
+  groups.forEach((g,gi)=>{
+    const totalCols=g.habits.length+(editable?1:0);
     const th=document.createElement('th');
     th.className='grp-th st';
     th.colSpan=totalCols||1;
@@ -1689,22 +1775,22 @@ function buildTHead(){
     const gDotExtra=_isLightColor(g.color)?' lum-light':_isDarkColor(g.color)?' lum-dark':'';
     const gDotBorder=_isLightColor(g.color)?'border:1.5px solid rgba(0,0,0,0.18);':_isDarkColor(g.color)?'border:1.5px solid rgba(255,255,255,0.25);':'';
     let dotHtml=`<div class="grp-dot${gDotExtra}" style="background:${g.color}"></div>`;
-    if(editMode){
+    if(editable){
       dotHtml=`<button class="color-dot-btn" style="background:${g.color};${gDotBorder}" onclick="openColorPop(event,'${g.id}')"></button>`;
     }
     th.innerHTML=`
       <div style="display:flex;align-items:center;justify-content:center;gap:4px;padding:0 4px">
-        ${editMode?`<span class="dnd-grip">⠿</span>`:''}
+        ${editable?`<span class="dnd-grip">⠿</span>`:''}
         <div class="grp-badge" style="background:${badgeBg};color:${gTxtColor}">
           ${dotHtml}
           <input class="grp-name-in" value="${esc(g.name)}" style="color:${gTxtColor}"
-            ${editMode?'':`readonly`}
+            ${editable?'':`readonly`}
             onchange="renameGroup('${g.id}',this.value)"
             onclick="event.stopPropagation()"/>
         </div>
-        ${editMode?`<button class="btn" style="padding:2px 6px;font-size:10px;color:#EF4444;border-color:#FCA5A5" onclick="deleteGroup('${g.id}')">&#10005;</button>`:''}
+        ${editable?`<button class="btn" style="padding:2px 6px;font-size:10px;color:#EF4444;border-color:#FCA5A5" onclick="deleteGroup('${g.id}')">&#10005;</button>`:''}
       </div>`;
-    if(editMode){
+    if(editable){
       th.draggable=true;
       th.ondragstart=e=>{_dg={type:'group',gid:g.id};th.classList.add('dnd-drag');e.dataTransfer.effectAllowed='move';e.stopPropagation()};
       th.ondragend=()=>{th.classList.remove('dnd-drag');_dg=null};
@@ -1737,17 +1823,18 @@ function buildTHead(){
   pctH.className='sr sr-1 st hz-sum-th';pctH.rowSpan=2;
   pctH.textContent='SE %';r1.appendChild(pctH);
 
-  thead.appendChild(r1);
+  return r1;
+}
 
-  // Row 2: Habit name headers
+function buildHabitHeaderRow(groups,editable,weekIndex){
   const r2=document.createElement('tr');
   r2.className='hbt-row';
-  activeGroups().forEach((g,gi)=>{
+  groups.forEach((g,gi)=>{
     g.habits.filter(h=>!h.archived).forEach((h,hi)=>{
       const th=document.createElement('th');
       th.className='st'+(gi>0&&hi===0?' grp-sep':'');
       th.id=`hth-${h.id}`;
-      if(editMode){
+      if(editable){
         const freq=h.freq&&h.freq.length<7?h.freq:[0,1,2,3,4,5,6];
         const freqBtns=['S','M','T','W','T','F','S'].map((lbl,i)=>`<button class="freq-day-btn${freq.includes(i)?' freq-on':''}" onclick="event.stopPropagation();toggleHabitFreqDay('${h.id}',${i})" title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}">${lbl}</button>`).join('');
         th.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;padding:2px 4px">
@@ -1762,6 +1849,10 @@ function buildTHead(){
             <button class="del-btn" style="display:inline" onclick="confirmDeleteHabit('${g.id}','${h.id}')" title="Delete permanently">✕</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${freqBtns}</div>
+          <div style="display:flex;align-items:center;gap:5px;padding-left:16px">
+            <span style="font-size:10px;color:var(--text3);user-select:none">Weekly target</span>
+            <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" placeholder="0" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
+          </div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">Why</span>
@@ -1793,71 +1884,33 @@ function buildTHead(){
         };
       } else {
         const _htip=(h.why||h.mvp)?` data-why="${(h.why||'').replace(/"/g,'&quot;')}" data-mvp="${(h.mvp||'').replace(/"/g,'&quot;')}" onmouseenter="openHabitTip(event)" onmouseleave="closeHabitTip()" style="cursor:default"`:'';
-        th.innerHTML=`<span${_htip}>${esc(h.name)}</span>`;
+        const _wp=weekIndex?habitWeeklyProgress(CY,CM,h.id,weekIndex):null;
+        const _wpBadge=_wp?`<span class="wk-target-badge" title="This week's target">${_wp.done}/${_wp.target}</span>`:'';
+        th.innerHTML=`<span${_htip}>${esc(h.name)}</span>${_wpBadge}`;
       }
       r2.appendChild(th);
     });
-    if(editMode){
+    if(editable){
       const addTh=document.createElement('th');
       addTh.className='st';
       addTh.innerHTML=`<button class="add-hbt-btn" onclick="addHabit('${g.id}')">+ Add</button>`;
       r2.appendChild(addTh);
     }
   });
-  thead.appendChild(r2);
-  return thead;
+  return r2;
 }
 
 // ── TBODY ──
-function buildTBody(){
+function buildWeekTBody(s,groups,editable){
   const tbody=document.createElement('tbody');
-  const days=dim(CY,CM);
   const todayD=now.getFullYear()===CY&&now.getMonth()===CM?now.getDate():-1;
-  const isPastMonth=CY<now.getFullYear()||(CY===now.getFullYear()&&CM<now.getMonth());
-  const spans=getWeekSpans(CY,CM);
-  // Build a lookup: day → week number
-  const dayWeek={};
-  spans.forEach(s=>{for(let d=s.start;d<=s.end;d++) dayWeek[d]=s.week;});
-  // Pre-compute per-week completion stats for grade badges
-  const wkData={};
-  spans.forEach(s=>{
-    const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);
-    let wd=0,wt=0;
-    for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
-    wkData[s.week]=wt>0?{pct:Math.round(wd/wt*100),done:wd,total:wt}:null;
-  });
-  const weekAllStats={};
-  allWeeksStats().forEach(w=>{weekAllStats[w.week]=w;});
-  const totalHabitCols=activeGroups().reduce((s,g)=>s+g.habits.length+(editMode?1:0),0);
-  for(let d=1;d<=days;d++){
-    // Insert week separator before the first day of each week
-    if(d===1||(new Date(CY,CM,d).getDay()===1)){
-      const wn=dayWeek[d];
-      const sepTr=document.createElement('tr');
-      sepTr.className='week-sep-r';
-      const sepTd=document.createElement('td');
-      sepTd.className='sl week-sep-day';
-      const wd=wkData[wn];
-      const wg=wd&&wd.total>0?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
-      const weekStarted=todayD<0||spans.find(s=>s.week===wn)?.start<=todayD;
-      const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
-      const badgeText=wg?`${wg.letter} · ${wd.pct}%`:'—';
-      const wStats=weekAllStats[wn];
-      const gd_json=wStats?JSON.stringify(wStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
-      const badge=weekStarted?`<span class="wk-badge" id="wk-badge-${wn}" style="${badgeStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${gd_json}">${badgeText}</span>`:'';
-      const wAarHas=!!getWeekAAR(wn);
-      sepTd.innerHTML=`<span class="week-lbl-text">Week ${wn}</span>${badge}<button id="week-aar-btn-${wn}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${wn})" title="Weekly Review" style="display:inline;margin-left:6px;margin-top:0;padding:1px 5px">✎</button>`;
-      const fillTd=document.createElement('td');
-      fillTd.colSpan=totalHabitCols+2;
-      sepTr.appendChild(sepTd);sepTr.appendChild(fillTd);
-      tbody.appendChild(sepTr);
-    }
-    tbody.appendChild(buildDayRow(d,todayD));
+  for(let d=s.start;d<=s.end;d++){
+    tbody.appendChild(buildDayRow(d,todayD,editable));
   }
   return tbody;
 }
 
-function buildDayRow(d,todayD){
+function buildDayRow(d,todayD,editable){
   const isToday=d===todayD;
   const isFuture=false;
   const dow=new Date(CY,CM,d).getDay();
@@ -1882,7 +1935,7 @@ function buildDayRow(d,todayD){
   tr.appendChild(dc);
 
   // Habit cells
-  activeGroups().forEach((g,gi)=>{
+  groupsForDay(d).forEach((g,gi)=>{
     g.habits.filter(h=>!h.archived).forEach((h,hi)=>{
       const td2=document.createElement('td');
       td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
@@ -1897,7 +1950,7 @@ function buildDayRow(d,todayD){
       td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
       tr.appendChild(td2);
     });
-    if(editMode){
+    if(editable){
       const sp=document.createElement('td');
       sp.style.width='60px';tr.appendChild(sp);
     }
@@ -1952,12 +2005,6 @@ function buildTFoot(){
       const hGrade=TIDE_GRADES.find(g=>pct>=g.min);
       rows.rate.appendChild(mkTd(`ra-${h2.id}`,`<span class="pill" style="background:${pctBg};color:${pctC}">${hGrade?hGrade.letter+' ':''}${pct}%</span>`));
     });
-    if(editMode){
-      ['done','rate'].forEach(k=>{
-        const td2=document.createElement('td');td2.style.width='60px';
-        rows[k].appendChild(td2);
-      });
-    }
   });
 
   // Summary sticky empties on right
@@ -2145,7 +2192,7 @@ function allWeeksStats(){
     const started=s.start<=todayD;
     const pct=wt>0?Math.round(wd/wt*100):0;
     const grade=wt>0?WEEK_GRADES.find(g=>pct>=g.min):null;
-    const groups=activeGroups().map(g=>{
+    const groups=activeGroupsForWeek(CY,CM,s.week).map(g=>{
       const hs=g.habits.filter(hb=>!hb.archived);
       let gd=0,gt=0;
       if(lastD>=s.start) for(let d=s.start;d<=lastD;d++){
@@ -2177,13 +2224,12 @@ function _periodStats(monthIndices){
     if(isCurrentYear&&mi>today.getMonth()) return;
     const m=D.months[mk(CY,mi)];
     if(!m) return;
-    const moGroups=(m.snapshot)?m.snapshot.groups:D.groups;
-    const moHabits=moGroups.flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({...hb})));
     const isCur=isCurrentYear&&mi===today.getMonth();
     const lastDay=isCur?today.getDate():dim(CY,mi);
     for(let dd=1;dd<=lastDay;dd++){
       const dow=new Date(CY,mi,dd).getDay();
-      moHabits.forEach(hb=>{
+      const dayHabits=groupsForDay(CY,mi,dd).flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({...hb})));
+      dayHabits.forEach(hb=>{
         if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
         if(hb.startDate&&new Date(CY,mi,dd)<new Date(hb.startDate+'T00:00:00')) return;
         if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}
@@ -2294,13 +2340,12 @@ function grpQuarterScore(g,qi){
   for(let qm=qi*3;qm<qi*3+3;qm++){
     if(isCurrentYear&&qm>today.getMonth()) continue;
     const m=D.months[mk(CY,qm)];if(!m) continue;
-    const moGroups=m.snapshot?m.snapshot.groups:D.groups;
-    const moG=moGroups.find(mg=>mg.id===g.id);if(!moG) continue;
-    const habits=moG.habits.filter(hb=>!hb.archived);
     const isCurMo=isCurrentYear&&qm===today.getMonth();
     const lastDay=isCurMo?today.getDate():dim(CY,qm);
     for(let d=1;d<=lastDay;d++){
       const dow=new Date(CY,qm,d).getDay();
+      const moG=groupsForDay(CY,qm,d).find(mg=>mg.id===g.id);if(!moG) continue;
+      const habits=moG.habits.filter(hb=>!hb.archived);
       habits.forEach(h=>{
         if(h.freq&&h.freq.length<7&&!h.freq.includes(dow)) return;
         if(h.startDate&&new Date(CY,qm,d)<new Date(h.startDate+'T00:00:00')) return;
@@ -2416,13 +2461,13 @@ function allTimeSlightEdgeData(){
     const mo=D.months[key];
     if(!mo) continue;
     const daysInMo=dim(ky,km-1);
-    const moGroups=mo.snapshot?mo.snapshot.groups:D.groups;
     monthMarkers.push({x:dayIdx+1,label:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][km-1]} ${ky}`});
     for(let d=1;d<=daysInMo;d++){
       const date=new Date(ky,km-1,d);
       if(date>today) break;
       dayIdx++;
       let done=0,total=0;
+      const moGroups=groupsForDay(ky,km-1,d);
       for(const g of moGroups){
         for(const h of g.habits){
           if(h.archived) continue;
@@ -2590,8 +2635,6 @@ function mkAnnual(){
         const k=mk(CY,mi);
         const m=D.months[k];
         const days=dim(CY,mi);
-        const moGroups=(m&&m.snapshot)?m.snapshot.groups:D.groups;
-        const moHabits=moGroups.flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({...hb,gid:g.id})));
         const moFItems=(m&&m.snapshot)?m.snapshot.fathomItems:(D.fathom?.items||[]);
         const isCur=mi===now.getMonth()&&CY===now.getFullYear();
         const daysToCount=isCur?now.getDate():days;
@@ -2599,7 +2642,8 @@ function mkAnnual(){
         if(m){
           for(let dd=1;dd<=daysToCount;dd++){
             const dow=new Date(CY,mi,dd).getDay();
-            moHabits.forEach(hb=>{
+            const dayHabits=groupsForDay(CY,mi,dd).flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({...hb,gid:g.id})));
+            dayHabits.forEach(hb=>{
               if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
               if(hb.startDate&&new Date(CY,mi,dd)<new Date(hb.startDate+'T00:00:00')) return;
               if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}
@@ -2846,6 +2890,30 @@ function useCurrentHabits(){
   save();render();
 }
 
+function archiveWeek(weekIndex){
+  if(!confirm(`Archive Week ${weekIndex}? Its current habit list will be frozen so this week keeps its own history, even if you change your habits afterward. Completions already logged are never affected.`)) return;
+  const mo=md(CY,CM);
+  mo.weekSnapshots=mo.weekSnapshots||{};
+  mo.weekArchived=mo.weekArchived||{};
+  mo.weekSnapshots[weekIndex]={groups:JSON.parse(JSON.stringify(D.groups))};
+  mo.weekArchived[weekIndex]=true;
+  save();render();
+}
+function unarchiveWeek(weekIndex){
+  const mo=D.months[mk(CY,CM)];
+  if(mo&&mo.weekArchived) delete mo.weekArchived[weekIndex];
+  save();render();
+}
+function useCurrentWeekHabits(weekIndex){
+  if(!confirm(`Switch Week ${weekIndex} to your current habits? Its frozen habit list will be discarded (logged completions are kept).`)) return;
+  const mo=D.months[mk(CY,CM)];
+  if(mo){
+    if(mo.weekArchived) delete mo.weekArchived[weekIndex];
+    if(mo.weekSnapshots) delete mo.weekSnapshots[weekIndex];
+  }
+  save();render();
+}
+
 // ─────────────────────────────────────────
 //  RICH TEXT
 // ─────────────────────────────────────────
@@ -2909,17 +2977,42 @@ function richtextKD(e){
     document.execCommand(e.shiftKey?'outdent':'indent');
     return;
   }
-  // Backspace on empty list item → outdent instead of merge up
+  // Backspace on empty list item, or at the very start of a non-empty list item → outdent instead of merge up
   if(e.key==='Backspace'){
     const sel=window.getSelection();
     if(sel&&sel.rangeCount&&sel.getRangeAt(0).collapsed){
-      let n=sel.getRangeAt(0).startContainer;
+      const rng=sel.getRangeAt(0);
+      let n=rng.startContainer;
       const root=e.target;
       while(n&&n.nodeName!=='LI'&&n!==root) n=n.parentNode;
-      if(n&&n.nodeName==='LI'&&n.textContent.trim()===''){
-        e.preventDefault();
-        document.execCommand('outdent');
-        return;
+      if(n&&n.nodeName==='LI'){
+        if(n.textContent.trim()===''){
+          e.preventDefault();
+          document.execCommand('outdent');
+          return;
+        }
+        // Caret at the true start of the <li>'s content (offset 0, no preceding text/inline sibling within this <li>)
+        let atStart=false;
+        let sc=rng.startContainer, so=rng.startOffset;
+        if(so===0){
+          atStart=true;
+          let node=sc;
+          while(node&&node!==n){
+            let sib=node.previousSibling;
+            while(sib){
+              if(sib.nodeType===Node.TEXT_NODE && sib.textContent!=='') { atStart=false; break; }
+              if(sib.nodeType===Node.ELEMENT_NODE && sib.tagName!=='BR') { atStart=false; break; }
+              sib=sib.previousSibling;
+            }
+            if(!atStart) break;
+            node=node.parentNode;
+          }
+        }
+        if(atStart){
+          e.preventDefault();
+          document.execCommand('outdent');
+          return;
+        }
       }
     }
   }
@@ -3382,6 +3475,26 @@ function toggleHabitFreqDay(hid,dow){
     }
   }
 }
+function setHabitWeeklyTarget(hid,val){
+  const n=Math.max(0,Math.min(7,parseInt(val,10)||0));
+  for(const g of D.groups){
+    const h=g.habits.find(h=>h.id===hid);
+    if(h){h.weeklyTarget=n;save();render();return;}
+  }
+}
+function habitWeeklyProgress(y,m,hid,weekIndex){
+  const groups=activeGroupsForWeek(y,m,weekIndex);
+  let target=0;
+  for(const g of groups){const h=g.habits.find(h=>h.id===hid);if(h){target=h.weeklyTarget||0;break;}}
+  if(!target) return null;
+  const spans=getWeekSpans(y,m);
+  const span=spans.find(s=>s.week===weekIndex);
+  if(!span) return null;
+  const mo=D.months[mk(y,m)];
+  let done=0;
+  for(let d=span.start;d<=span.end;d++){if(mo&&mo.completions[hid]&&mo.completions[hid][d])done++;}
+  return {done,target};
+}
 function changeHabitStartDate(hid,date){
   for(const g of D.groups){
     const h=g.habits.find(h=>h.id===hid);
@@ -3476,7 +3589,7 @@ function buildHzTable(){
 
   // colgroup: habit col fixed, day cols share remaining space equally, done + % fixed
   const cg=document.createElement('colgroup');
-  const cHabit=document.createElement('col');cHabit.style.width=editMode?'180px':'100px';cg.appendChild(cHabit);
+  const cHabit=document.createElement('col');cHabit.style.width=editMode?'240px':'140px';cg.appendChild(cHabit);
   const cDays=document.createElement('col');cDays.span=days;cg.appendChild(cDays);
   const cDone=document.createElement('col');cDone.style.width='56px';cg.appendChild(cDone);
   const cPct=document.createElement('col');cPct.style.width='56px';cg.appendChild(cPct);
@@ -3630,6 +3743,10 @@ function buildHzTable(){
             <button class="del-btn" style="display:inline" onclick="confirmDeleteHabit('${g.id}','${h.id}')" title="Delete permanently">✕</button>
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${hfreqBtns}</div>
+          <div style="display:flex;align-items:center;gap:5px;padding-left:16px">
+            <span style="font-size:10px;color:var(--text3);user-select:none">Weekly target</span>
+            <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" placeholder="0" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
+          </div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">Why</span>
@@ -3661,7 +3778,11 @@ function buildHzTable(){
         };
       } else {
         const _hztip=(h.why||h.mvp)?` data-why="${(h.why||'').replace(/"/g,'&quot;')}" data-mvp="${(h.mvp||'').replace(/"/g,'&quot;')}" onmouseenter="openHabitTip(event)" onmouseleave="closeHabitTip()" style="cursor:default"`:'';
-        nameTd.innerHTML=`<div class="hz-habit-name"${_hztip}>${esc(h.name)}</div><div class="hz-habit-grp" style="color:${g.color}">${esc(g.name)}</div>`;
+        const _refDay=isCurMo?todayD:days;
+        const _wi=weekOfDay(CY,CM,_refDay);
+        const _wp=habitWeeklyProgress(CY,CM,h.id,_wi);
+        const _wpBadge=_wp?`<span class="wk-target-badge" title="This week's target">${_wp.done}/${_wp.target}</span>`:'';
+        nameTd.innerHTML=`<div class="hz-habit-name"${_hztip}>${esc(h.name)}${_wpBadge}</div><div class="hz-habit-grp" style="color:${g.color}">${esc(g.name)}</div>`;
       }
       tr.appendChild(nameTd);
 
@@ -3902,12 +4023,9 @@ function mkFathomGrid(){
   const t=document.createElement('table');
   t.className='tbl';
   t.id='fathom-tbl';
-  // Set explicit min-width in px so mobile browsers can't collapse it via bad max-content calc
-  t.style.minWidth=((fathomEditMode?180:100)+days*34+56+56)+'px';
-
   const cg=document.createElement('colgroup');
-  const cH=document.createElement('col');cH.style.width=fathomEditMode?'180px':'100px';cg.appendChild(cH);
-  const cD=document.createElement('col');cD.span=days;cD.style.width='34px';cg.appendChild(cD);
+  const cH=document.createElement('col');cH.style.width=fathomEditMode?'240px':'140px';cg.appendChild(cH);
+  const cD=document.createElement('col');cD.span=days;cg.appendChild(cD);
   const cDn=document.createElement('col');cDn.style.width='56px';cg.appendChild(cDn);
   const cP=document.createElement('col');cP.style.width='56px';cg.appendChild(cP);
   t.appendChild(cg);
