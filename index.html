@@ -705,6 +705,18 @@ function _snapPoints(snap){
   if(snap.groups) return [{through:Infinity,groups:snap.groups}];
   return [];
 }
+function _habitInAnySnapshot(mo,hid){
+  if(!mo) return false;
+  if(mo.snapshot?.groups?.some(sg=>sg.habits.some(sh=>sh.id===hid))) return true;
+  if(mo.weekSnapshots){
+    for(const snap of Object.values(mo.weekSnapshots)){
+      for(const pt of _snapPoints(snap)){
+        if(pt.groups.some(sg=>sg.habits.some(sh=>sh.id===hid))) return true;
+      }
+    }
+  }
+  return false;
+}
 function activeGroupsForWeek(y,m,weekIndex,day){
   const mo=D.months[mk(y,m)];
   const snap=mo&&mo.weekSnapshots&&mo.weekSnapshots[weekIndex];
@@ -3311,7 +3323,7 @@ function purgeHabit(gid,hid){
   const g=D.groups.find(g=>g.id===gid);
   if(g) g.habits=g.habits.filter(h=>h.id!==hid);
   Object.values(D.months).forEach(mo=>{
-    const inSnapshot=mo.snapshot?.groups?.some(sg=>sg.habits.some(sh=>sh.id===hid));
+    const inSnapshot=_habitInAnySnapshot(mo,hid);
     if(!inSnapshot){delete mo.completions?.[hid];delete mo.skips?.[hid];}
   });
   save();render();
@@ -3319,7 +3331,7 @@ function purgeHabit(gid,hid){
 function clearHabitHistory(hid){
   if(!confirm('Clear all logged history for this habit? The habit stays active but all past completions and skips are erased.\n\nThis cannot be undone.')) return;
   Object.values(D.months).forEach(mo=>{
-    const inSnapshot=mo.snapshot?.groups?.some(sg=>sg.habits.some(sh=>sh.id===hid));
+    const inSnapshot=_habitInAnySnapshot(mo,hid);
     if(!inSnapshot){if(mo.completions?.[hid])mo.completions[hid]={};if(mo.skips?.[hid])mo.skips[hid]={};}
   });
   for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h&&h.startDate){applyHabitStartDateSkips(hid,h.startDate);}break;}
