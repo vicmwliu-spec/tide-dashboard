@@ -695,11 +695,25 @@ function activeGroups(){
   const m=D.months[mk(CY,CM)];
   return (m&&m.snapshot)?m.snapshot.groups:D.groups;
 }
-function activeGroupsForWeek(y,m,weekIndex){
+function _snapPoints(snap){
+  if(!snap) return [];
+  if(snap.points) return snap.points;
+  if(snap.groups) return [{through:Infinity,groups:snap.groups}];
+  return [];
+}
+function activeGroupsForWeek(y,m,weekIndex,day){
   const mo=D.months[mk(y,m)];
-  if(mo&&mo.weekArchived&&mo.weekArchived[weekIndex]&&mo.weekSnapshots&&mo.weekSnapshots[weekIndex]){
-    return mo.weekSnapshots[weekIndex].groups;
+  const snap=mo&&mo.weekSnapshots&&mo.weekSnapshots[weekIndex];
+  if(day===undefined){
+    if(mo&&mo.weekArchived&&mo.weekArchived[weekIndex]&&snap){
+      const points=_snapPoints(snap);
+      if(points.length) return points[points.length-1].groups;
+    }
+    return activeGroups();
   }
+  const points=_snapPoints(snap);
+  const pt=points.find(p=>day<=p.through);
+  if(pt) return pt.groups;
   return activeGroups();
 }
 function isWeekArchived(weekIndex){
@@ -714,7 +728,7 @@ function weekOfDay(y,m,day){
 }
 function groupsForDay(y,m,day){
   if(m===undefined){ day=y; m=CM; y=CY; }
-  return activeGroupsForWeek(y,m,weekOfDay(y,m,day));
+  return activeGroupsForWeek(y,m,weekOfDay(y,m,day),day);
 }
 function activeFathomItems(){
   const m=D.months[mk(CY,CM)];
@@ -2045,7 +2059,7 @@ function allWeeksStats(){
     const started=s.start<=todayD;
     const pct=wt>0?Math.round(wd/wt*100):0;
     const grade=wt>0?WEEK_GRADES.find(g=>pct>=g.min):null;
-    const groups=activeGroupsForWeek(CY,CM,s.week).map(g=>{
+    const groups=activeGroupsForWeek(CY,CM,s.week,lastD).map(g=>{
       const hs=g.habits.filter(hb=>!hb.archived);
       let gd=0,gt=0;
       if(lastD>=s.start) for(let d=s.start;d<=lastD;d++){
@@ -2752,6 +2766,22 @@ function archiveWeek(weekIndex){
   mo.weekArchived[weekIndex]=true;
   save();render();
 }
+function archiveWeekThroughDay(weekIndex,day){
+  const spans=getWeekSpans(CY,CM);
+  const span=spans.find(s=>s.week===weekIndex);
+  if(!span) return;
+  const through=Math.max(span.start,Math.min(day,span.end));
+  if(!confirm(`Archive Week ${weekIndex} through day ${through}? Days ${span.start}-${through} will keep today's habit list, even if you change your habits afterward. Days after ${through} will automatically use whatever habits are live at the time.`)) return;
+  const mo=md(CY,CM);
+  mo.weekSnapshots=mo.weekSnapshots||{};
+  mo.weekArchived=mo.weekArchived||{};
+  const points=_snapPoints(mo.weekSnapshots[weekIndex]).filter(p=>p.through!==through);
+  points.push({through,groups:JSON.parse(JSON.stringify(D.groups))});
+  points.sort((a,b)=>a.through-b.through);
+  mo.weekSnapshots[weekIndex]={points};
+  if(through>=span.end) mo.weekArchived[weekIndex]=true;
+  save();render();
+}
 function unarchiveWeek(weekIndex){
   const mo=D.months[mk(CY,CM)];
   if(mo&&mo.weekArchived) delete mo.weekArchived[weekIndex];
@@ -3336,13 +3366,13 @@ function setHabitWeeklyTarget(hid,val){
   }
 }
 function habitWeeklyProgress(y,m,hid,weekIndex){
-  const groups=activeGroupsForWeek(y,m,weekIndex);
-  let target=0;
-  for(const g of groups){const h=g.habits.find(h=>h.id===hid);if(h){target=h.weeklyTarget||0;break;}}
-  if(!target) return null;
   const spans=getWeekSpans(y,m);
   const span=spans.find(s=>s.week===weekIndex);
   if(!span) return null;
+  const groups=activeGroupsForWeek(y,m,weekIndex,span.end);
+  let target=0;
+  for(const g of groups){const h=g.habits.find(h=>h.id===hid);if(h){target=h.weeklyTarget||0;break;}}
+  if(!target) return null;
   const mo=D.months[mk(y,m)];
   let done=0;
   for(let d=span.start;d<=span.end;d++){if(mo&&mo.completions[hid]&&mo.completions[hid][d])done++;}
@@ -3514,9 +3544,11 @@ function buildHzTable(){
     const wAarHas=!!getWeekAAR(ws.week);
     const wArchived=isWeekArchived(ws.week);
     const wHasSnap=(()=>{const m=D.months[mk(CY,CM)];return !!(m&&m.weekSnapshots&&m.weekSnapshots[ws.week]);})();
+    const isCurWeek=todayD>0&&ws.start<=todayD&&todayD<=ws.end;
+    const splitBtn=(isCurWeek&&!wArchived)?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();archiveWeekThroughDay(${ws.week},${todayD})" title="Freeze this week's habit list through today only — days after today will pick up whatever habits are live at the time">Archive Through Today</button>`:'';
     const archBtns=!editMode?'':wArchived
       ?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Unlock this week's habit list">🔒 Archived</button><button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current habits">Use Current</button>`
-      :`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Freeze this week's habit list so it keeps its own history">Archive Week</button>${wHasSnap?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">Discard Snapshot</button>`:''}`;
+      :`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Freeze this week's habit list so it keeps its own history">Archive Week</button>${splitBtn}${wHasSnap?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">Discard Snapshot</button>`:''}`;
     th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
     rC.appendChild(th);
   });
