@@ -1176,6 +1176,8 @@ function buildClockSVG(){
   defs='<defs>';
   // Arc segments — draw arcs first, collect label metadata for collision pass
   const lblMeta=[];
+  let hitArcs='';
+  const MIN_HIT_MIN=25; // short blocks get a wider invisible tap/click target so they stay editable
   blocks.forEach((b,idx)=>{
     const span=_span(b);
     const a1=_tbAngle(b.startMin),a2=_tbAngle(b.endMin);
@@ -1185,7 +1187,15 @@ function buildClockSVG(){
     const durMin=span%60,durHr=Math.floor(span/60);
     const durStr=(durHr?durHr+'h ':'')+(durMin?durMin+'m':'');
     const arcStroke=_isLightColor(b.color)?'stroke="rgba(0,0,0,0.18)" stroke-width="1.5"':_isDarkColor(b.color)?'stroke="rgba(255,255,255,0.25)" stroke-width="1.5"':'';
-    arcs+=`<path d="${ap(bRI[idx],bRO[idx],a1,a2)}" fill="${b.color}" opacity=".68" ${arcStroke} style="cursor:grab;filter:drop-shadow(0 0 4px ${b.color}88)" data-tbid="${b.id}" data-tipname="${b.name.replace(/"/g,'&quot;')}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}" class="tb-arc"/>`;
+    const tipAttrs=`data-tbid="${b.id}" data-tipname="${b.name.replace(/"/g,'&quot;')}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}"`;
+    arcs+=`<path d="${ap(bRI[idx],bRO[idx],a1,a2)}" fill="${b.color}" opacity=".68" ${arcStroke} style="cursor:grab;filter:drop-shadow(0 0 4px ${b.color}88);pointer-events:none" ${tipAttrs} class="tb-arc"/>`;
+    if(span<MIN_HIT_MIN){
+      const padMin=(MIN_HIT_MIN-span)/2;
+      const ha1=_tbAngle(((b.startMin-padMin)+1440)%1440),ha2=_tbAngle(((b.endMin+padMin)%1440+1440)%1440);
+      hitArcs+=`<path d="${ap(bRI[idx],bRO[idx],ha1,ha2)}" fill="transparent" style="cursor:grab" ${tipAttrs} class="tb-arc"/>`;
+    }else{
+      hitArcs+=`<path d="${ap(bRI[idx],bRO[idx],a1,a2)}" fill="transparent" style="cursor:grab" ${tipAttrs} class="tb-arc"/>`;
+    }
     lblMeta.push({b,span,midA});
   });
   // Feathered shadow seam at boundaries between same-color adjacent blocks
@@ -1247,7 +1257,7 @@ function buildClockSVG(){
   const svg=`<svg id="tb-svg" viewBox="0 0 220 220" width="100%" height="100%" style="overflow:visible;display:block">
     <circle cx="${CX}" cy="${CY}" r="${TB_RO}" fill="none" stroke="${cc.grid}" stroke-width="1" opacity=".6"/>
     <circle cx="${CX}" cy="${CY}" r="${TB_RI}" fill="none" stroke="${cc.grid}" stroke-width=".6" opacity=".3"/>
-    ${defs}${trackFill}${clickRing}${ticks}${arcs}${labels}${center}${nowDot}
+    ${defs}${trackFill}${clickRing}${ticks}${arcs}${labels}${hitArcs}${center}${nowDot}
   </svg>`;
   wrap.innerHTML=svg;
   wrap.querySelectorAll('.tb-arc').forEach(el=>{
