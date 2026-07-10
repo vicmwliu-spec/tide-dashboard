@@ -267,7 +267,6 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 
 /* ── Horizontal: no-scroll fixed layout ── */
 #hz-tbl{width:100%;min-width:unset;table-layout:fixed}
-#fathom-tbl{width:100%;min-width:unset;table-layout:fixed}
 /* ── Grid fade-in on render ── */
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .grid-card{animation:fadeIn .18s ease}
@@ -1668,78 +1667,6 @@ function hideChartPopup(){
   if(ov){if(hzChartInst){hzChartInst.destroy();hzChartInst=null;}ov.remove();}
 }
 
-// ─────────────────────────────────────────
-//  GRID
-// ─────────────────────────────────────────
-function mkGrid(){
-  const d=document.createElement('div');
-  d.className='grid-card'+(editMode?' edit-mode':'');
-  d.id='grid-card';
-  const bar=document.createElement('div');
-  bar.className='grid-bar';
-  const hasData=!!D.months[mk(CY,CM)];
-  const _arch=isMonthArchived();const _snap=hasMonthSnapshot();
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch&&!_snap&&hasData&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch&&!_snap&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
-  const scroll=document.createElement('div');
-  scroll.className='grid-scroll';
-  scroll.appendChild(buildTable());
-  d.appendChild(bar);d.appendChild(scroll);
-  return d;
-}
-
-function buildTable(){
-  const container=document.createElement('div');
-  container.id='main-tbl';
-  const spans=getWeekSpans(CY,CM);
-  spans.forEach(s=>{
-    container.appendChild(buildWeekBar(s));
-    container.appendChild(buildWeekTable(s));
-  });
-  container.appendChild(buildAnalysisTable());
-  return container;
-}
-
-function buildWeekBar(s){
-  const wn=s.week;
-  const bar=document.createElement('div');
-  bar.className='week-bar-r';
-  bar.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2)';
-  const todayD=now.getFullYear()===CY&&now.getMonth()===CM?now.getDate():-1;
-  const isPastMonth=CY<now.getFullYear()||(CY===now.getFullYear()&&CM<now.getMonth());
-  const lastD=todayD>0?Math.min(s.end,todayD):(isPastMonth?s.end:0);
-  let wd=0,wt=0;
-  for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
-  const wg=wt>0?WEEK_GRADES.find(g=>Math.round(wd/wt*100)>=g.min):null;
-  const weekStarted=todayD<0||s.start<=todayD;
-  const pct=wt>0?Math.round(wd/wt*100):0;
-  const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
-  const badgeText=wg?`${wg.letter} · ${pct}%`:'—';
-  const wStats=allWeeksStats().find(w=>w.week===wn);
-  const gd_json=wStats?JSON.stringify(wStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
-  const badge=weekStarted?`<span class="wk-badge" id="wk-badge-${wn}" style="${badgeStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${gd_json}">${badgeText}</span>`:'';
-  const wAarHas=!!getWeekAAR(wn);
-  const archived=isWeekArchived(wn);
-  const hasSnap=(()=>{const m=D.months[mk(CY,CM)];return !!(m&&m.weekSnapshots&&m.weekSnapshots[wn]);})();
-  const archBtns=archived
-    ?`<button class="btn" style="padding:2px 8px;font-size:11px" onclick="unarchiveWeek(${wn})" title="Unlock this week's habit list">🔒 Archived</button>
-       <button class="btn" style="padding:2px 8px;font-size:11px" onclick="useCurrentWeekHabits(${wn})" title="Discard the frozen list and use your current habits">Use Current Habits</button>`
-    :`<button class="btn" style="padding:2px 8px;font-size:11px" onclick="archiveWeek(${wn})" title="Freeze this week's habit list so it keeps its own history">Archive Week</button>${hasSnap?`<button class="btn" style="padding:2px 8px;font-size:11px" onclick="useCurrentWeekHabits(${wn})" title="Discard the saved frozen list for this week">Discard Snapshot</button>`:''}`;
-  bar.innerHTML=`<span class="week-lbl-text" style="font-weight:700">Week ${wn}</span>${badge}<button id="week-aar-btn-${wn}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${wn})" title="Weekly Review" style="display:inline;padding:1px 5px">✎</button><div style="flex:1"></div>${archBtns}`;
-  return bar;
-}
-
-function buildWeekTable(s){
-  const t=document.createElement('table');
-  t.className='tbl week-tbl';
-  const groups=activeGroupsForWeek(CY,CM,s.week);
-  const editable=editMode&&!isWeekArchived(s.week);
-  const thead=document.createElement('thead');
-  thead.appendChild(buildGroupHeaderRow(groups,editable));
-  thead.appendChild(buildHabitHeaderRow(groups,editable,s.week));
-  t.appendChild(thead);
-  t.appendChild(buildWeekTBody(s,groups,editable));
-  return t;
-}
 
 function buildAnalysisTable(){
   const t=document.createElement('table');
@@ -1900,80 +1827,6 @@ function buildHabitHeaderRow(groups,editable,weekIndex){
   return r2;
 }
 
-// ── TBODY ──
-function buildWeekTBody(s,groups,editable){
-  const tbody=document.createElement('tbody');
-  const todayD=now.getFullYear()===CY&&now.getMonth()===CM?now.getDate():-1;
-  for(let d=s.start;d<=s.end;d++){
-    tbody.appendChild(buildDayRow(d,todayD,editable));
-  }
-  return tbody;
-}
-
-function buildDayRow(d,todayD,editable){
-  const isToday=d===todayD;
-  const isFuture=false;
-  const dow=new Date(CY,CM,d).getDay();
-
-  const tr=document.createElement('tr');
-  tr.className='day-r'+(isToday?' today-r':'');
-  tr.id=`dr-${d}`;
-
-  // Day cell
-  const dc=document.createElement('td');
-  dc.className='sl day-c';
-  dc.innerHTML=`<div class="day-num">${d}${isToday?'<span class="today-badge">Today</span>':''}</div><div class="day-dow">${DOW[dow]}</div>`;
-  if(!isFuture){
-    const aarBtn=document.createElement('button');
-    aarBtn.id=`aar-btn-${d}`;
-    aarBtn.className='aar-btn'+(getAAR(d)?' aar-has':'');
-    aarBtn.title='After Action Review';
-    aarBtn.textContent='✎';
-    aarBtn.onclick=e=>{e.stopPropagation();openAAR(d)};
-    dc.appendChild(aarBtn);
-  }
-  tr.appendChild(dc);
-
-  // Habit cells
-  groupsForDay(d).forEach((g,gi)=>{
-    g.habits.filter(h=>!h.archived).forEach((h,hi)=>{
-      const td2=document.createElement('td');
-      td2.className='chk-c'+(gi>0&&hi===0?' grp-sep':'')+(isFuture?' future':'');
-      td2.id=`cc-${h.id}-${d}`;
-      td2.dataset.color=g.color;
-      const chk=isChk(h.id,d);
-      const skp=isSkip(h.id,d);
-      const foff=isFreqExcluded(h.id,d);
-      const bstart=!chk&&h.startDate&&new Date(CY,CM,d)<new Date(h.startDate+'T00:00:00');
-      if(foff) td2.classList.add('freq-off-c');
-      td2.onclick=(isFuture||foff)?null:()=>doToggle(h.id,d,g.color);
-      td2.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="cb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
-      tr.appendChild(td2);
-    });
-    if(editable){
-      const sp=document.createElement('td');
-      sp.style.width='60px';tr.appendChild(sp);
-    }
-  });
-
-  // Summary
-  const {done,total,pct}=dayProg(d);
-  const dc2=document.createElement('td');
-  dc2.className='sr sr-2 sum-c first-sum';dc2.id=`ds-${d}`;
-  dc2.innerHTML=isFuture?`<span style="color:var(--text3)">—</span>`:`${done}<span style="color:var(--text3);font-size:9px">/${total}</span>`;
-  tr.appendChild(dc2);
-
-  const pc2=document.createElement('td');
-  pc2.className='sr sr-1 sum-c';pc2.id=`ps-${d}`;
-  if(!isFuture){
-    const g=pct>0?(TODAY_GRADES.find(gr=>pct>=gr.min)||null):null;
-    pc2.innerHTML=`<span style="color:${gradeCol(pct,TODAY_GRADES)};font-weight:600">${pct}%</span>`;
-  } else {
-    pc2.innerHTML=`<span style="color:var(--text3)">—</span>`;
-  }
-  tr.appendChild(pc2);
-  return tr;
-}
 
 // ── TFOOT (analysis) ──
 function buildTFoot(){
@@ -3659,7 +3512,12 @@ function buildHzTable(){
     const hzWStats=hzWeekAllStats[ws.week];
     const hzGdJson=hzWStats?JSON.stringify(hzWStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
     const wAarHas=!!getWeekAAR(ws.week);
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
+    const wArchived=isWeekArchived(ws.week);
+    const wHasSnap=(()=>{const m=D.months[mk(CY,CM)];return !!(m&&m.weekSnapshots&&m.weekSnapshots[ws.week]);})();
+    const archBtns=!editMode?'':wArchived
+      ?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Unlock this week's habit list">🔒 Archived</button><button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current habits">Use Current</button>`
+      :`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Freeze this week's habit list so it keeps its own history">Archive Week</button>${wHasSnap?`<button class="btn" style="padding:1px 5px;font-size:9px" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">Discard Snapshot</button>`:''}`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
     rC.appendChild(th);
   });
   thead.appendChild(rC);
@@ -4023,9 +3881,12 @@ function mkFathomGrid(){
   const t=document.createElement('table');
   t.className='tbl';
   t.id='fathom-tbl';
+  // Set explicit min-width in px so mobile browsers can't collapse it via bad max-content calc,
+  // and so the name column never gets compressed below its intended width (names must never clip).
+  t.style.minWidth=((fathomEditMode?240:140)+days*34+56+56)+'px';
   const cg=document.createElement('colgroup');
   const cH=document.createElement('col');cH.style.width=fathomEditMode?'240px':'140px';cg.appendChild(cH);
-  const cD=document.createElement('col');cD.span=days;cg.appendChild(cD);
+  const cD=document.createElement('col');cD.span=days;cD.style.width='34px';cg.appendChild(cD);
   const cDn=document.createElement('col');cDn.style.width='56px';cg.appendChild(cDn);
   const cP=document.createElement('col');cP.style.width='56px';cg.appendChild(cP);
   t.appendChild(cg);
