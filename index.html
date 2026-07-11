@@ -550,16 +550,18 @@ function updateSyncBadge(){
   el.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:${cfg.dot};display:inline-block;flex-shrink:0"></span><span>${cfg.text}</span>`;
 }
 
-async function _pushToCloud(){
+async function _pushToCloud(force){
   _syncStatus='syncing';
   updateSyncBadge();
   try{
     // Guard against clobbering a newer write from another device/tab: if the
     // cloud row has moved on since we last synced, pull it in instead of
     // blindly overwriting it with our (possibly stale) in-memory D.
+    // force=true bypasses this guard (used by one-time data repairs that must
+    // land authoritatively and beat a stale device's revert).
     const {data:cur,error:selErr}=await _sb.from('tide_data').select('updated_at').eq('id','main').single();
     if(selErr && selErr.code!=='PGRST116') throw selErr;
-    if(cur?.updated_at && _lastSyncedAt && new Date(cur.updated_at)>new Date(_lastSyncedAt)){
+    if(!force && cur?.updated_at && _lastSyncedAt && new Date(cur.updated_at)>new Date(_lastSyncedAt)){
       _syncStatus='conflict';
       updateSyncBadge();
       await loadFromCloud();
@@ -604,6 +606,30 @@ function save(){
   localStorage.setItem(SK,JSON.stringify(D));
   clearTimeout(_syncTimer);
   _syncTimer=setTimeout(_pushToCloud,1500);
+}
+
+// One-time repair: the July 2026 recovery left every habit's skips corrupted
+// (marked skipped on days 11-12, i.e. on/after their start date), which zeroed
+// out the month's stats. Regenerate July's start-date skips from each habit's
+// real startDate. Scoped to July only so other months' manual skips are kept.
+function repairJulySkips(){
+  if(D._skipRepair_2026_07) return;
+  const mo=D.months['2026-07'];
+  if(mo){
+    mo.skips={};
+    const days=dim(2026,6);
+    D.groups.forEach(g=>g.habits.forEach(h=>{
+      if(!h.startDate) return;
+      const start=new Date(h.startDate+'T00:00:00');
+      if(isNaN(start.getTime())) return;
+      for(let d=1;d<=days;d++){
+        if(new Date(2026,6,d)<start){ (mo.skips[h.id]||(mo.skips[h.id]={}))[d]=true; }
+      }
+    }));
+  }
+  D._skipRepair_2026_07=true;
+  localStorage.setItem(SK,JSON.stringify(D));
+  _pushToCloud(true); // force-push cleaned data so a stale device can't revert it
 }
 
 function toggleDark(){
@@ -4420,7 +4446,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>render());
+loadFromCloud().then(()=>{ repairJulySkips(); render(); });
 </script>
 </body>
 </html>
