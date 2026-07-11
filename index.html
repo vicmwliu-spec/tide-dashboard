@@ -344,7 +344,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   .priority-card,.notes-card{padding:8px 12px;min-height:0}
   .top-row{flex-direction:column;gap:6px;margin-bottom:10px}
   .top-left-col{width:100%}
-  .top-row .priority-card,.top-row .notes-card{width:100%}
+  .top-row .quote-card,.top-row .priority-card,.top-row .notes-card{width:100%}
 
   /* Stats */
   .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
@@ -3475,7 +3475,11 @@ function openDatePicker(el){const inp=el.querySelector('input[type="date"]');if(
 function expandNameInput(inp){const td=inp.closest('td');if(!td)return;td.style.overflow='visible';td.style.zIndex='20';inp.style.minWidth='280px';inp.style.boxShadow='0 2px 14px rgba(0,0,0,.18)';inp.style.background='var(--surface)'}
 function collapseNameInput(inp){const td=inp.closest('td');if(!td)return;td.style.overflow='hidden';td.style.zIndex='';inp.style.minWidth='0';inp.style.boxShadow='';inp.style.background=''}
 function applyHabitStartDateSkips(hid,startDateIso){
+  if(!startDateIso)return;
   const start=new Date(startDateIso+'T00:00:00');
+  if(isNaN(start.getTime()))return;
+  const maxFuture=new Date();maxFuture.setFullYear(maxFuture.getFullYear()+1);
+  if(start>maxFuture)return;
   const startY=start.getFullYear(),startM=start.getMonth();
   const write=(y,m)=>{const mo=md(y,m);if(!mo.skips[hid])mo.skips[hid]={};if(!mo.completions[hid])mo.completions[hid]={};const days=dim(y,m);for(let d=1;d<=days;d++){if(new Date(y,m,d)<start){mo.completions[hid][d]=false;mo.skips[hid][d]=true;}}};
   Object.keys(D.months).forEach(k=>{const[ys,ms]=k.split('-');write(+ys,+ms-1);});
