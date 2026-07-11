@@ -469,7 +469,7 @@ function _lighten(hex,amt){try{const r=parseInt(hex.slice(1,3),16),g=parseInt(he
 function _darken(hex,amt){try{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`#${Math.round(r*(1-amt)).toString(16).padStart(2,'0')}${Math.round(g*(1-amt)).toString(16).padStart(2,'0')}${Math.round(b*(1-amt)).toString(16).padStart(2,'0')}`;}catch{return hex;}}
 
 function uid(){ return '_'+Math.random().toString(36).slice(2,9) }
-function todayStr(){ return new Date().toISOString().slice(0,10) }
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 
 function defaultData(){
   const g1=uid(),g2=uid();
@@ -1512,8 +1512,24 @@ function _grpRows(groups,filterKey,getVal){
   }).join('');
 }
 
+// Earliest upcoming habit start date (strictly after today) among active,
+// non-archived habits — used to label the "hasn't started yet" stats state.
+function _earliestUpcomingStart(){
+  const today=new Date();today.setHours(0,0,0,0);
+  let best=null;
+  activeGroups().forEach(g=>g.habits.forEach(h=>{
+    if(h.archived||!h.startDate) return;
+    const s=new Date(h.startDate+'T00:00:00');
+    if(isNaN(s.getTime())||s<=today) return;
+    if(!best||s<best.d) best={d:s,iso:h.startDate};
+  }));
+  return best?fmtDate(best.iso):'';
+}
+
 function buildStats(){
   const {comp,poss,rate,dLeft,isCur,isPast,isFuture,maxRate,monthGroups,futPoss}=monthStats();
+  const notStarted=isCur&&poss===0&&futPoss>0;
+  const startsLabel=notStarted?_earliestUpcomingStart():'';
   const rc=rate>=80?'var(--green)':rate>=50?'var(--amber)':'var(--red)';
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
@@ -1543,9 +1559,9 @@ function buildStats(){
     <div class="stat"><div class="stat-lbl">${MON[CM]} SLIGHT EDGE</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-month-grade" style="color:${monthGrade?monthGrade.color:'var(--text3)'}">${monthGrade?monthGrade.letter:'—'}</span>
-        <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${rate}%</span>
+        <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${notStarted?'':rate+'%'}</span>
       </div>
-      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':''}</div>
+      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'')}</div>
       <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${nextGradeLine}
       ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
@@ -1555,7 +1571,7 @@ function buildStats(){
         <span class="stat-val" id="sv-today-grade" style="color:${todayGrade?todayGrade.color:'var(--text3)'}">${todayGrade?todayGrade.letter:'—'}</span>
         ${todayGrade?`<span style="font-size:16px;font-weight:600;color:${todayGrade.color}" id="sv-today-rate">${tPct}%</span>`:'<span id="sv-today-rate"></span>'}
       </div>
-      <div class="stat-sub" id="sv-today-sub">${todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:'No habits set'}</div>
+      <div class="stat-sub" id="sv-today-sub">${todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'No habits set')}</div>
       <div id="sv-today-grps">${_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${todayNextLine}
       ${_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas)}
@@ -1568,6 +1584,9 @@ function updStats(){
   const {done:tDone,total:tTotal,pct:tPct,groups:tGroups}=todayStats();
   const monthGrade=poss===0?null:TIDE_GRADES.find(g=>rate>=g.min);
   const todayGrade=tTotal===0?null:TODAY_GRADES.find(g=>tPct>=g.min);
+  const notStarted=isCur&&poss===0&&futPoss>0;
+  const startsLabel=notStarted?_earliestUpcomingStart():'';
+  const notStartedSub=startsLabel?'Starts '+startsLabel:'Not started yet';
   const maxGrpFn=g=>({val:`${g.maxRate}%`,color:'var(--text3)'});
   const monthGradeEl=document.getElementById('sv-month-grade');
   const rateEl=document.getElementById('sv-rate');
@@ -1580,8 +1599,8 @@ function updStats(){
   const todayGrpsEl=document.getElementById('sv-today-grps');
 
   if(monthGradeEl){monthGradeEl.textContent=monthGrade?monthGrade.letter:'—';monthGradeEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
-  if(rateEl){rateEl.textContent=rate+'%';rateEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
-  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':'';
+  if(rateEl){rateEl.textContent=notStarted?'':rate+'%';rateEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
+  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':(notStarted?notStartedSub:'');
   if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}));
   const maxGrade=isCur&&dLeft>=0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
   if(maxRateEl&&isCur&&dLeft>=0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}`;
@@ -1595,7 +1614,7 @@ function updStats(){
     todayRateEl.textContent=todayGrade?tPct+'%':'';
     if(todayGrade) todayRateEl.style.color=todayGrade.color;
   }
-  if(todaySubEl) todaySubEl.textContent=todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:'No habits set';
+  if(todaySubEl) todaySubEl.textContent=todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:(notStarted?notStartedSub:'No habits set');
   if(todayGrpsEl) todayGrpsEl.innerHTML=_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}));
   const todayNextEl=document.getElementById('sv-today-next');
   if(todayNextEl){const ntg=todayGrade?TODAY_GRADES.slice().reverse().find(g=>g.min>todayGrade.min):TODAY_GRADES.slice().reverse().find(g=>g.min>0);const nnt=ntg&&tTotal>0?Math.ceil(ntg.min/100*tTotal)-tDone:null;const _tInc2=tTotal-tDone;const _tIncL2=_tInc2>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_tInc2} incomplete</div>`:'';todayNextEl.innerHTML=nnt>0?`${nnt} more → ${ntg.letter} ${ntg.name}${_tIncL2}`:'';todayNextEl.style.display=nnt>0?'':'none';}
