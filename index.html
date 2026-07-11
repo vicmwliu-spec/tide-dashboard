@@ -1484,7 +1484,13 @@ function mkStats(){
   d.className='stats-row';
   d.id='stats-row';
   d.appendChild(mkTimeBlockCard());
-  d.insertAdjacentHTML('beforeend',buildStats());
+  // Insert each stat card as its own element. Parsing each card in an inert
+  // <template> keeps any malformed markup contained to that single card, so a
+  // broken fragment can never swallow its siblings and collapse the row.
+  const cards=buildStats();
+  cards.forEach(html=>{ const t=document.createElement('template'); t.innerHTML=html.trim(); if(t.content.firstElementChild) d.appendChild(t.content.firstElementChild); });
+  const got=d.querySelectorAll(':scope > .stat').length, want=cards.length+1; // +1 = clock card (also class "stat")
+  if(got!==want) console.error(`[TIDE] stats-row integrity check failed: expected ${want} cards, got ${got} — a stat card likely emitted malformed HTML`);
   return d;
 }
 
@@ -1555,8 +1561,7 @@ function buildStats(){
   const _tInc=tTotal-tDone;
   const _tIncLine=_tInc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_tInc} incomplete</div>`:'';
   const todayNextLine=neededForNextToday>0?`<div id="sv-today-next" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600">${neededForNextToday} more → ${nextTodayGrade.letter} ${nextTodayGrade.name}${_tIncLine}</div>`:`<div id="sv-today-next"></div>`;
-  return `
-    <div class="stat"><div class="stat-lbl">${MON[CM]} SLIGHT EDGE</div>
+  const monthCard=`<div class="stat"><div class="stat-lbl">${MON[CM]} SLIGHT EDGE</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-month-grade" style="color:${monthGrade?monthGrade.color:'var(--text3)'}">${monthGrade?monthGrade.letter:'—'}</span>
         <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${notStarted?'':rate+'%'}</span>
@@ -1564,9 +1569,9 @@ function buildStats(){
       <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'')}</div>
       <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${nextGradeLine}
-      ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>
-    <div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>
-    <div class="stat"><div class="stat-lbl">Today's Slight Edge</div>
+      ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>`;
+  const daysCard=`<div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>`;
+  const todayCard=`<div class="stat"><div class="stat-lbl">Today's Slight Edge</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-today-grade" style="color:${todayGrade?todayGrade.color:'var(--text3)'}">${todayGrade?todayGrade.letter:'—'}</span>
         ${todayGrade?`<span style="font-size:16px;font-weight:600;color:${todayGrade.color}" id="sv-today-rate">${tPct}%</span>`:'<span id="sv-today-rate"></span>'}
@@ -1575,8 +1580,8 @@ function buildStats(){
       <div id="sv-today-grps">${_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${todayNextLine}
       ${_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas)}
-    </div>
-`;
+    </div>`;
+  return [monthCard,daysCard,todayCard];
 }
 
 function updStats(){
