@@ -533,8 +533,9 @@ const SB_URL = 'https://kluxonxyygddfbliognh.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsdXhvbnh5eWdkZGZibGlvZ25oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNzk0MDksImV4cCI6MjA5NDY1NTQwOX0.2spUovftRZPDwhe-HJjeWq6-QNvhfiGm3OfBivHTHIQ';
 const _sb = supabase.createClient(SB_URL, SB_KEY);
 
-let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'
+let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
+let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
 
 function updateSyncBadge(){
   const el = document.getElementById('sync-badge');
@@ -544,6 +545,7 @@ function updateSyncBadge(){
     syncing: {dot:'#F59E0B', text:'Syncing...'},
     synced:  {dot:'#16A34A', text:'Synced'},
     offline: {dot:'#EF4444', text:'Offline'},
+    conflict:{dot:'#F59E0B', text:'Updated elsewhere — refreshed'},
   }[_syncStatus] || {dot:'#999', text:'...'};
   el.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:${cfg.dot};display:inline-block;flex-shrink:0"></span><span>${cfg.text}</span>`;
 }
@@ -552,8 +554,22 @@ async function _pushToCloud(){
   _syncStatus='syncing';
   updateSyncBadge();
   try{
-    const {error}=await _sb.from('tide_data').upsert({id:'main',data:D,updated_at:new Date().toISOString()});
+    // Guard against clobbering a newer write from another device/tab: if the
+    // cloud row has moved on since we last synced, pull it in instead of
+    // blindly overwriting it with our (possibly stale) in-memory D.
+    const {data:cur,error:selErr}=await _sb.from('tide_data').select('updated_at').eq('id','main').single();
+    if(selErr && selErr.code!=='PGRST116') throw selErr;
+    if(cur?.updated_at && _lastSyncedAt && new Date(cur.updated_at)>new Date(_lastSyncedAt)){
+      _syncStatus='conflict';
+      updateSyncBadge();
+      await loadFromCloud();
+      render();
+      return;
+    }
+    const nowIso=new Date().toISOString();
+    const {error}=await _sb.from('tide_data').upsert({id:'main',data:D,updated_at:nowIso});
     if(error) throw error;
+    _lastSyncedAt=nowIso;
     _syncStatus='synced';
   }catch(e){
     console.warn('Sync failed:',e);
@@ -571,6 +587,7 @@ async function loadFromCloud(){
       D=data.data;
       if(!D.aarTemplates) D.aarTemplates=[];
       localStorage.setItem(SK,JSON.stringify(D));
+      _lastSyncedAt=data.updated_at||new Date().toISOString();
       _syncStatus='synced';
     } else {
       // Cloud is empty — upload our local data so other devices can get it
