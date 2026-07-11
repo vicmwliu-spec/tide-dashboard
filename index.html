@@ -1548,7 +1548,7 @@ function buildStats(){
   const _inc=isCur?((poss-tTotal)-(comp-tDone)):poss-comp;
   const _incLine=_inc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_inc} incomplete</div>`:'';
   const nextGradeText=canReachNext?neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name:'';
-  const nextGradeLine='<div id="sv-next-grade"'+(canReachNext?' style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':'')+'>'+(nextGradeText)+_incLine:'')+'</div>';
+  const nextGradeLine='<div id="sv-next-grade"'+(canReachNext?' style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600;cursor:default"'+(gradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(gradeRows).replace(/"/g,'&quot;')+'"':''):'')+'>'+(canReachNext?nextGradeText+_incLine:'')+'</div>';
   const maxRateBlock=`${bestPossibleLine}`;
   const nextTodayGrade=todayGrade?TODAY_GRADES.slice().reverse().find(g=>g.min>todayGrade.min):TODAY_GRADES.slice().reverse().find(g=>g.min>0);
   const neededForNextToday=nextTodayGrade&&tTotal>0?Math.ceil(nextTodayGrade.min/100*tTotal)-tDone:null;
