@@ -4425,6 +4425,43 @@ document.addEventListener('contextmenu',e=>{
   if(e.target.closest('.chk-c,.hz-chk-c')) e.preventDefault();
 });
 
+// Auto-scroll the page (or nearest scroll container) while dragging habits/groups
+// near the top/bottom edge, so distant reorders are reachable. Gated on _dg so it
+// only runs during an active drag, and covers every drag context that sets _dg.
+let _dragScrollRAF=null,_dragScrollV=0,_dragScrollEl=null;
+function _findScrollable(el){
+  for(;el&&el!==document.body;el=el.parentElement){
+    const s=getComputedStyle(el);
+    if(/(auto|scroll)/.test(s.overflowY)&&el.scrollHeight>el.clientHeight) return el;
+  }
+  return null;
+}
+function _dragScrollTick(){
+  if(_dragScrollV&&_dg){
+    if(_dragScrollEl) _dragScrollEl.scrollTop+=_dragScrollV;
+    else window.scrollBy(0,_dragScrollV);
+    _dragScrollRAF=requestAnimationFrame(_dragScrollTick);
+  } else { _dragScrollRAF=null; }
+}
+function _onDragScroll(e){
+  if(!_dg){ _dragScrollV=0; return; }
+  const EDGE=60,MAX=18;
+  const el=_findScrollable(document.elementFromPoint(e.clientX,e.clientY));
+  let top,bottom;
+  if(el){ const r=el.getBoundingClientRect(); top=r.top; bottom=r.bottom; }
+  else { top=0; bottom=window.innerHeight; }
+  _dragScrollEl=el;
+  const y=e.clientY;
+  if(y<top+EDGE) _dragScrollV=-Math.ceil(MAX*(top+EDGE-y)/EDGE);
+  else if(y>bottom-EDGE) _dragScrollV=Math.ceil(MAX*(y-(bottom-EDGE))/EDGE);
+  else _dragScrollV=0;
+  if(_dragScrollV&&!_dragScrollRAF) _dragScrollTick();
+}
+function _stopDragScroll(){ _dragScrollV=0; if(_dragScrollRAF){cancelAnimationFrame(_dragScrollRAF);_dragScrollRAF=null;} }
+document.addEventListener('dragover',_onDragScroll,true);
+document.addEventListener('dragend',_stopDragScroll,true);
+document.addEventListener('drop',_stopDragScroll,true);
+
 // Touch long-press to skip (mobile)
 document.addEventListener('touchstart',e=>{
   const c=e.target.closest('.chk-c:not(.future),.hz-chk-c:not(.future)');
