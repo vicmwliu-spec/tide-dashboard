@@ -4044,7 +4044,7 @@ function mkFathomGrid(){
       <span style="font-weight:800;letter-spacing:.14em;color:var(--text1)">FATHOM</span>
     </span>
     <div style="display:flex;align-items:center;gap:8px">
-      ${mGrade?`<span style="font-size:11px;font-weight:600;color:${fgColor(mGrade)}">${mGrade.label} &middot; ${mPct}%</span>`:''}
+      <span id="fathom-hdr-grade" style="font-size:11px;font-weight:600;color:${mGrade?fgColor(mGrade):'var(--text3)'}">${mGrade?`${mGrade.label} &middot; ${mPct}%`:''}</span>
       ${fathomEditMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
       <button class="btn ${fathomEditMode?'btn-on':''}" onclick="toggleFathomEdit()">${fathomEditMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>`;
@@ -4239,6 +4239,7 @@ function doFathomToggle(iid,day){
   const ps=document.getElementById(`fhzps-${iid}`);
   if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
   if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${fgColor(fg)};border-radius:2px"></div></div>`;
+  updFathomHeader();
   updStats();
   updTide();
 }
@@ -4267,7 +4268,16 @@ function doFathomSkipToggle(iid,day){
   const ps=document.getElementById(`fhzps-${iid}`);
   if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
   if(ps) ps.innerHTML=`<span style="color:${fgColor(fg)};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${fgColor(fg)};border-radius:2px"></div></div>`;
+  updFathomHeader();
   updStats();updTide();
+}
+
+function updFathomHeader(){
+  const el=document.getElementById('fathom-hdr-grade'); if(!el) return;
+  const {pct,hasData}=fathomMonthStats();
+  const g=hasData?fathomGrade(pct):null;
+  el.innerHTML=g?`${g.label} &middot; ${pct}%`:'';
+  el.style.color=g?fgColor(g):'var(--text3)';
 }
 
 function addFathomItem(){
