@@ -4182,7 +4182,7 @@ function mkFathomGrid(){
     let rowDone=0,rowTotal=0;
     for(let d=1;d<=days;d++){
       const dow=new Date(CY,CM,d).getDay();
-      const isToday=d===todayD,isFuture=false,isWeekStart=dow===1&&d>1;
+      const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===1&&d>1;
       const chk=isChkFathom(item.id,d);
       const skp=isSkipFathom(item.id,d);
       const foff=item.freq&&item.freq.length<7&&!item.freq.includes(dow);
