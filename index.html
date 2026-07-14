@@ -1505,6 +1505,7 @@ function _fathomStatLine(id,pct,label,hasData){
 }
 
 function gradeCol(pct,grades){return(grades.find(g=>pct>=g.min)||grades[grades.length-1]).color}
+function gradeLetter(pct,grades){return(grades.find(g=>pct>=g.min)||grades[grades.length-1]).letter}
 function _grpRows(groups,filterKey,getVal){
   return groups.filter(g=>g[filterKey]>0).map(g=>{
     const def={val:`${g.pct}%`,color:g.pct>=80?'var(--green)':g.pct>=50?'var(--amber)':'var(--red)'};
@@ -1567,7 +1568,7 @@ function buildStats(){
         <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${notStarted?'':rate+'%'}</span>
       </div>
       <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'')}</div>
-      <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
+      <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${gradeLetter(g.pct,TIDE_GRADES)} · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${nextGradeLine}
       ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>`;
   const daysCard=`<div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>`;
@@ -1606,7 +1607,7 @@ function updStats(){
   if(monthGradeEl){monthGradeEl.textContent=monthGrade?monthGrade.letter:'—';monthGradeEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
   if(rateEl){rateEl.textContent=notStarted?'':rate+'%';rateEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
   if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':(notStarted?notStartedSub:'');
-  if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}));
+  if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${gradeLetter(g.pct,TIDE_GRADES)} · ${g.pct}%</span>`,color:'inherit'}));
   const maxGrade=isCur&&dLeft>=0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
   if(maxRateEl&&isCur&&dLeft>=0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}`;
   const maxRateGrpsEl=document.getElementById('sv-max-rate-grps');
