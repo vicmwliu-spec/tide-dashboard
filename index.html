@@ -4498,7 +4498,7 @@ function openCommentPopup(type,id,day,x,y){
   pop.style.cssText=`position:fixed;z-index:1200;left:${x}px;top:${y}px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:11px;width:240px;box-sizing:border-box`;
   pop.innerHTML=`
     <div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Comment</div>
-    <textarea id="comment-ta" placeholder="Add a note for this day…" style="width:100%;height:72px;resize:vertical;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:12px;line-height:1.45;padding:7px;box-sizing:border-box;outline:none">${esc(cur)}</textarea>
+    <textarea id="comment-ta" style="width:100%;height:72px;resize:vertical;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:12px;line-height:1.45;padding:7px;box-sizing:border-box;outline:none">${esc(cur)}</textarea>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
       ${cur?btn('Delete','_commentDelete()',{fg:'var(--red)',border:'var(--border2)'}):''}
       ${btn('Cancel','closeCommentPopup()')}
