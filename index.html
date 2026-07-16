@@ -634,6 +634,22 @@ function repairJulySkips(){
   _pushToCloud(true); // force-push cleaned data so a stale device can't revert it
 }
 
+// One-time migration: Priority and Notes cards used to be stored globally
+// (D.priority / D.notes), shared across every month. Move any existing
+// global content into the current month once, then drop the globals so
+// each month keeps its own Priority/Notes going forward.
+function migratePriorityNotesToMonth(){
+  if(D._migPriorityNotes_2026_07) return;
+  if(D.priority||D.notes){
+    const m=md(CY,CM);
+    if(D.priority&&!m.priority) m.priority=D.priority;
+    if(D.notes&&!m.notes) m.notes=D.notes;
+  }
+  delete D.priority; delete D.notes;
+  D._migPriorityNotes_2026_07=true;
+  localStorage.setItem(SK,JSON.stringify(D));
+}
+
 function toggleDark(){
   darkMode=!darkMode;
   localStorage.setItem('tide_dark',darkMode?'1':'0');
@@ -716,8 +732,9 @@ function mk(y,m){ return `${y}-${String(m+1).padStart(2,'0')}` }
 
 function md(y,m){
   const k=mk(y,m);
-  if(!D.months[k]) D.months[k]={quote:'',notes:'',completions:{},skips:{}};
+  if(!D.months[k]) D.months[k]={quote:'',priority:'',notes:'',completions:{},skips:{}};
   if(!D.months[k].skips) D.months[k].skips={};
+  if(D.months[k].priority===undefined) D.months[k].priority='';
   return D.months[k];
 }
 
@@ -1074,7 +1091,8 @@ function mkPriority(){
       oninput="savePriority(this.innerHTML)"
       onkeydown="richtextKD(event)"
     ></div>`;
-  setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=D.priority||''},0);
+  const pm=D.months[mk(CY,CM)];
+  setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=pm?.priority||''},0);
   return d;
 }
 function mkNotes(){
@@ -1085,7 +1103,8 @@ function mkNotes(){
       oninput="saveNotes(this.innerHTML)"
       onkeydown="richtextKD(event)"
     ></div>`;
-  setTimeout(()=>{const nta=document.getElementById('nta');if(nta)nta.innerHTML=D.notes||''},0);
+  const nm=D.months[mk(CY,CM)];
+  setTimeout(()=>{const nta=document.getElementById('nta');if(nta)nta.innerHTML=nm?.notes||''},0);
   return d;
 }
 // ─── TIME BLOCK CLOCK ────────────────────────────────────────────
@@ -2858,8 +2877,8 @@ function _showArchiveToast(msg='Habit archived'){const t=document.getElementById
 function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchived=null;clearTimeout(_toastTimer);const t=document.getElementById('arch-toast');if(t)t.style.display='none';if(a.type==='fathom')restoreFathomItem(a.id);else restoreHabit(a.gid,a.hid);}
 
 function saveQuote(v){const m=md(CY,CM);m.quote=(v==='<br>')?'':v;save()}
-function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
-function saveNotes(v){D.notes=(v==='<br>')?'':v;save()}
+function savePriority(v){const m=md(CY,CM);m.priority=(v==='<br>')?'':v;save()}
+function saveNotes(v){const m=md(CY,CM);m.notes=(v==='<br>')?'':v;save()}
 
 function resetMonth(){
   if(!confirm(`Reset ${MON[CM]} ${CY}? All completions, notes, and quotes for this month will be cleared.`)) return;
@@ -4593,7 +4612,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ repairJulySkips(); render(); });
+loadFromCloud().then(()=>{ repairJulySkips(); migratePriorityNotesToMonth(); render(); });
 </script>
 </body>
 </html>
