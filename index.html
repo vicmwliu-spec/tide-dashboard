@@ -55,16 +55,16 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* ── Quote ── */
 .quote-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
 .quote-icon{color:var(--text3);font-size:22px;line-height:1;margin-top:1px;flex-shrink:0}
-.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text1);resize:none;line-height:1.6;overflow:hidden}
+.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden}
 .quote-ta::placeholder{color:var(--text3)}
 /* ── Priority ── */
 .priority-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .priority-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap;margin-top:3px;flex-shrink:0}
-.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
 .priority-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Notes ── */
 .notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
-.notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
 .notes-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Top row ── */
 .top-row{display:flex;gap:14px;margin-bottom:14px;align-items:stretch}
@@ -178,7 +178,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol,.notes-ta ol ol,.intention-ta ol ol{list-style-type:lower-alpha}
 #aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol,.notes-ta ol ol ol,.intention-ta ol ol ol{list-style-type:lower-roman}
 /* Richtext contenteditable */
-.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--text1);line-height:1.6;word-break:break-word;min-height:1.4em}
+.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);line-height:1.6;word-break:break-word;min-height:1.4em}
 .quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 
 /* ── Annual ── */
