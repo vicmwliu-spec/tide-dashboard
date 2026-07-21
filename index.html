@@ -1519,7 +1519,7 @@ function deleteTimeBlock(id){
 }
 function duplicateTimeBlock(id){
   const src=(D.timeBlocks||[]).find(b=>b.id===id); if(!src) return;
-  const copy={...src,id:_tbUuid(),name:src.name?src.name+' (copy)':src.name,days:[...(src.days||[])]};
+  const copy={...src,id:_tbUuid(),name:src.name,days:[...(src.days||[])]};
   saveTimeBlock(copy);          // persist the duplicate
   openTimeBlockModal(copy);     // reopen on the copy so its time/details can be adjusted
 }
