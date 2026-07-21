@@ -794,12 +794,12 @@ function activeGroupsForWeek(y,m,weekIndex,day){
       const points=_snapPoints(snap);
       if(points.length) return points[points.length-1].groups;
     }
-    return activeGroups();
+    return (mo&&mo.snapshot)?mo.snapshot.groups:D.groups;
   }
   const points=_snapPoints(snap);
   const pt=points.find(p=>day<=p.through);
   if(pt) return pt.groups;
-  return activeGroups();
+  return (mo&&mo.snapshot)?mo.snapshot.groups:D.groups;
 }
 function isWeekArchived(weekIndex){
   const m=D.months[mk(CY,CM)];
