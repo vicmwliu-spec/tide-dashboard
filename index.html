@@ -27,6 +27,7 @@
   --green:#16A34A;
   --amber:#B45309;
   --red:#DC2626;
+  --grade:#4E9B8A;
   --shadow:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.04);
   --shadow-md:0 4px 8px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
   --r:10px;--r2:6px;
@@ -434,6 +435,7 @@ html.dark{
   --bg:#0A0A0C;--surface:#111113;--surface2:#1A1A1E;
   --border:#2E2E33;--border2:#232328;
   --text1:#EDEDEE;--text2:#8E8EA0;--text3:#5C5C70;
+  --grade:#6BBDB0;
   --accent:#3B82F6;--today-bg:#0D1B35;--today-border:#1D3461;
   --shadow:0 1px 3px rgba(0,0,0,.5),0 1px 2px rgba(0,0,0,.4);
   --shadow-md:0 4px 8px rgba(0,0,0,.6),0 2px 4px rgba(0,0,0,.5);
@@ -664,8 +666,8 @@ function toggleDark(){
 
 
 function pillBg(pct){
-  if(darkMode) return pct>=80?'rgba(34,197,94,.15)':pct>=50?'rgba(217,119,6,.15)':'rgba(239,68,68,.15)';
-  return pct>=80?'#F0FFF4':pct>=50?'#FFFBEB':'#FFF1F2';
+  // Single calm accent tint for all scores — no red/amber/green verdict gradient.
+  return darkMode?'rgba(107,189,176,.14)':'rgba(78,155,138,.10)';
 }
 
 function chartConf(){
@@ -686,12 +688,9 @@ function chartConf(){
 }
 
 function gradeColor(){
-  const pct=tideOverallScore();
-  const grade=TIDE_GRADES.find(g=>pct>=g.min)||TIDE_GRADES[TIDE_GRADES.length-1];
-  const map={
-    'var(--red)':'#EF4444',
-  };
-  return map[grade.color]||grade.color;
+  // Neutralized to the single calm accent (teal) — the habit-grid chart fill no
+  // longer changes with score. Returns a real hex (chartFillGradient slices it).
+  return darkMode?'#6BBDB0':'#4E9B8A';
 }
 
 function chartFillGradient(ctx,chartArea){
@@ -1528,7 +1527,7 @@ function _fathomStatLine(id,pct,label,hasData){
   const c=fgColor(g);
   return `<div id="${id}" style="margin-top:7px;padding-top:7px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
     <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">${label}</span>
-    <span style="font-size:11px;font-weight:600;color:${c}">${g.label} &middot; ${pct}%</span>
+    <span style="font-size:11px;font-weight:600;color:var(--grade)">${pct}%</span>
   </div>`;
 }
 
@@ -1579,7 +1578,7 @@ function buildStats(){
   const neededForNext=nextGrade&&poss>0?Math.ceil(nextGrade.min/100*poss)-comp:null;
   const canReachNext=!isFuture&&neededForNext!==null&&neededForNext>0;
   const gradeRows=monthGrade?TIDE_GRADES.filter(g=>g.min>monthGrade.min).map(g=>{const n=Math.ceil(g.min/100*poss)-comp;return n>0?{letter:g.letter,name:g.name,count:n,color:g.color}:null;}).filter(Boolean):[];
-  const bestPossibleLine=isCur&&dLeft>0?`<div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}</div><div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>`:`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
+  const bestPossibleLine=isCur&&dLeft>0?`<div id="sv-max-rate" style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span></div><div id="sv-max-rate-grps">${_grpRows(monthGroups,'gt',maxGrpFn)}</div>`:`<div id="sv-max-rate"></div><div id="sv-max-rate-grps"></div>`;
   const _inc=isCur?((poss-tTotal)-(comp-tDone)):poss-comp;
   const _incLine=_inc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_inc} incomplete</div>`:'';
   const nextGradeText=canReachNext?neededForNext+' more → '+nextGrade.letter+' '+nextGrade.name:'';
@@ -1591,23 +1590,19 @@ function buildStats(){
   const _tIncLine=_tInc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_tInc} incomplete</div>`:'';
   const todayNextLine=neededForNextToday>0?`<div id="sv-today-next" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600">${neededForNextToday} more → ${nextTodayGrade.letter} ${nextTodayGrade.name}${_tIncLine}</div>`:`<div id="sv-today-next"></div>`;
   const monthCard=`<div class="stat"><div class="stat-lbl">${MON[CM]} ALIGNMENT</div>
-      <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
-        <span class="stat-val" id="sv-month-grade" style="color:${monthGrade?monthGrade.color:'var(--text3)'}">${monthGrade?monthGrade.letter:'—'}</span>
-        <span style="font-size:16px;font-weight:600;color:${monthGrade?monthGrade.color:'var(--text3)'}" id="sv-rate">${notStarted?'':rate+'%'}</span>
+      <div style="margin-top:2px">
+        <span class="stat-val" id="sv-month-grade" style="color:var(--grade)">${monthGrade?rate+'%':'—'}</span>
       </div>
-      <div class="stat-sub" id="sv-month-sub">${monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'')}</div>
-      <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${gradeLetter(g.pct,TIDE_GRADES)} · ${g.pct}%</span>`,color:'inherit'}))}</div>
-      ${nextGradeLine}
+      <div class="stat-sub" id="sv-month-sub">${monthGrade?comp+'/'+poss+' habits':(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'')}</div>
+      <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:var(--grade)"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>`;
   const daysCard=`<div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>`;
   const todayCard=`<div class="stat"><div class="stat-lbl">Today's Alignment</div>
-      <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
-        <span class="stat-val" id="sv-today-grade" style="color:${todayGrade?todayGrade.color:'var(--text3)'}">${todayGrade?todayGrade.letter:'—'}</span>
-        ${todayGrade?`<span style="font-size:16px;font-weight:600;color:${todayGrade.color}" id="sv-today-rate">${tPct}%</span>`:'<span id="sv-today-rate"></span>'}
+      <div style="margin-top:2px">
+        <span class="stat-val" id="sv-today-grade" style="color:var(--grade)">${todayGrade?tPct+'%':'—'}</span>
       </div>
-      <div class="stat-sub" id="sv-today-sub">${todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'No habits set')}</div>
-      <div id="sv-today-grps">${_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
-      ${todayNextLine}
+      <div class="stat-sub" id="sv-today-sub">${todayGrade?`${tDone}/${tTotal} habits`:(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'No habits set')}</div>
+      <div id="sv-today-grps">${_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:var(--grade)"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas)}
     </div>`;
   return [monthCard,daysCard,todayCard];
@@ -1632,23 +1627,19 @@ function updStats(){
   const todaySubEl=document.getElementById('sv-today-sub');
   const todayGrpsEl=document.getElementById('sv-today-grps');
 
-  if(monthGradeEl){monthGradeEl.textContent=monthGrade?monthGrade.letter:'—';monthGradeEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
-  if(rateEl){rateEl.textContent=notStarted?'':rate+'%';rateEl.style.color=monthGrade?monthGrade.color:'var(--text3)';}
-  if(monthSubEl) monthSubEl.textContent=monthGrade?monthGrade.name+' · '+comp+'/'+poss+' habits':(notStarted?notStartedSub:'');
-  if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:${gradeCol(g.pct,TIDE_GRADES)}"> · ${gradeLetter(g.pct,TIDE_GRADES)} · ${g.pct}%</span>`,color:'inherit'}));
-  const maxGrade=isCur&&dLeft>=0?TIDE_GRADES.find(g=>maxRate>=g.min):null;
-  if(maxRateEl&&isCur&&dLeft>=0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span>${maxGrade?" · <span style='font-weight:600;color:var(--text3)'>"+maxGrade.letter+" "+maxGrade.name+"</span>":""}`;
+  if(monthGradeEl){monthGradeEl.textContent=monthGrade?rate+'%':'—';monthGradeEl.style.color='var(--grade)';}
+  if(rateEl){rateEl.textContent='';}
+  if(monthSubEl) monthSubEl.textContent=monthGrade?comp+'/'+poss+' habits':(notStarted?notStartedSub:'');
+  if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:var(--grade)"> · ${g.pct}%</span>`,color:'inherit'}));
+  if(maxRateEl&&isCur&&dLeft>=0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span>`;
   const maxRateGrpsEl=document.getElementById('sv-max-rate-grps');
   if(maxRateGrpsEl&&isCur&&dLeft>=0) maxRateGrpsEl.innerHTML=_grpRows(monthGroups,'gt',maxGrpFn);
   if(todayGradeEl){
-    todayGradeEl.textContent=todayGrade?todayGrade.letter:'—';
-    todayGradeEl.style.color=todayGrade?todayGrade.color:'var(--text3)';
+    todayGradeEl.textContent=todayGrade?tPct+'%':'—';
+    todayGradeEl.style.color='var(--grade)';
   }
-  if(todayRateEl){
-    todayRateEl.textContent=todayGrade?tPct+'%':'';
-    if(todayGrade) todayRateEl.style.color=todayGrade.color;
-  }
-  if(todaySubEl) todaySubEl.textContent=todayGrade?`${todayGrade.name} · ${tDone}/${tTotal} habits`:(notStarted?notStartedSub:'No habits set');
+  if(todayRateEl){todayRateEl.textContent='';}
+  if(todaySubEl) todaySubEl.textContent=todayGrade?`${tDone}/${tTotal} habits`:(notStarted?notStartedSub:'No habits set');
   if(todayGrpsEl) todayGrpsEl.innerHTML=_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}));
   const todayNextEl=document.getElementById('sv-today-next');
   if(todayNextEl){const ntg=todayGrade?TODAY_GRADES.slice().reverse().find(g=>g.min>todayGrade.min):TODAY_GRADES.slice().reverse().find(g=>g.min>0);const nnt=ntg&&tTotal>0?Math.ceil(ntg.min/100*tTotal)-tDone:null;const _tInc2=tTotal-tDone;const _tIncL2=_tInc2>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_tInc2} incomplete</div>`:'';todayNextEl.innerHTML=nnt>0?`${nnt} more → ${ntg.letter} ${ntg.name}${_tIncL2}`:'';todayNextEl.style.display=nnt>0?'':'none';}
@@ -2007,7 +1998,7 @@ function buildTFoot(){
 
       rows.done.appendChild(mkTd(`da-${h2.id}`,`${actual}<span style="color:var(--text3);font-size:9px">/${last}</span>`));
       const hGrade=TIDE_GRADES.find(g=>pct>=g.min);
-      rows.rate.appendChild(mkTd(`ra-${h2.id}`,`<span class="pill" style="background:${pctBg};color:${pctC}">${hGrade?hGrade.letter+' ':''}${pct}%</span>`));
+      rows.rate.appendChild(mkTd(`ra-${h2.id}`,`<span class="pill" style="background:${pctBg};color:${pctC}">${pct}%</span>`));
     });
   });
 
@@ -2094,8 +2085,8 @@ function updWeekBadges(day){
   for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
   const pct=wt>0?Math.round(wd/wt*100):null;
   const wg=pct!=null?WEEK_GRADES.find(g=>pct>=g.min):null;
-  const badgeStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
-  const badgeText=wg?`${wg.letter} · ${pct}%`:'—';
+  const badgeStyle=wg?`background:var(--surface2);color:var(--grade);border:1px solid var(--border2)`:`color:var(--text3);border:1px solid var(--border2)`;
+  const badgeText=wg?`${pct}%`:'—';
   const wStats=allWeeksStats().find(w=>w.week===s.week);
   const gd_json=wStats?JSON.stringify(wStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
   document.querySelectorAll(`#wk-badge-${s.week}`).forEach(el=>{
@@ -2126,7 +2117,7 @@ function partialUpdate(hid,day){
   const ra=document.getElementById(`ra-${hid}`);
   if(da) da.innerHTML=`${actual}<span style="color:var(--text3);font-size:9px">/${last}</span>`;
   const hpGrade=TIDE_GRADES.find(g=>hp>=g.min);
-  if(ra) ra.innerHTML=`<span class="pill" style="background:${pctBg};color:${pctC}">${hpGrade?hpGrade.letter+' ':''}${hp}%</span>`;
+  if(ra) ra.innerHTML=`<span class="pill" style="background:${pctBg};color:${pctC}">${hp}%</span>`;
   // stats & chart
   updStats();
   updateChart();
@@ -2138,47 +2129,50 @@ function partialUpdate(hid,day){
 // ─────────────────────────────────────────
 //  TIDE
 // ─────────────────────────────────────────
+// Grade thresholds are retained for the (still-used) "has a score yet" checks;
+// all letters/names/colors are neutralized to a single calm accent (--grade)
+// per the Hudson / Dr. K reframe — the UI shows only the % now.
 const TIDE_GRADES=[
-  {min:90,letter:'S',name:'Surpassing',color:'#00F5D4'},
-  {min:80,letter:'A',name:'Ascending', color:'#10B981'},
-  {min:68,letter:'B',name:'Building',  color:'#F0A500'},
-  {min:50,letter:'C',name:'Continuing',color:'#EA580C'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
+  {min:90,letter:'S',name:'Surpassing',color:'var(--grade)'},
+  {min:80,letter:'A',name:'Ascending', color:'var(--grade)'},
+  {min:68,letter:'B',name:'Building',  color:'var(--grade)'},
+  {min:50,letter:'C',name:'Continuing',color:'var(--grade)'},
+  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
 ];
 const TODAY_GRADES=[
-  {min:100,letter:'S',name:'Surpassing',color:'#00F5D4'},
-  {min:80, letter:'A',name:'Ascending', color:'#10B981'},
-  {min:60, letter:'B',name:'Building',  color:'#F0A500'},
-  {min:30, letter:'C',name:'Continuing',color:'#EA580C'},
-  {min:0,  letter:'D',name:'Drifting',  color:'var(--red)'},
+  {min:100,letter:'S',name:'Surpassing',color:'var(--grade)'},
+  {min:80, letter:'A',name:'Ascending', color:'var(--grade)'},
+  {min:60, letter:'B',name:'Building',  color:'var(--grade)'},
+  {min:30, letter:'C',name:'Continuing',color:'var(--grade)'},
+  {min:0,  letter:'D',name:'Drifting',  color:'var(--grade)'},
 ];
 const QUARTER_GRADES=[
-  {min:88,letter:'S',name:'Surpassing',color:'#00F5D4'},
-  {min:78,letter:'A',name:'Ascending', color:'#10B981'},
-  {min:65,letter:'B',name:'Building',  color:'#F0A500'},
-  {min:48,letter:'C',name:'Continuing',color:'#EA580C'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
+  {min:88,letter:'S',name:'Surpassing',color:'var(--grade)'},
+  {min:78,letter:'A',name:'Ascending', color:'var(--grade)'},
+  {min:65,letter:'B',name:'Building',  color:'var(--grade)'},
+  {min:48,letter:'C',name:'Continuing',color:'var(--grade)'},
+  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
 ];
 const ANNUAL_GRADES=[
-  {min:85,letter:'S',name:'Surpassing',color:'#10B981'},
-  {min:75,letter:'A',name:'Ascending', color:'#00F5D4'},
-  {min:62,letter:'B',name:'Building',  color:'#F0A500'},
-  {min:45,letter:'C',name:'Continuing',color:'#EA580C'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
+  {min:85,letter:'S',name:'Surpassing',color:'var(--grade)'},
+  {min:75,letter:'A',name:'Ascending', color:'var(--grade)'},
+  {min:62,letter:'B',name:'Building',  color:'var(--grade)'},
+  {min:45,letter:'C',name:'Continuing',color:'var(--grade)'},
+  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
 ];
 const WEEK_GRADES=[
-  {min:95,letter:'S',name:'Surpassing',color:'#10B981'},
-  {min:83,letter:'A',name:'Ascending', color:'#00F5D4'},
-  {min:65,letter:'B',name:'Building',  color:'#F0A500'},
-  {min:45,letter:'C',name:'Continuing',color:'#EA580C'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--red)'},
+  {min:95,letter:'S',name:'Surpassing',color:'var(--grade)'},
+  {min:83,letter:'A',name:'Ascending', color:'var(--grade)'},
+  {min:65,letter:'B',name:'Building',  color:'var(--grade)'},
+  {min:45,letter:'C',name:'Continuing',color:'var(--grade)'},
+  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
 ];
 const FATHOM_GRADES=[
-  {min:90,label:'Stoic',   color:'#4E9B8A',dcolor:'#6BBDB0'},
-  {min:78,label:'Apex',    color:'#5B8BAF',dcolor:'#7AAFD0'},
-  {min:62,label:'Bedrock', color:'#7878A0',dcolor:'#9F9FC0'},
-  {min:42,label:'Crescent',color:'#9C8B78',dcolor:'#BFAB98'},
-  {min:0, label:'Dusk',    color:'#888896',dcolor:'#ADADBB'},
+  {min:90,label:'Stoic',   color:'var(--grade)',dcolor:'var(--grade)'},
+  {min:78,label:'Apex',    color:'var(--grade)',dcolor:'var(--grade)'},
+  {min:62,label:'Bedrock', color:'var(--grade)',dcolor:'var(--grade)'},
+  {min:42,label:'Crescent',color:'var(--grade)',dcolor:'var(--grade)'},
+  {min:0, label:'Dusk',    color:'var(--grade)',dcolor:'var(--grade)'},
 ];
 const FATHOM_COLOR='#6B7FA8'; // checkbox color
 function fgColor(g){ return darkMode?g.dcolor:g.color; }
@@ -2392,30 +2386,26 @@ function mkTide(){
   const {done:_tqDone,total:_tqTotal}=todayStats();
   const _qInc=(qPoss-_tqTotal)-(qComp-_tqDone);
   const _qIncLine=_qInc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_qInc} incomplete</div>`:'';
-  const qHintLine=qNeeded>0?`<div id="tide-next-grade" style="font-size:11px;font-weight:600;color:var(--text3);margin-top:6px">${qNeeded} more → ${nextQGrade.letter} ${nextQGrade.name}${_qIncLine}</div>`:`<div id="tide-next-grade"></div>`;
+  const qHintLine='';
   const grpCards=activeGroups().map(g=>{
     const gp=grpQuarterScore(g,qi);
-    const gg=TIDE_GRADES.find(x=>gp>=x.min)||TIDE_GRADES[TIDE_GRADES.length-1];
-    const _gCol=_tideStarted?gg.color:'var(--text3)';
     return `<div style="flex:1;min-width:90px;border:1px solid var(--border2);border-left:3px solid ${g.color};border-radius:var(--r2);padding:10px 12px;text-align:center">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${g.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.name)}</div>
-      <div id="tide-gl-${g.id}" style="font-size:32px;font-weight:700;line-height:1.1;margin-top:6px;color:${_gCol}">${_tideStarted?gg.letter:'–'}</div>
-      <div id="tide-gn-${g.id}" style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-top:4px;color:${_gCol}">${_tideStarted?gg.name:''}</div>
-      <div id="tide-gp-${g.id}" style="font-size:11px;color:var(--text3);margin-top:5px">${_tideStarted?gp+'%':''}</div>
+      <div id="tide-gl-${g.id}" style="font-size:26px;font-weight:700;line-height:1.1;margin-top:8px;color:var(--grade)">${_tideStarted?gp+'%':'–'}</div>
     </div>`;
   }).join('');
   const {pct:fPct,hasData:fHas}=fathomQuarterStats(qi);
   const fGrade=fHas?fathomGrade(fPct):null;
   const fTideLine=fGrade
-    ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:${fgColor(fGrade)};margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em">FATHOM &middot; ${fGrade.label} &middot; ${fPct}%</div>`
+    ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:var(--grade);margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em">FATHOM &middot; ${fPct}%</div>`
     :'<div id="tide-fathom-line" style="display:none"></div>';
   const d=document.createElement('div');
   d.className='notes-card';
   d.innerHTML=`<div class="card-title">TIDE · Q${qi+1} ${CY}</div>
     <div style="display:flex;flex-direction:column;align-items:center;padding:20px 0 16px">
-      <div id="tide-letter" style="font-size:72px;font-weight:700;line-height:1;color:${_tideStarted?grade.color:'var(--text3)'};letter-spacing:-.02em">${_tideStarted?grade.letter:'–'}</div>
-      <div id="tide-name" style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${_tideStarted?grade.color:'var(--text3)'};margin-top:8px">${_tideStarted?grade.name:'Not started'}</div>
-      <div id="tide-pct" style="font-size:14px;font-weight:500;color:var(--text3);margin-top:10px">${_tideStarted?pct+'% ALIGNMENT':''}</div>
+      <div id="tide-letter" style="font-size:56px;font-weight:700;line-height:1;color:var(--grade);letter-spacing:-.02em">${_tideStarted?pct+'%':'–'}</div>
+      <div id="tide-name" style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-top:8px">${_tideStarted?'Alignment':'Not started'}</div>
+      <div id="tide-pct" style="display:none"></div>
       ${qHintLine}
       ${fTideLine}
     </div>
@@ -2429,25 +2419,20 @@ function updTide(){
   const qi=Math.floor(new Date().getMonth()/3);
   const {pct,poss}=quarterStats(qi);
   const _tideStarted=poss>0;
-  const grade=QUARTER_GRADES.find(g=>pct>=g.min)||QUARTER_GRADES[QUARTER_GRADES.length-1];
-  const _tCol=_tideStarted?grade.color:'var(--text3)';
   const letterEl=document.getElementById('tide-letter');
   const nameEl=document.getElementById('tide-name');
   const pctEl=document.getElementById('tide-pct');
-  if(letterEl){letterEl.textContent=_tideStarted?grade.letter:'–';letterEl.style.color=_tCol;}
-  if(nameEl){nameEl.textContent=_tideStarted?grade.name:'Not started';nameEl.style.color=_tCol;}
-  if(pctEl) pctEl.textContent=_tideStarted?`${pct}% ALIGNMENT`:'';
+  if(letterEl){letterEl.textContent=_tideStarted?pct+'%':'–';letterEl.style.color='var(--grade)';}
+  if(nameEl){nameEl.textContent=_tideStarted?'Alignment':'Not started';nameEl.style.color='var(--text3)';}
   const fEl=document.getElementById('tide-fathom-line');
-  if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fg.label} &middot; ${fp}%`;}else fEl.style.display='none';}
+  if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color='var(--grade)';fEl.innerHTML=`FATHOM &middot; ${fp}%`;}else fEl.style.display='none';}
   activeGroups().forEach(g=>{
     const gp=grpQuarterScore(g,qi);
-    const gg=TIDE_GRADES.find(x=>gp>=x.min)||TIDE_GRADES[TIDE_GRADES.length-1];
-    const _gCol=_tideStarted?gg.color:'var(--text3)';
     const gl=document.getElementById(`tide-gl-${g.id}`);
     const gn=document.getElementById(`tide-gn-${g.id}`);
     const gpp=document.getElementById(`tide-gp-${g.id}`);
-    if(gl){gl.textContent=_tideStarted?gg.letter:'–';gl.style.color=_gCol;}
-    if(gn){gn.textContent=_tideStarted?gg.name:'';gn.style.color=_gCol;}
+    if(gl){gl.textContent=_tideStarted?gp+'%':'–';gl.style.color='var(--grade)';}
+    if(gn){gn.textContent='';}
     if(gpp) gpp.textContent=_tideStarted?`${gp}%`:'';
   });
 }
@@ -2604,21 +2589,17 @@ function mkAnnual(){
   });
 
   const qHtml=quarters.map(q=>`
-    <div style="border:1px solid ${q.isCurQ?(q.grade?q.grade.color:'#00F5D4'):'var(--border2)'};border-radius:var(--r2);padding:12px 14px;background:var(--surface2)">
+    <div style="border:1px solid ${q.isCurQ?'var(--grade)':'var(--border2)'};border-radius:var(--r2);padding:12px 14px;background:var(--surface2)">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px">${q.label}</div>
       ${q.grade?`
-        <div style="display:flex;align-items:baseline;gap:6px">
-          <span style="font-size:30px;font-weight:800;line-height:1;color:${q.grade.color};letter-spacing:-.02em">${q.grade.letter}</span>
-          <span style="font-size:13px;font-weight:600;color:${q.grade.color}">${q.s.pct}%</span>
-        </div>
-        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:${q.grade.color};margin-top:5px">${q.grade.name}</div>
+        <div style="font-size:30px;font-weight:800;line-height:1;color:var(--grade);letter-spacing:-.02em">${q.s.pct}%</div>
       `:`
         <div style="font-size:24px;font-weight:600;color:var(--border);margin-top:2px">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:5px">Not started</div>
       `}
-      ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">${q.fGrade.label} · ${Math.floor(q.fc/q.fp*100)}%</div>`:''}
-      ${q.bestPct!==null?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${q.bestPct}%</span>${q.bestGrade?` · <span style="font-weight:600;color:var(--text3)">${q.bestGrade.letter} ${q.bestGrade.name}</span>`:''}</div>`:''}
-      ${q.qNeededForNext&&q.qNextGrade?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3);font-weight:600;cursor:default"${q.qGradeRows.length?' onmouseenter="openGradeTip(event)" onmouseleave="closeGradeTip()" data-grades="'+JSON.stringify(q.qGradeRows).replace(/"/g,'&quot;')+'"':''}>${q.qNeededForNext} more → ${q.qNextGrade.letter} ${q.qNextGrade.name}</div>${q.qIncomplete>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${q.qIncomplete} incomplete</div>`:''}`:q.qIncomplete>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:9px;color:var(--text3);font-weight:500;opacity:.7">${q.qIncomplete} incomplete</div>`:''}
+      ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">Fathom · ${Math.floor(q.fc/q.fp*100)}%</div>`:''}
+      ${q.bestPct!==null?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${q.bestPct}%</span></div>`:''}
+      ${q.qIncomplete>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:9px;color:var(--text3);font-weight:500;opacity:.7">${q.qIncomplete} incomplete</div>`:''}
     </div>`).join('');
 
   d.innerHTML=`
@@ -2628,12 +2609,9 @@ function mkAnnual(){
         <div style="font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--text1)">${CY}</div>
       </div>
       ${yGrade?`
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="text-align:right">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${yGrade.color}">${yGrade.name}</div>
-            <div style="font-size:12px;color:var(--text3);margin-top:2px">${yr.pct}% · Full Year</div>
-          </div>
-          <div style="font-size:52px;font-weight:800;line-height:1;color:${yGrade.color};letter-spacing:-.03em">${yGrade.letter}</div>
+        <div style="display:flex;align-items:baseline;gap:9px">
+          <div style="font-size:44px;font-weight:800;line-height:1;color:var(--grade);letter-spacing:-.03em">${yr.pct}%</div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Full Year</div>
         </div>
       `:''}
     </div>
@@ -2671,14 +2649,13 @@ function mkAnnual(){
             if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
           }
         }
-        return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})"${isCur?` style="border-color:${tideGrade?tideGrade.color:'#00F5D4'}"`:''}">
+        return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})"${isCur?` style="border-color:var(--grade)"`:''}">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-            <div style="font-size:13px;font-weight:600">${name}${isCur?` <span style="font-size:10px;color:${tideGrade?tideGrade.color:'#00F5D4'}">← Now</span>`:''}</div>
-            ${tideGrade?`<span style="font-size:17px;font-weight:700;color:${tideGrade.color};line-height:1;flex-shrink:0;margin-left:6px">${tideGrade.letter}</span>`:''}
+            <div style="font-size:13px;font-weight:600">${name}${isCur?` <span style="font-size:10px;color:var(--grade)">← Now</span>`:''}</div>
           </div>
           <div class="mo-bar"><div class="mo-fill" style="width:${rate}%;background:${barC}"></div></div>
           <div class="mo-stat">${rate}% · ${comp}/${poss||'—'}</div>
-          ${fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">${fGrade.label} · ${Math.floor(fc/fp*100)}%</div>`:''}
+          ${fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">Fathom · ${Math.floor(fc/fp*100)}%</div>`:''}
         </div>`;
       }).join('')}
     </div>`;
@@ -3699,7 +3676,7 @@ function buildHzTable(){
     const wd=hzWkData[ws.week];
     const wg=wd?WEEK_GRADES.find(g=>wd.pct>=g.min):null;
     const started=todayD<0||ws.start<=todayD;
-    const bStyle=wg?`background:${wg.color}20;color:${wg.color};border:1px solid ${wg.color}50`:`color:var(--text3);border:1px solid var(--border2)`;
+    const bStyle=wg?`background:var(--surface2);color:var(--grade);border:1px solid var(--border2)`:`color:var(--text3);border:1px solid var(--border2)`;
     const hzWStats=hzWeekAllStats[ws.week];
     const hzGdJson=hzWStats?JSON.stringify(hzWStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
     const wAarHas=!!getWeekAAR(ws.week);
@@ -3722,7 +3699,7 @@ function buildHzTable(){
     const archBtns=!editMode?'':wArchived
       ?`<button class="wk-arc-btn wk-arc-on" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Archived — click to unlock this week's habit list">${ICO_LOCK}</button><button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current habits">${ICO_DISCARD}</button>`
       :`<button class="wk-arc-btn" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Archive Week — freeze this week's habit list so it keeps its own history">${ICO_LOCK}</button>${splitBtn}${wHasSnap?`<button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">${ICO_DISCARD}</button>`:''}`;
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wg.letter+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
     rC.appendChild(th);
   });
   thead.appendChild(rC);
@@ -4067,7 +4044,7 @@ function mkFathomGrid(){
       <span style="font-weight:800;letter-spacing:.14em;color:var(--text1)">FATHOM</span>
     </span>
     <div style="display:flex;align-items:center;gap:8px">
-      <span id="fathom-hdr-grade" style="font-size:11px;font-weight:600;color:${mGrade?fgColor(mGrade):'var(--text3)'}">${mGrade?`${mGrade.label} &middot; ${mPct}%`:''}</span>
+      <span id="fathom-hdr-grade" style="font-size:11px;font-weight:600;color:${mGrade?'var(--grade)':'var(--text3)'}">${mGrade?`${mPct}%`:''}</span>
       ${fathomEditMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
       <button class="btn ${fathomEditMode?'btn-on':''}" onclick="toggleFathomEdit()">${fathomEditMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>`;
@@ -4137,10 +4114,9 @@ function mkFathomGrid(){
     const wd=fWkData[ws.week];
     const wg=wd?fathomGrade(wd.pct):null;
     const started=todayD<0||ws.start<=todayD;
-    const col=wg?fgColor(wg):'var(--text3)';
-    const bStyle=wg?`background:${col}20;color:${col};border:1px solid ${col}50`:`color:var(--text3);border:1px solid var(--border2)`;
+    const bStyle=wg?`background:var(--surface2);color:var(--grade);border:1px solid var(--border2)`:`color:var(--text3);border:1px solid var(--border2)`;
     const wAarHas=!!getWeekAAR(ws.week);
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wg.label+' · '+wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}-f" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}-f" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
     rB.appendChild(th);
   });
   thead.appendChild(rB);
@@ -4299,8 +4275,8 @@ function updFathomHeader(){
   const el=document.getElementById('fathom-hdr-grade'); if(!el) return;
   const {pct,hasData}=fathomMonthStats();
   const g=hasData?fathomGrade(pct):null;
-  el.innerHTML=g?`${g.label} &middot; ${pct}%`:'';
-  el.style.color=g?fgColor(g):'var(--text3)';
+  el.innerHTML=g?`${pct}%`:'';
+  el.style.color=g?'var(--grade)':'var(--text3)';
 }
 
 function addFathomItem(){
