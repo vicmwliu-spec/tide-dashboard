@@ -1001,18 +1001,16 @@ function render(){
     seCard.className='chart-card';
     seCard.style.marginBottom='14px';
     const _seoc=D.chartColors||{};
-    const _survivalColor=darkMode?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.2)';
     const _seLegendItems=[
-      {key:'seSuccess',color:_seoc.seSuccess||'#F59E0B',label:'Success',dashed:false},
-      {key:'seFailure',color:_seoc.seFailure||'#DC2626',label:'Regret',dashed:false},
-      {key:null,color:_survivalColor,label:'Survival',dashed:true},
-      {key:'sePath',color:_seoc.sePath||'#6366F1',label:'Life Path',dashed:false},
+      {key:'seSuccess',color:_seoc.seSuccess||'#F59E0B',label:'Upwards',dashed:false},
+      {key:'seFailure',color:_seoc.seFailure||'#DC2626',label:'Downwards',dashed:false},
+      {key:'sePath',color:_seoc.sePath||'#6366F1',label:'Compounding',dashed:false},
     ].map(({key,color,label,dashed})=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
       ${key?`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`:`<div style="width:11px;height:11px"></div>`}
       <div style="width:20px;height:2px;${dashed?`background:repeating-linear-gradient(90deg,${color} 0,${color} 4px,transparent 4px,transparent 8px)`:`background:${color}`}"></div>
       <span style="font-size:10px;color:var(--text3);white-space:nowrap">${label}</span>
     </div>`).join('');
-    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge</span><div style="display:flex;gap:14px;align-items:flex-end">${_seLegendItems}</div></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
+    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Alignment</span><div style="display:flex;gap:14px;align-items:flex-end">${_seLegendItems}</div></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
     app.appendChild(seCard);
     setTimeout(()=>buildSlightEdgeChart('se-all-time'),0);
     app.appendChild(mkAnnual());
@@ -1602,7 +1600,7 @@ function buildStats(){
       ${nextGradeLine}
       ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>`;
   const daysCard=`<div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>`;
-  const todayCard=`<div class="stat"><div class="stat-lbl">Today's Slight Edge</div>
+  const todayCard=`<div class="stat"><div class="stat-lbl">Today's Alignment</div>
       <div style="display:flex;align-items:baseline;gap:9px;margin-top:2px">
         <span class="stat-val" id="sv-today-grade" style="color:${todayGrade?todayGrade.color:'var(--text3)'}">${todayGrade?todayGrade.letter:'—'}</span>
         ${todayGrade?`<span style="font-size:16px;font-weight:600;color:${todayGrade.color}" id="sv-today-rate">${tPct}%</span>`:'<span id="sv-today-rate"></span>'}
@@ -1671,7 +1669,7 @@ function mkChart(){
   const d=document.createElement('div');
   d.className='chart-card';
   d.innerHTML=`<div class="grid-bar">
-    <div class="grid-bar-l">Slight Edge Curve</div>
+    <div class="grid-bar-l">Alignment Curve</div>
     <div style="display:flex;gap:8px">
       ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}
       <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
@@ -1794,7 +1792,7 @@ function mkHzChart(){
     </div>
     <div style="margin-top:10px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px;transition:width .4s"></div></div>`;
   } else {
-    d.innerHTML=`<div class="card-title">Slight Edge Curve</div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
+    d.innerHTML=`<div class="card-title">Alignment Curve</div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
     setTimeout(()=>buildHzChart(),0);
   }
   return d;
@@ -1806,7 +1804,7 @@ function showChartPopup(){
   ov.style.cssText='position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML=`<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:600px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.3)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <span style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Slight Edge Curve</span>
+      <span style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Alignment Curve</span>
       <button onclick="hideChartPopup()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);padding:2px 6px;line-height:1">✕</button>
     </div>
     <div style="position:relative;height:260px"><canvas id="hz-pc"></canvas></div>
@@ -1901,7 +1899,7 @@ function buildGroupHeaderRow(groups,editable,cornerLabel){
 
   const pctH=document.createElement('th');
   pctH.className='sr sr-1 st hz-sum-th';pctH.rowSpan=2;
-  pctH.textContent='SE %';r1.appendChild(pctH);
+  pctH.textContent='AL %';r1.appendChild(pctH);
 
   return r1;
 }
@@ -1989,7 +1987,7 @@ function buildTFoot(){
 
   const rows={
     done:mkAnaRow('Done'),
-    rate:mkAnaRow('Slight Edge %'),
+    rate:mkAnaRow('Alignment %'),
   };
 
   activeGroups().forEach((g,gi)=>{
@@ -2521,10 +2519,10 @@ function buildSlightEdgeChart(canvasId){
   seChartInst=new Chart(cv,{
     type:'line',
     data:{datasets:[
-      {label:'Success',data:success,borderColor:successColor,backgroundColor:lpUp?_hex2rgba(successColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
-      {label:'Regret',data:failure,borderColor:regretColor,backgroundColor:!lpUp?_hex2rgba(regretColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:!lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
+      {label:'Upwards',data:success,borderColor:successColor,backgroundColor:lpUp?_hex2rgba(successColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
+      {label:'Downwards',data:failure,borderColor:regretColor,backgroundColor:!lpUp?_hex2rgba(regretColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:!lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
       {label:'Survival',data:sqLine,borderColor:darkMode?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.2)',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
-      {label:'Life Path',data:fullActual,borderColor:oc.sePath||'#6366F1',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5},
+      {label:'Compounding',data:fullActual,borderColor:oc.sePath||'#6366F1',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5},
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
@@ -3659,7 +3657,7 @@ function buildHzTable(){
   pctPh1.className='sr sr-1 st hz-sum-th';
   pctPh1.rowSpan=4;
   pctPh1.style.verticalAlign='bottom';
-  pctPh1.textContent='SE %';
+  pctPh1.textContent='AL %';
   rA.appendChild(donePh1);rA.appendChild(pctPh1);
   thead.appendChild(rA);
 
@@ -4117,7 +4115,7 @@ function mkFathomGrid(){
   const donePh=document.createElement('th');
   donePh.className='sr sr-2 st hz-sum-th first-sum';donePh.rowSpan=3;donePh.style.verticalAlign='bottom';donePh.textContent='Done';
   const pctPh=document.createElement('th');
-  pctPh.className='sr sr-1 st hz-sum-th';pctPh.rowSpan=3;pctPh.style.verticalAlign='bottom';pctPh.textContent='SE %';
+  pctPh.className='sr sr-1 st hz-sum-th';pctPh.rowSpan=3;pctPh.style.verticalAlign='bottom';pctPh.textContent='AL %';
   rA.appendChild(donePh);rA.appendChild(pctPh);
   thead.appendChild(rA);
 
