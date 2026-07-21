@@ -694,6 +694,9 @@ function chartConf(){
 function gradeAccent(){ return (D.chartColors&&D.chartColors.sePath)||(darkMode?'#6BBDB0':'#4E9B8A'); }
 function applyGradeAccent(){ document.documentElement.style.setProperty('--grade',gradeAccent()); }
 function gradeColor(){ return gradeAccent(); }
+// A habit's effective color: its own if set, else its group's (unless the group
+// is the invisible "ungrouped" bucket), else the calm accent.
+function habitColor(h,g){ return (h&&h.color) || (g&&!g._default?g.color:gradeAccent()); }
 
 function chartFillGradient(ctx,chartArea){
   const color=gradeColor();
@@ -956,16 +959,16 @@ function cumulData(){
   }
   let groups;
   if(chartUnit==='habit'){
-    // One line per habit: per-day cumulative running completion rate over
-    // non-skipped days (smoother/more meaningful than a single habit's 0/100).
-    const habits=activeGroups().flatMap(g=>g.habits.filter(hb=>!hb.archived));
-    groups=habits.map((hb,i)=>{
-      const pts=[];let done=0,considered=0;
+    // One line per habit, using the SAME per-day % as the group/overall lines
+    // (single habit: 100 when checked, 0 otherwise) so the curves match in style.
+    const pairs=activeGroups().flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({hb,g})));
+    groups=pairs.map(({hb,g})=>{
+      const pts=[];
       for(let d=1;d<=days;d++){
-        if(!isSkip(hb.id,d)){considered++;if(isChk(hb.id,d))done++;}
-        pts.push({x:d,y:considered?Math.round(done/considered*100):0});
+        const y=(!isSkip(hb.id,d)&&isChk(hb.id,d))?100:0;
+        pts.push({x:d,y});
       }
-      return {id:hb.id,name:hb.name,color:PAL[i%PAL.length],data:pts};
+      return {id:hb.id,name:hb.name,color:habitColor(hb,g),data:pts};
     });
   } else {
     groups=activeGroups().map(g=>{
@@ -2843,6 +2846,45 @@ function setGroupColor(gid,color){
   });
   save();render();
 }
+function _findHabit(hid){ for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h)return h;} return null; }
+function setHabitColor(hid,color){ const h=_findHabit(hid); if(!h)return; h.color=color; save();render(); }
+function openHabitColorPop(e,hid){
+  e.stopPropagation();
+  const old=document.getElementById('cpop');
+  if(old){old.remove();if(colorPopTarget==='h:'+hid){colorPopTarget=null;return}}
+  colorPopTarget='h:'+hid;
+  const cur=_findHabit(hid);
+  const pop=document.createElement('div');
+  pop.className='color-popup';pop.id='cpop';
+  PAL.forEach(c=>{
+    const sw=document.createElement('div');
+    sw.className='csw'+(cur&&cur.color===c?' csw-active':'');
+    sw.style.background=c;
+    sw.onclick=(ev)=>{ev.stopPropagation();setHabitColor(hid,c);pop.remove();colorPopTarget=null};
+    pop.appendChild(sw);
+  });
+  const customSw=document.createElement('div');
+  customSw.className='csw';customSw.title='Custom color';
+  customSw.style.cssText='background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative;overflow:hidden;cursor:pointer';
+  const customIn=document.createElement('input');
+  customIn.type='color';
+  customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
+  customIn.addEventListener('input',ev=>{ev.stopPropagation();setHabitColor(hid,ev.target.value);});
+  customIn.addEventListener('change',ev=>{ev.stopPropagation();pop.remove();colorPopTarget=null;});
+  if(cur&&cur.color&&!PAL.includes(cur.color)){customIn.value=cur.color;customSw.classList.add('csw-active');}
+  customSw.appendChild(customIn);
+  customSw.onclick=ev=>ev.stopPropagation();
+  pop.appendChild(customSw);
+  const r=e.target.getBoundingClientRect();
+  const PW=116,PH=96;
+  let top=r.bottom+6,left=r.left;
+  if(top+PH>window.innerHeight-8) top=r.top-PH-6;
+  if(left+PW>window.innerWidth-8) left=window.innerWidth-PW-8;
+  if(left<8) left=8;
+  if(top<8) top=8;
+  pop.style.top=top+'px';pop.style.left=left+'px';
+  document.body.appendChild(pop);
+}
 
 // ─────────────────────────────────────────
 //  ACTIONS
@@ -3443,7 +3485,14 @@ function _dropTemplate(targetTid,insertBefore=true){
 }
 
 function deleteGroup(gid){
-  if(!confirm('Delete this group and all its habits?')) return;
+  const g=D.groups.find(g=>g.id===gid);
+  if(!g) return;
+  const kept=(g.habits||[]).filter(h=>!h.archived).length;
+  if(!confirm(kept?`Delete this group? Its ${kept} habit${kept>1?'s':''} will be kept (moved out of the group).`:'Delete this group?')) return;
+  if(g.habits&&g.habits.length){
+    g.habits.forEach(h=>{ if(!h.color) h.color=g.color; }); // keep each habit's look after the group is gone
+    _defaultGroup().habits.push(...g.habits);
+  }
   D.groups=D.groups.filter(g=>g.id!==gid);
   save();render();
 }
@@ -3795,12 +3844,14 @@ function buildHzTable(){
     } else {
       grpTd.innerHTML=`<div class="grp-badge" style="background:${badgeBg};color:${_readableColor(g.color)}"><div class="grp-dot${_isLightColor(g.color)?' lum-light':_isDarkColor(g.color)?' lum-dark':''}" style="background:${g.color}"></div>${esc(g.name)}</div>`;
     }
-    grpTr.appendChild(grpTd);tbody.appendChild(grpTr);
+    // The invisible "ungrouped" bucket renders no header row — its habits appear flat.
+    if(!g._default){ grpTr.appendChild(grpTd);tbody.appendChild(grpTr); }
 
     // Habit rows
     g.habits.filter(h=>!h.archived).forEach(h=>{
       const tr=document.createElement('tr');
       tr.className='hz-row';
+      const hc=habitColor(h,g);
       const nameTd=document.createElement('td');
       nameTd.className='sl hz-habit-td';
       if(editMode){
@@ -3809,6 +3860,7 @@ function buildHzTable(){
         nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;overflow:hidden">
           <div style="display:flex;align-items:center;gap:2px">
             <span class="dnd-grip" style="margin-right:1px">⠿</span>
+            <button class="color-dot-btn" style="display:block;background:${hc};flex-shrink:0" onclick="openHabitColorPop(event,'${h.id}')" title="Habit color"></button>
             <input class="hbt-in" style="text-align:left;flex:1;min-width:0;width:auto" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
           </div>
           <div style="display:flex;align-items:center;gap:4px;padding-left:16px">
@@ -3857,7 +3909,8 @@ function buildHzTable(){
         const _wi=weekOfDay(CY,CM,_refDay);
         const _wp=habitWeeklyProgress(CY,CM,h.id,_wi);
         const _wpBadge=_wp?`<span class="wk-target-badge" title="This week's target">${_wp.done}/${_wp.target}</span>`:'';
-        nameTd.innerHTML=`<div class="hz-habit-name"${_hztip}>${esc(h.name)}${_wpBadge}</div><div class="hz-habit-grp" style="color:${g.color}">${esc(g.name)}</div>`;
+        const _hDot=`<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${hc};margin-right:5px;flex-shrink:0;vertical-align:middle"></span>`;
+        nameTd.innerHTML=`<div class="hz-habit-name"${_hztip}>${_hDot}${esc(h.name)}${_wpBadge}</div>${g._default?'':`<div class="hz-habit-grp" style="color:${g.color}">${esc(g.name)}</div>`}`;
       }
       tr.appendChild(nameTd);
 
@@ -3875,9 +3928,9 @@ function buildHzTable(){
         const td=document.createElement('td');
         td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'')+(foff?' freq-off-c':'');
         td.id=`hzcc-${h.id}-${d}`;
-        td.dataset.color=g.color;
-        if(!isFuture&&!foff) td.onclick=()=>doHzToggle(h.id,d,g.color);
-        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="hzcb-${h.id}-${d}" style="background:${chk?g.color:'transparent'};border-color:${chk?g.color:'var(--border)'}"></div>`;
+        td.dataset.color=hc;
+        if(!isFuture&&!foff) td.onclick=()=>doHzToggle(h.id,d,hc);
+        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="hzcb-${h.id}-${d}" style="background:${chk?hc:'transparent'};border-color:${chk?hc:'var(--border)'}"></div>`;
         tr.appendChild(td);
       }
 
