@@ -687,11 +687,12 @@ function chartConf(){
   };
 }
 
-function gradeColor(){
-  // Neutralized to the single calm accent (teal) — the habit-grid chart fill no
-  // longer changes with score. Returns a real hex (chartFillGradient slices it).
-  return darkMode?'#6BBDB0':'#4E9B8A';
-}
+// Single calm accent for all % scores. Driven by the "Compounding" chart color
+// (D.chartColors.sePath) so changing that recolors every score; falls back to a
+// theme-aware teal when not customized. Returns a real hex (some callers slice it).
+function gradeAccent(){ return (D.chartColors&&D.chartColors.sePath)||(darkMode?'#6BBDB0':'#4E9B8A'); }
+function applyGradeAccent(){ document.documentElement.style.setProperty('--grade',gradeAccent()); }
+function gradeColor(){ return gradeAccent(); }
 
 function chartFillGradient(ctx,chartArea){
   const color=gradeColor();
@@ -986,6 +987,7 @@ function cumulProgressData(){
 //  RENDER MAIN
 // ─────────────────────────────────────────
 function render(){
+  applyGradeAccent();
   const wasSel=_keepSel;
   _keepSel=false;
   if(!wasSel) _sel.clear();
@@ -1003,7 +1005,7 @@ function render(){
     const _seLegendItems=[
       {key:'seSuccess',color:_seoc.seSuccess||'#F59E0B',label:'Upwards',dashed:false},
       {key:'seFailure',color:_seoc.seFailure||'#DC2626',label:'Downwards',dashed:false},
-      {key:'sePath',color:_seoc.sePath||'#6366F1',label:'Compounding',dashed:false},
+      {key:'sePath',color:gradeAccent(),label:'Compounding',dashed:false},
     ].map(({key,color,label,dashed})=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
       ${key?`<span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>`:`<div style="width:11px;height:11px"></div>`}
       <div style="width:20px;height:2px;${dashed?`background:repeating-linear-gradient(90deg,${color} 0,${color} 4px,transparent 4px,transparent 8px)`:`background:${color}`}"></div>
@@ -2512,7 +2514,7 @@ function buildSlightEdgeChart(canvasId){
       {label:'Upwards',data:success,borderColor:successColor,backgroundColor:lpUp?_hex2rgba(successColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
       {label:'Downwards',data:failure,borderColor:regretColor,backgroundColor:!lpUp?_hex2rgba(regretColor,0.2):'transparent',borderWidth:1.5,tension:.4,fill:!lpUp?'origin':false,pointRadius:0,pointHoverRadius:0},
       {label:'Survival',data:sqLine,borderColor:darkMode?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.2)',borderWidth:1,borderDash:[4,4],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
-      {label:'Compounding',data:fullActual,borderColor:oc.sePath||'#6366F1',borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5},
+      {label:'Compounding',data:fullActual,borderColor:gradeAccent(),borderWidth:2.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:5},
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
@@ -2745,7 +2747,7 @@ function openChartColorPop(e,key){
   customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
   const curForInput=(D.chartColors&&D.chartColors[key]);
   if(curForInput&&!PAL.includes(curForInput)){customIn.value=curForInput;customSw.classList.add('csw-active');}
-  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;buildSlightEdgeChart('se-all-time');});
+  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;if(key==='sePath')applyGradeAccent();buildSlightEdgeChart('se-all-time');});
   customIn.addEventListener('change',ev=>{ev.stopPropagation();save();render();pop.remove();chartColorPopKey=null;});
   customSw.appendChild(customIn);customSw.onclick=ev=>ev.stopPropagation();
   pop.appendChild(customSw);
