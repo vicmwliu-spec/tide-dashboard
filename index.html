@@ -516,6 +516,7 @@ let chartInst = null;
 let hzChartInst = null;
 let seChartInst = null;
 let chartSoloState = null;
+let chartUnit = 'group'; // 'group'|'habit' — chart lines per group or per habit
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
 let _aarDay = null; // currently open AAR day
@@ -953,15 +954,30 @@ function cumulData(){
     const p=dayProg(d);
     overall.push({x:d,y:p.pct});
   }
-  const groups=activeGroups().map(g=>{
-    const pts=[];
-    for(let d=1;d<=days;d++){
-      let done=0,tot=0;
-      g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;if(isChk(hb.id,d))done++;}});
-      pts.push({x:d,y:tot?Math.floor(done/tot*100):0});
-    }
-    return {id:g.id,name:g.name,color:g.color,data:pts};
-  });
+  let groups;
+  if(chartUnit==='habit'){
+    // One line per habit: per-day cumulative running completion rate over
+    // non-skipped days (smoother/more meaningful than a single habit's 0/100).
+    const habits=activeGroups().flatMap(g=>g.habits.filter(hb=>!hb.archived));
+    groups=habits.map((hb,i)=>{
+      const pts=[];let done=0,considered=0;
+      for(let d=1;d<=days;d++){
+        if(!isSkip(hb.id,d)){considered++;if(isChk(hb.id,d))done++;}
+        pts.push({x:d,y:considered?Math.round(done/considered*100):0});
+      }
+      return {id:hb.id,name:hb.name,color:PAL[i%PAL.length],data:pts};
+    });
+  } else {
+    groups=activeGroups().map(g=>{
+      const pts=[];
+      for(let d=1;d<=days;d++){
+        let done=0,tot=0;
+        g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;if(isChk(hb.id,d))done++;}});
+        pts.push({x:d,y:tot?Math.floor(done/tot*100):0});
+      }
+      return {id:g.id,name:g.name,color:g.color,data:pts};
+    });
+  }
   return {overall,groups};
 }
 function firstActiveDay(){
@@ -1665,6 +1681,8 @@ function mkChart(){
     <div class="grid-bar-l">Alignment Curve</div>
     <div style="display:flex;gap:8px">
       ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}
+      ${editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Habit</button>`:''}
+      <button class="btn" onclick="toggleChartUnit()">Chart: ${chartUnit==='group'?'Groups':'Habits'}</button>
       <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>
   </div>
@@ -1717,6 +1735,7 @@ function toggleChartDs(label){
   });
   _refreshPresetBtns();
 }
+function toggleChartUnit(){ chartUnit=chartUnit==='group'?'habit':'group'; chartSoloState=null; render(); }
 function buildChart(){
   const cv=document.getElementById('pc');
   if(!cv) return;
@@ -3328,6 +3347,20 @@ function addGroup(){
   save();render();
 }
 
+// Catch-all group so a habit can be added without creating a group first.
+function _defaultGroup(){
+  let g=D.groups.find(g=>g._default);
+  if(!g){ g={id:uid(),name:'Habits',color:PAL[D.groups.length%PAL.length],startDate:todayStr(),_default:true,habits:[]}; D.groups.push(g); }
+  return g;
+}
+function addLooseHabit(){
+  const g=_defaultGroup();
+  const h={id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()};
+  g.habits.push(h);
+  applyHabitStartDateSkips(h.id,h.startDate);
+  save();render();
+}
+
 function moveGroup(gid,dir){
   const i=D.groups.findIndex(g=>g.id===gid);
   if(i===-1) return;
@@ -3590,7 +3623,7 @@ function mkGridHorizontal(){
   bar.className='grid-bar';
   const hasData2=!!D.months[mk(CY,CM)];
   const _arch2=isMonthArchived();const _snap2=hasMonthSnapshot();
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Habit</button>`:''} <button class="btn" onclick="toggleChartUnit()">Chart: ${chartUnit==='group'?'Groups':'Habits'}</button> ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
