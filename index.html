@@ -56,16 +56,16 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* ── Quote ── */
 .quote-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
 .quote-icon{color:var(--text3);font-size:22px;line-height:1;margin-top:1px;flex-shrink:0}
-.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden}
+.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden}
 .quote-ta::placeholder{color:var(--text3)}
 /* ── Priority ── */
 .priority-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .priority-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap;margin-top:3px;flex-shrink:0}
-.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
 .priority-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Notes ── */
 .notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
-.notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
 .notes-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Top row ── */
 .top-row{display:flex;gap:14px;margin-bottom:14px;align-items:stretch}
@@ -76,13 +76,13 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;box-shadow:var(--shadow)}
 .stat-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:5px}
-.stat-val{font-size:26px;font-weight:700;letter-spacing:-.5px;line-height:1}
+.stat-val{font-size:32px;font-weight:700;letter-spacing:-.5px;line-height:1}
 .stat-sub{font-size:11px;color:var(--text3);margin-top:3px}
 
 /* ── Chart ── */
 .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
 .card-title{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:14px}
-.chart-wrap{position:relative;height:230px;overflow:hidden}
+.chart-wrap{position:relative;height:300px;overflow:hidden}
 
 /* ── Grid ── */
 .grid-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px;box-shadow:var(--shadow)}
@@ -143,7 +143,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .chk-c{text-align:center;padding:3px 5px;cursor:pointer;user-select:none}
 .chk-c:hover{background:var(--border2)}
 .chk-c.future{opacity:.35;cursor:default;pointer-events:none}
-.chk-box{width:22px;height:22px;border-radius:5px;border:1.5px solid var(--border);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;transition:all .13s;will-change:transform}
+.chk-box{width:26px;height:26px;border-radius:6px;border:1.5px solid var(--border);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;transition:all .13s;will-change:transform}
 @keyframes pop{0%{transform:scale(.75)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
 .chk-pop{animation:pop .18s ease}
 
@@ -179,7 +179,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol,.notes-ta ol ol,.intention-ta ol ol{list-style-type:lower-alpha}
 #aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol,.notes-ta ol ol ol,.intention-ta ol ol ol{list-style-type:lower-roman}
 /* Richtext contenteditable */
-.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);line-height:1.6;word-break:break-word;min-height:1.4em}
+.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);line-height:1.6;word-break:break-word;min-height:1.4em}
 .quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 
 /* ── Annual ── */
@@ -235,15 +235,15 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .sd-pill input[type="date"]{position:absolute;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;border:none;padding:0;margin:0}
 
 /* ── Horizontal layout ── */
-.hz-day-th{text-align:center;padding:4px 2px;font-size:10px;font-weight:600;color:var(--text2);white-space:nowrap;vertical-align:bottom}
-.hz-day-th .hd-num{font-size:12px;font-weight:700;display:block;line-height:1.2}
-.hz-day-th .hd-dow{font-size:9px;color:var(--text3);font-weight:500;display:block}
+.hz-day-th{text-align:center;padding:5px 3px;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;vertical-align:bottom}
+.hz-day-th .hd-num{font-size:14px;font-weight:700;display:block;line-height:1.2}
+.hz-day-th .hd-dow{font-size:10px;color:var(--text3);font-weight:500;display:block}
 .hz-day-th.today-col{background:var(--today-bg)}
 .hz-day-th.today-col .hd-num{color:var(--accent)}
-.hz-habit-td{text-align:left;padding:5px 8px 5px 10px;border-right:2px solid var(--border) !important;white-space:normal;overflow-wrap:break-word;background:var(--surface)}
-.hz-habit-name{font-size:11px;font-weight:500;color:var(--text2);line-height:1.2}
+.hz-habit-td{text-align:left;padding:7px 10px 7px 12px;border-right:2px solid var(--border) !important;white-space:normal;overflow-wrap:break-word;background:var(--surface)}
+.hz-habit-name{font-size:13px;font-weight:500;color:var(--text2);line-height:1.25}
 .hz-habit-grp{font-size:10px;color:var(--text3)}
-.hz-chk-c{text-align:center;padding:3px 2px;cursor:pointer;user-select:none}
+.hz-chk-c{text-align:center;padding:5px 3px;cursor:pointer;user-select:none}
 .hz-chk-c:hover{background:var(--border2)}
 .hz-chk-c.today-col{background:var(--today-bg)}
 .hz-chk-c.today-col:hover{background:#DBEAFE}
@@ -254,8 +254,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .hz-chart-corner{text-align:left;padding:8px 14px;vertical-align:bottom;border-right:2px solid var(--border) !important;background:var(--surface)}
 .hz-chart-corner-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)}
 .hz-chart-td{padding:0;vertical-align:bottom;border-bottom:2px solid var(--border) !important}
-.hz-sum-th{width:56px;min-width:56px;text-align:center;padding:4px 6px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);border-bottom:2px solid var(--border)}
-.hz-sum-td{width:56px;min-width:56px;text-align:center;padding:4px 6px;font-size:11px;font-weight:500;color:var(--text2)}
+.hz-sum-th{width:64px;min-width:64px;text-align:center;padding:6px 8px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);border-bottom:2px solid var(--border)}
+.hz-sum-td{width:64px;min-width:64px;text-align:center;padding:6px 8px;font-size:13px;font-weight:500;color:var(--text2)}
 .hz-sum-td.first-sum{border-left:2px solid var(--border) !important}
 .hz-sum-th.first-sum{border-left:2px solid var(--border) !important}
 .hz-week-sep{border-left:1px dashed var(--border) !important}
@@ -1033,7 +1033,7 @@ function render(){
       <div style="width:20px;height:2px;${dashed?`background:repeating-linear-gradient(90deg,${color} 0,${color} 4px,transparent 4px,transparent 8px)`:`background:${color}`}"></div>
       <span style="font-size:10px;color:var(--text3);white-space:nowrap">${label}</span>
     </div>`).join('');
-    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Alignment</span><div style="display:flex;gap:14px;align-items:flex-end">${_seLegendItems}</div></div><div class="chart-wrap" style="height:200px"><canvas id="se-all-time"></canvas></div>`;
+    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Alignment</span><div style="display:flex;gap:14px;align-items:flex-end">${_seLegendItems}</div></div><div class="chart-wrap" style="height:260px"><canvas id="se-all-time"></canvas></div>`;
     app.appendChild(seCard);
     setTimeout(()=>buildSlightEdgeChart('se-all-time'),0);
     app.appendChild(mkAnnual());
