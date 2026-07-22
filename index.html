@@ -1551,7 +1551,7 @@ function _fathomStatLine(id,pct,label,hasData){
   const c=fgColor(g);
   return `<div id="${id}" style="margin-top:7px;padding-top:7px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
     <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">${label}</span>
-    <span style="font-size:11px;font-weight:600;color:var(--grade)">${pct}%</span>
+    <span style="font-size:11px;font-weight:600;color:${c}">${pct}%</span>
   </div>`;
 }
 
@@ -2195,11 +2195,11 @@ const WEEK_GRADES=[
   {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
 ];
 const FATHOM_GRADES=[
-  {min:90,label:'Stoic',   color:'var(--grade)',dcolor:'var(--grade)'},
-  {min:78,label:'Apex',    color:'var(--grade)',dcolor:'var(--grade)'},
-  {min:62,label:'Bedrock', color:'var(--grade)',dcolor:'var(--grade)'},
-  {min:42,label:'Crescent',color:'var(--grade)',dcolor:'var(--grade)'},
-  {min:0, label:'Dusk',    color:'var(--grade)',dcolor:'var(--grade)'},
+  {min:90,label:'Stoic',   color:'#4E9B8A',dcolor:'#6BBDB0'},
+  {min:78,label:'Apex',    color:'#5B8BAF',dcolor:'#7AAFD0'},
+  {min:62,label:'Bedrock', color:'#7878A0',dcolor:'#9F9FC0'},
+  {min:42,label:'Crescent',color:'#9C8B78',dcolor:'#BFAB98'},
+  {min:0, label:'Dusk',    color:'#888896',dcolor:'#ADADBB'},
 ];
 const FATHOM_COLOR='#6B7FA8'; // checkbox color
 function fgColor(g){ return darkMode?g.dcolor:g.color; }
@@ -2424,7 +2424,7 @@ function mkTide(){
   const {pct:fPct,hasData:fHas}=fathomQuarterStats(qi);
   const fGrade=fHas?fathomGrade(fPct):null;
   const fTideLine=fGrade
-    ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:var(--grade);margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em">FATHOM &middot; ${fPct}%</div>`
+    ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:${fgColor(fGrade)};margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em">FATHOM &middot; ${fPct}%</div>`
     :'<div id="tide-fathom-line" style="display:none"></div>';
   const d=document.createElement('div');
   d.className='notes-card';
@@ -2452,7 +2452,7 @@ function updTide(){
   if(letterEl){letterEl.textContent=_tideStarted?pct+'%':'–';letterEl.style.color='var(--grade)';}
   if(nameEl){nameEl.textContent=_tideStarted?'Alignment':'Not started';nameEl.style.color='var(--text3)';}
   const fEl=document.getElementById('tide-fathom-line');
-  if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color='var(--grade)';fEl.innerHTML=`FATHOM &middot; ${fp}%`;}else fEl.style.display='none';}
+  if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fp}%`;}else fEl.style.display='none';}
   activeGroups().filter(g=>!g._default).forEach(g=>{
     const gp=grpQuarterScore(g,qi);
     const gl=document.getElementById(`tide-gl-${g.id}`);
@@ -4135,7 +4135,7 @@ function mkFathomGrid(){
       <span style="font-weight:800;letter-spacing:.14em;color:var(--text1)">FATHOM</span>
     </span>
     <div style="display:flex;align-items:center;gap:8px">
-      <span id="fathom-hdr-grade" style="font-size:11px;font-weight:600;color:${mGrade?'var(--grade)':'var(--text3)'}">${mGrade?`${mPct}%`:''}</span>
+      <span id="fathom-hdr-grade" style="font-size:11px;font-weight:600;color:${mGrade?fgColor(mGrade):'var(--text3)'}">${mGrade?`${mPct}%`:''}</span>
       ${fathomEditMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
       <button class="btn ${fathomEditMode?'btn-on':''}" onclick="toggleFathomEdit()">${fathomEditMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>`;
@@ -4367,7 +4367,7 @@ function updFathomHeader(){
   const {pct,hasData}=fathomMonthStats();
   const g=hasData?fathomGrade(pct):null;
   el.innerHTML=g?`${pct}%`:'';
-  el.style.color=g?'var(--grade)':'var(--text3)';
+  el.style.color=g?fgColor(g):'var(--text3)';
 }
 
 function addFathomItem(){
