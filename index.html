@@ -957,28 +957,31 @@ function cumulData(){
     const p=dayProg(d);
     overall.push({x:d,y:p.pct});
   }
-  let groups;
+  // Per-day % line for a single habit (100 when checked, else 0) — matches group/overall style.
+  const habitLine=(hb,g)=>{
+    const pts=[];
+    for(let d=1;d<=days;d++) pts.push({x:d,y:(!isSkip(hb.id,d)&&isChk(hb.id,d))?100:0});
+    return {id:hb.id,name:hb.name,color:habitColor(hb,g),data:pts};
+  };
+  let groups=[];
   if(chartUnit==='habit'){
-    // One line per habit, using the SAME per-day % as the group/overall lines
-    // (single habit: 100 when checked, 0 otherwise) so the curves match in style.
-    const pairs=activeGroups().flatMap(g=>g.habits.filter(hb=>!hb.archived).map(hb=>({hb,g})));
-    groups=pairs.map(({hb,g})=>{
-      const pts=[];
-      for(let d=1;d<=days;d++){
-        const y=(!isSkip(hb.id,d)&&isChk(hb.id,d))?100:0;
-        pts.push({x:d,y});
-      }
-      return {id:hb.id,name:hb.name,color:habitColor(hb,g),data:pts};
-    });
+    // One line per habit across every group.
+    activeGroups().forEach(g=>g.habits.filter(hb=>!hb.archived).forEach(hb=>groups.push(habitLine(hb,g))));
   } else {
-    groups=activeGroups().map(g=>{
+    // One line per real group; ungrouped habits (the _default bucket) show as
+    // individual habit lines so there's no phantom "Habits" group.
+    activeGroups().forEach(g=>{
+      if(g._default){
+        g.habits.filter(hb=>!hb.archived).forEach(hb=>groups.push(habitLine(hb,g)));
+        return;
+      }
       const pts=[];
       for(let d=1;d<=days;d++){
         let done=0,tot=0;
         g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;if(isChk(hb.id,d))done++;}});
         pts.push({x:d,y:tot?Math.floor(done/tot*100):0});
       }
-      return {id:g.id,name:g.name,color:g.color,data:pts};
+      groups.push({id:g.id,name:g.name,color:g.color,data:pts});
     });
   }
   return {overall,groups};
