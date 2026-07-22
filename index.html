@@ -1448,7 +1448,7 @@ function openTimeBlockModal(block){
   const dayLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const dayBtns=dayLabels.map((l,i)=>{const on=(b.days||[]).includes(i);return `<button type="button" class="tb-day-btn" data-day="${i}" onclick="tbToggleDay(this)" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border2);background:${on?'var(--text1)':'var(--surface2)'};color:${on?'var(--bg)':'var(--text3)'};cursor:pointer;font-family:var(--font)">${l}</button>`;}).join('');
   const swatches=TB_COLORS.map(c=>`<button type="button" onclick="tbPickColor(this)" data-color="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:2.5px solid ${b.color===c?'var(--text1)':'transparent'};cursor:pointer;outline:none;flex-shrink:0"></button>`).join('');
-  const grps=(activeGroups()||[]);
+  const grps=(activeGroups()||[]).filter(g=>!g._default);
   const groupChips=grps.map(g=>`<button type="button" onclick="tbSelectGroup('${g.name.replace(/'/g,"\\'")}','${g.color}','${g.id}')" style="font-size:9px;padding:2px 9px;border-radius:12px;border:1.5px solid ${g.color};background:${g.color}22;color:${g.color};cursor:pointer;font-family:var(--font);font-weight:600">${g.name}</button>`).join('');
   const overlay=document.createElement('div');
   overlay.id='tb-overlay';
