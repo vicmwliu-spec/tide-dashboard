@@ -723,7 +723,7 @@ function todayStats(){
   let done=0,total=0;
   h.forEach(hb=>{if(!(mdata?.skips?.[hb.id]?.[day])){total++;if(mdata?.completions[hb.id]?.[day])done++;}});
   const pct=total?Math.floor(done/total*100):0;
-  const groups=todayGroups.map(g=>{
+  const groups=todayGroups.filter(g=>!g._default).map(g=>{
     let gDone=0,gTotal=0;
     g.habits.filter(hb=>!hb.archived).forEach(hb=>{
       if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
@@ -919,7 +919,7 @@ function monthStats(){
   const rate=poss?Math.floor(comp/poss*100):0;
   const futPoss=habits.length*dLeft;
   const maxRate=(poss+futPoss)?Math.floor((comp+futPoss)/(poss+futPoss)*100):0;
-  const monthGroups=activeGroups().map(g=>{
+  const monthGroups=activeGroups().filter(g=>!g._default).map(g=>{
     const hs=g.habits.filter(hb=>!hb.archived);
     let gd=0,gt=0;
     for(let d=1;d<=td;d++){
@@ -2414,7 +2414,7 @@ function mkTide(){
   const _qInc=(qPoss-_tqTotal)-(qComp-_tqDone);
   const _qIncLine=_qInc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_qInc} incomplete</div>`:'';
   const qHintLine='';
-  const grpCards=activeGroups().map(g=>{
+  const grpCards=activeGroups().filter(g=>!g._default).map(g=>{
     const gp=grpQuarterScore(g,qi);
     return `<div style="flex:1;min-width:90px;border:1px solid var(--border2);border-left:3px solid ${g.color};border-radius:var(--r2);padding:10px 12px;text-align:center">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${g.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.name)}</div>
@@ -2453,7 +2453,7 @@ function updTide(){
   if(nameEl){nameEl.textContent=_tideStarted?'Alignment':'Not started';nameEl.style.color='var(--text3)';}
   const fEl=document.getElementById('tide-fathom-line');
   if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color='var(--grade)';fEl.innerHTML=`FATHOM &middot; ${fp}%`;}else fEl.style.display='none';}
-  activeGroups().forEach(g=>{
+  activeGroups().filter(g=>!g._default).forEach(g=>{
     const gp=grpQuarterScore(g,qi);
     const gl=document.getElementById(`tide-gl-${g.id}`);
     const gn=document.getElementById(`tide-gn-${g.id}`);
