@@ -3723,11 +3723,11 @@ function buildHzTable(){
     {key:'cumul',  color:_hzcc.cumul,  label:'Trajectory',dashed:true},
     {key:'ref',    color:_hzcc.ref,    label:'Perfection',dashed:true},
   ].map(({key,color,label,dashed})=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-      <span class="chart-color-dot" title="${label} color" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>
+      <span class="chart-color-dot" title="${label}" style="background:${color}" onclick="openChartColorPop(event,'${key}')"></span>
       <div style="width:20px;height:2px;${dashed?`background:repeating-linear-gradient(90deg,${color} 0,${color} 4px,transparent 4px,transparent 8px)`:`background:${color}`}"></div>
       <span style="font-size:10px;color:var(--text3);white-space:nowrap">${label}</span>
     </div>`).join('');
-  chartTh.innerHTML=`<div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:14px;padding:2px 12px 6px">${_hzLegend}</div><div style="position:relative;height:340px;width:100%"><div id="hz-preset-btns" style="position:absolute;top:7px;left:10px;z-index:1;display:flex;gap:3px"></div><canvas id="hz-pc"></canvas></div>`;
+  chartTh.innerHTML=`<div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:14px;padding:2px 12px 6px;font-weight:400;text-transform:none;letter-spacing:normal">${_hzLegend}</div><div style="position:relative;height:340px;width:100%"><div id="hz-preset-btns" style="position:absolute;top:7px;left:10px;z-index:1;display:flex;gap:3px"></div><canvas id="hz-pc"></canvas></div>`;
   rA.appendChild(chartTh);
   const donePh1=document.createElement('th');
   donePh1.className='sr sr-2 st hz-sum-th first-sum';
