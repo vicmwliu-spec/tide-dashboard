@@ -2756,13 +2756,6 @@ function openChartColorPop(e,key){
     sw.onclick=(ev)=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=c;save();render();pop.remove();chartColorPopKey=null};
     pop.appendChild(sw);
   });
-  // Reset swatch
-  const resetSw=document.createElement('div');
-  resetSw.className='csw';resetSw.title='Reset to default';
-  resetSw.style.cssText='background:var(--surface2);border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text3)';
-  resetSw.textContent='↺';
-  resetSw.onclick=(ev)=>{ev.stopPropagation();if(D.chartColors)D.chartColors[key]=null;save();render();pop.remove();chartColorPopKey=null};
-  pop.appendChild(resetSw);
   // Custom color swatch
   const customSw=document.createElement('div');
   customSw.className='csw';customSw.title='Custom color';
