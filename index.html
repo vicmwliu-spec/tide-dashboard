@@ -730,13 +730,13 @@ function todayStats(){
     return true;
   }).map(hb=>({...hb})));
   let done=0,total=0;
-  h.forEach(hb=>{if(!(mdata?.skips?.[hb.id]?.[day])){total++;if(mdata?.completions[hb.id]?.[day])done++;}});
+  h.forEach(hb=>{if(!(mdata?.skips?.[hb.id]?.[day])){total++;done+=_countFrac(mdata?.completions?.[hb.id]?.[day],hb.dailyTarget);}});
   const pct=total?Math.floor(done/total*100):0;
   const groups=todayGroups.filter(g=>!g._default).map(g=>{
     let gDone=0,gTotal=0;
     g.habits.filter(hb=>!hb.archived).forEach(hb=>{
       if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
-      if(!(mdata?.skips?.[hb.id]?.[day])){gTotal++;if(mdata?.completions[hb.id]?.[day])gDone++;}
+      if(!(mdata?.skips?.[hb.id]?.[day])){gTotal++;gDone+=_countFrac(mdata?.completions?.[hb.id]?.[day],hb.dailyTarget);}
     });
     return {id:g.id,name:g.name,color:g.color,done:gDone,total:gTotal,pct:gTotal?Math.floor(gDone/gTotal*100):0};
   });
@@ -841,10 +841,25 @@ function hasMonthSnapshot(){
   return !!(m&&m.snapshot);
 }
 
-function isChk(hid,day){
+// ── Daily-target helpers ──
+// Fractional credit for a raw count value against a target (0..1). Legacy booleans coerce.
+function _countFrac(v,target){ const t=Math.max(1,target||1); return Math.min(Number(v)||0,t)/t; }
+// The habit's daily target for a given day (resolves via the day's active groups). Default 1.
+function habitTarget(hid,day){
+  for(const g of groupsForDay(day)){const h=g.habits.find(h=>h.id===hid);if(h)return Math.max(1,h.dailyTarget||1);}
+  return 1;
+}
+// Numeric completion count for the current month (legacy true->1).
+function chkCount(hid,day){
   const mo=D.months[mk(CY,CM)];
-  if(!mo) return false;
-  return !!(mo.completions[hid]&&mo.completions[hid][day]);
+  if(!mo||!mo.completions[hid]) return 0;
+  return Number(mo.completions[hid][day])||0;
+}
+// Partial credit (0..1) for the current month.
+function chkFrac(hid,day){ return _countFrac(chkCount(hid,day),habitTarget(hid,day)); }
+function isChk(hid,day){
+  // Fully complete = count reached the daily target.
+  return chkCount(hid,day)>=habitTarget(hid,day)&&chkCount(hid,day)>0;
 }
 function isSkip(hid,day){
   const mo=D.months[mk(CY,CM)];
@@ -875,7 +890,10 @@ function toggle(hid,day){
   if(!mo.completions[hid]) mo.completions[hid]={};
   if(!mo.skips[hid]) mo.skips[hid]={};
   mo.skips[hid][day]=false;
-  mo.completions[hid][day]=!mo.completions[hid][day];
+  // Increment toward the daily target; clicking at (or above) full resets to 0.
+  const t=habitTarget(hid,day);
+  const c=Number(mo.completions[hid][day])||0;
+  mo.completions[hid][day]=c>=t?0:c+1;
   save();
   if(startMoved) render(); else partialUpdate(hid,day);
 }
@@ -884,7 +902,7 @@ function skipToggle(hid,day){
   if(!mo.completions[hid]) mo.completions[hid]={};
   if(!mo.skips[hid]) mo.skips[hid]={};
   const skip=!!mo.skips[hid][day];
-  mo.completions[hid][day]=false;
+  mo.completions[hid][day]=0;
   mo.skips[hid][day]=!skip;
   save();
 }
@@ -899,7 +917,7 @@ function dayProg(day){
     return true;
   });
   let done=0,total=0;
-  h.forEach(hb=>{if(!isSkip(hb.id,day)){total++;if(isChk(hb.id,day))done++;}});
+  h.forEach(hb=>{if(!isSkip(hb.id,day)){total++;done+=chkFrac(hb.id,day);}});
   return {done,total,pct:total?Math.floor(done/total*100):0};
 }
 
@@ -912,7 +930,7 @@ function habitProg(hid){
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
   const last=isCur?today.getDate():days;
   let done=0,possible=0;
-  for(let d=1;d<=last;d++){if(isFreqExcluded(hid,d))continue;if(!isSkip(hid,d)){possible++;if(isChk(hid,d))done++;}}
+  for(let d=1;d<=last;d++){if(isFreqExcluded(hid,d))continue;if(!isSkip(hid,d)){possible++;done+=chkFrac(hid,d);}}
   return {goal:days,actual:done,pct:possible?Math.round(done/possible*100):0,last:possible};
 }
 
@@ -935,7 +953,7 @@ function monthStats(){
       const dow=new Date(CY,CM,d).getDay();
       const dayG=groupsForDay(d).find(dg=>dg.id===g.id);
       const dayHs=dayG?dayG.habits.filter(hb=>!hb.archived):[];
-      dayHs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){const chk=isChk(hb.id,d);gt++;if(chk)gd++;}});
+      dayHs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){gt++;gd+=chkFrac(hb.id,d);}});
     }
     const gFutPoss=hs.length*dLeft;
     const maxRate=(gt+gFutPoss)?Math.floor((gd+gFutPoss)/(gt+gFutPoss)*100):0;
@@ -969,7 +987,7 @@ function cumulData(){
   // Per-day % line for a single habit (100 when checked, else 0) — matches group/overall style.
   const habitLine=(hb,g)=>{
     const pts=[];
-    for(let d=1;d<=days;d++) pts.push({x:d,y:(!isSkip(hb.id,d)&&isChk(hb.id,d))?100:0});
+    for(let d=1;d<=days;d++) pts.push({x:d,y:isSkip(hb.id,d)?0:Math.round(chkFrac(hb.id,d)*100)});
     return {id:hb.id,name:hb.name,color:habitColor(hb,g),data:pts};
   };
   let groups=[];
@@ -987,7 +1005,7 @@ function cumulData(){
       const pts=[];
       for(let d=1;d<=days;d++){
         let done=0,tot=0;
-        g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;if(isChk(hb.id,d))done++;}});
+        g.habits.forEach(hb=>{if(!isSkip(hb.id,d)){tot++;done+=chkFrac(hb.id,d);}});
         pts.push({x:d,y:tot?Math.floor(done/tot*100):0});
       }
       groups.push({id:g.id,name:g.name,color:g.color,data:pts});
@@ -1955,7 +1973,9 @@ function buildHabitHeaderRow(groups,editable,weekIndex){
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${freqBtns}</div>
           <div style="display:flex;align-items:center;gap:5px;padding-left:16px">
-            <span style="font-size:10px;color:var(--text3);user-select:none">Weekly target</span>
+            <span style="font-size:10px;color:var(--text3);user-select:none">Daily target</span>
+            <input type="number" min="1" max="20" class="wk-target-in" value="${h.dailyTarget||1}" onchange="setHabitDailyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per day"/>
+            <span style="font-size:10px;color:var(--text3);user-select:none;margin-left:8px">Weekly target</span>
             <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" placeholder="0" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
           </div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
@@ -2032,7 +2052,7 @@ function buildTFoot(){
         return td2;
       };
 
-      rows.done.appendChild(mkTd(`da-${h2.id}`,`${actual}<span style="color:var(--text3);font-size:9px">/${last}</span>`));
+      rows.done.appendChild(mkTd(`da-${h2.id}`,`${Math.round(actual)}<span style="color:var(--text3);font-size:9px">/${last}</span>`));
       const hGrade=TIDE_GRADES.find(g=>pct>=g.min);
       rows.rate.appendChild(mkTd(`ra-${h2.id}`,`<span class="pill" style="background:${pctBg};color:${pctC}">${pct}%</span>`));
     });
@@ -2060,33 +2080,38 @@ function mkAnaRow(label){
 // ─────────────────────────────────────────
 //  PARTIAL UPDATES (no full re-render on toggle)
 // ─────────────────────────────────────────
+// Checkbox look for a given fill fraction (0..1). One source of truth for render + live updates.
+function _chkFillParts(color,frac,skipped){
+  if(skipped||frac<=0) return {bg:'transparent',bd:'var(--border)'};
+  if(frac>=1) return {bg:color,bd:color};
+  const p=Math.round(frac*100);
+  return {bg:`linear-gradient(to top, ${color} ${p}%, transparent ${p}%)`,bd:color};
+}
+function _applyChkFill(box,color,cnt,tgt,skipped){
+  const t=Math.max(1,tgt||1);
+  const frac=skipped?0:Math.min(cnt,t)/t;
+  const {bg,bd}=_chkFillParts(color,frac,skipped);
+  box.classList.toggle('checked',!skipped&&frac>=1&&cnt>0);
+  box.classList.toggle('skipped',!!skipped);
+  box.style.background=bg;box.style.borderColor=bd;
+  box.innerHTML=(t>=5&&cnt>0&&frac<1&&!skipped)?`<span style="font-size:9px;font-weight:700;color:var(--text3);line-height:1">${cnt}</span>`:'';
+  box.classList.remove('chk-pop');
+  if(!skipped&&cnt>0) requestAnimationFrame(()=>box.classList.add('chk-pop'));
+}
 function doToggle(hid,day,color){
   toggle(hid,day);
   const box=document.getElementById(`cb-${hid}-${day}`);
-  if(box){
-    const chk=isChk(hid,day);
-    const skp=isSkip(hid,day);
-    box.classList.toggle('checked',chk);
-    box.classList.toggle('skipped',skp);
-    box.style.background=chk?color:'transparent';
-    box.style.borderColor=chk?color:'var(--border)';
-    box.classList.remove('chk-pop');
-    if(chk) requestAnimationFrame(()=>box.classList.add('chk-pop'));
-  }
+  if(box) _applyChkFill(box,color,chkCount(hid,day),habitTarget(hid,day),isSkip(hid,day));
 }
 
 function doSkipToggle(hid,day,color){
   skipToggle(hid,day);
-  const chk=isChk(hid,day);
   const skp=isSkip(hid,day);
   const boxV=document.getElementById(`cb-${hid}-${day}`);
   const boxH=document.getElementById(`hzcb-${hid}-${day}`);
   [boxV,boxH].forEach(box=>{
     if(!box) return;
-    box.classList.toggle('checked',chk);
-    box.classList.toggle('skipped',skp);
-    box.style.background=chk?color:'transparent';
-    box.style.borderColor=chk?color:'var(--border)';
+    _applyChkFill(box,color,chkCount(hid,day),habitTarget(hid,day),skp);
   });
   if(gridLayout==='vertical'){
     partialUpdate(hid,day);
@@ -2095,12 +2120,12 @@ function doSkipToggle(hid,day,color){
     const isCurMo=today.getFullYear()===CY&&today.getMonth()===CM;
     const todayD=isCurMo?today.getDate():dim(CY,CM);
     let rowDone=0,rowTotal=0;
-    for(let d=1;d<=todayD;d++){if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}}
+    for(let d=1;d<=todayD;d++){if(!isSkip(hid,d)){rowDone+=chkFrac(hid,d);rowTotal++;}}
     const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
     const pc=(TIDE_GRADES.find(gr=>pct>=gr.min)||TIDE_GRADES[TIDE_GRADES.length-1]).color;
     const ds=document.getElementById(`hzds-${hid}`);
     const ps=document.getElementById(`hzps-${hid}`);
-    if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
+    if(ds) ds.innerHTML=`${Math.round(rowDone)}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
     if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pc};border-radius:2px"></div></div>`;
     const {pct:dp}=dayProg(day);
     const dpEl=document.getElementById(`hzdp-${day}`);
@@ -2140,7 +2165,7 @@ function partialUpdate(hid,day){
   const today=new Date();
   const isCur=today.getFullYear()===CY&&today.getMonth()===CM;
   const isFuture=false;
-  if(ds&&!isFuture) ds.innerHTML=`${done}<span style="color:var(--text3);font-size:9px">/${total}</span>`;
+  if(ds&&!isFuture) ds.innerHTML=`${Math.round(done)}<span style="color:var(--text3);font-size:9px">/${total}</span>`;
   if(ps&&!isFuture){
     const g=pct>0?(TODAY_GRADES.find(gr=>pct>=gr.min)||null):null;
     ps.innerHTML=`<span style="color:${gradeCol(pct,TODAY_GRADES)};font-weight:600">${pct}%</span>`;
@@ -2151,7 +2176,7 @@ function partialUpdate(hid,day){
   const pctBg=pillBg(hp);
   const da=document.getElementById(`da-${hid}`);
   const ra=document.getElementById(`ra-${hid}`);
-  if(da) da.innerHTML=`${actual}<span style="color:var(--text3);font-size:9px">/${last}</span>`;
+  if(da) da.innerHTML=`${Math.round(actual)}<span style="color:var(--text3);font-size:9px">/${last}</span>`;
   const hpGrade=TIDE_GRADES.find(g=>hp>=g.min);
   if(ra) ra.innerHTML=`<span class="pill" style="background:${pctBg};color:${pctC}">${hp}%</span>`;
   // stats & chart
@@ -2231,7 +2256,7 @@ function allWeeksStats(){
       let gd=0,gt=0;
       if(lastD>=s.start) for(let d=s.start;d<=lastD;d++){
         const dow=new Date(CY,CM,d).getDay();
-        hs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){gt++;if(isChk(hb.id,d))gd++;}});
+        hs.forEach(hb=>{if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow))return;if(!isSkip(hb.id,d)){gt++;gd+=chkFrac(hb.id,d);}});
       }
       return {...g,gd,gt,pct:gt?Math.round(gd/gt*100):0};
     });
@@ -2266,7 +2291,7 @@ function _periodStats(monthIndices){
       dayHabits.forEach(hb=>{
         if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
         if(hb.startDate&&new Date(CY,mi,dd)<new Date(hb.startDate+'T00:00:00')) return;
-        if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}
+        if(!m.skips?.[hb.id]?.[dd]){poss++;comp+=_countFrac(m.completions[hb.id]?.[dd],hb.dailyTarget);}
       });
     }
   });
@@ -2350,7 +2375,7 @@ function grpTideScore(g){
   const td=isCur?today.getDate():days;
   let done=0,poss=0;
   for(let d=1;d<=td;d++){
-    g.habits.forEach(h=>{if(h.archived)return;if(!isSkip(h.id,d)){poss++;if(isChk(h.id,d))done++;}});
+    g.habits.forEach(h=>{if(h.archived)return;if(!isSkip(h.id,d)){poss++;done+=chkFrac(h.id,d);}});
   }
   return poss?Math.floor(done/poss*100):0;
 }
@@ -2383,7 +2408,7 @@ function grpQuarterScore(g,qi){
       habits.forEach(h=>{
         if(h.freq&&h.freq.length<7&&!h.freq.includes(dow)) return;
         if(h.startDate&&new Date(CY,qm,d)<new Date(h.startDate+'T00:00:00')) return;
-        if(!m.skips?.[h.id]?.[d]){poss++;if(m.completions?.[h.id]?.[d])done++;}
+        if(!m.skips?.[h.id]?.[d]){poss++;done+=_countFrac(m.completions?.[h.id]?.[d],h.dailyTarget);}
       });
     }
   }
@@ -2505,7 +2530,7 @@ function allTimeSlightEdgeData(){
           if(h.startDate&&date<new Date(h.startDate)) continue;
           if(mo.skips?.[h.id]?.[d]) continue;
           total++;
-          if(mo.completions?.[h.id]?.[d]) done++;
+          done+=_countFrac(mo.completions?.[h.id]?.[d],h.dailyTarget);
         }
       }
       if(total>0){
@@ -2669,7 +2694,7 @@ function mkAnnual(){
             dayHabits.forEach(hb=>{
               if(hb.freq&&hb.freq.length<7&&!hb.freq.includes(dow)) return;
               if(hb.startDate&&new Date(CY,mi,dd)<new Date(hb.startDate+'T00:00:00')) return;
-              if(!m.skips?.[hb.id]?.[dd]){poss++;if(m.completions[hb.id]?.[dd])comp++;}
+              if(!m.skips?.[hb.id]?.[dd]){poss++;comp+=_countFrac(m.completions[hb.id]?.[dd],hb.dailyTarget);}
             });
           }
         }
@@ -3588,6 +3613,13 @@ function setHabitWeeklyTarget(hid,val){
     if(h){h.weeklyTarget=n;save();render();return;}
   }
 }
+function setHabitDailyTarget(hid,val){
+  const n=Math.max(1,Math.min(99,parseInt(val,10)||1));
+  for(const g of D.groups){
+    const h=g.habits.find(h=>h.id===hid);
+    if(h){h.dailyTarget=n;save();render();return;}
+  }
+}
 function habitWeeklyProgress(y,m,hid,weekIndex){
   const spans=getWeekSpans(y,m);
   const span=spans.find(s=>s.week===weekIndex);
@@ -3886,7 +3918,9 @@ function buildHzTable(){
           </div>
           <div style="display:flex;gap:2px;padding-left:16px">${hfreqBtns}</div>
           <div style="display:flex;align-items:center;gap:5px;padding-left:16px">
-            <span style="font-size:10px;color:var(--text3);user-select:none">Weekly target</span>
+            <span style="font-size:10px;color:var(--text3);user-select:none">Daily target</span>
+            <input type="number" min="1" max="20" class="wk-target-in" value="${h.dailyTarget||1}" onchange="setHabitDailyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per day"/>
+            <span style="font-size:10px;color:var(--text3);user-select:none;margin-left:8px">Weekly target</span>
             <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" placeholder="0" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
           </div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
@@ -3935,23 +3969,28 @@ function buildHzTable(){
         const isToday=d===todayD;
         const isFuture=isCurMo&&d>todayD;
         const isWeekStart=dow===1&&d>1;
-        const chk=isChk(h.id,d);
+        const cnt=chkCount(h.id,d);
+        const tgt=Math.max(1,h.dailyTarget||1);
+        const frac=Math.min(cnt,tgt)/tgt;
+        const chk=frac>=1&&cnt>0;
         const skp=isSkip(h.id,d);
         const foff=h.freq&&h.freq.length<7&&!h.freq.includes(dow);
         const bstart=!chk&&h.startDate&&new Date(CY,CM,d)<new Date(h.startDate+'T00:00:00');
-        if(!isFuture&&!skp&&!foff){rowDone+=chk?1:0;rowTotal++}
+        if(!isFuture&&!skp&&!foff){rowDone+=frac;rowTotal++}
         const td=document.createElement('td');
         td.className='hz-chk-c'+(isToday?' today-col':'')+(isFuture?' future':'')+(isWeekStart?' hz-week-sep':'')+(foff?' freq-off-c':'');
         td.id=`hzcc-${h.id}-${d}`;
         td.dataset.color=hc;
         if(!isFuture&&!foff) td.onclick=()=>doHzToggle(h.id,d,hc);
-        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="hzcb-${h.id}-${d}" style="background:${chk?hc:'transparent'};border-color:${chk?hc:'var(--border)'}"></div>`;
+        const _fp=_chkFillParts(hc,skp?0:frac,skp);
+        const _numLbl=(tgt>=5&&cnt>0&&frac<1)?`<span style="font-size:9px;font-weight:700;color:var(--text3);line-height:1">${cnt}</span>`:'';
+        td.innerHTML=`<div class="chk-box${chk?' checked':skp?' skipped':foff?' freq-off':bstart?' before-start':''}" id="hzcb-${h.id}-${d}" style="background:${_fp.bg};border-color:${_fp.bd}">${_numLbl}</div>`;
         tr.appendChild(td);
       }
 
       const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
       const doneTd=document.createElement('td');doneTd.className='sr sr-2 hz-sum-td first-sum';doneTd.id=`hzds-${h.id}`;
-      doneTd.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
+      doneTd.innerHTML=`${Math.round(rowDone)}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
       const pctTd=document.createElement('td');pctTd.className='sr sr-1 hz-sum-td';pctTd.id=`hzps-${h.id}`;
       const pc=(TIDE_GRADES.find(gr=>pct>=gr.min)||TIDE_GRADES[TIDE_GRADES.length-1]).color;
       pctTd.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pc};border-radius:2px"></div></div>`;
@@ -3967,16 +4006,7 @@ function doHzToggle(hid,day,color){
   toggle(hid,day);
   // animate the checkbox
   const box=document.getElementById(`hzcb-${hid}-${day}`);
-  if(box){
-    const chk=isChk(hid,day);
-    const skp=isSkip(hid,day);
-    box.classList.toggle('checked',chk);
-    box.classList.toggle('skipped',skp);
-    box.style.background=chk?color:'transparent';
-    box.style.borderColor=chk?color:'var(--border)';
-    box.classList.remove('chk-pop');
-    if(chk) requestAnimationFrame(()=>box.classList.add('chk-pop'));
-  }
+  if(box) _applyChkFill(box,color,chkCount(hid,day),habitTarget(hid,day),isSkip(hid,day));
   // update habit's row summary
   const today=new Date();
   const isCurMo=today.getFullYear()===CY&&today.getMonth()===CM;
@@ -3985,13 +4015,13 @@ function doHzToggle(hid,day,color){
   let rowDone=0,rowTotal=0;
   for(let d=1;d<=todayD;d++){
     if(isFreqExcluded(hid,d)) continue;
-    if(!isSkip(hid,d)){if(isChk(hid,d))rowDone++;rowTotal++;}
+    if(!isSkip(hid,d)){rowDone+=chkFrac(hid,d);rowTotal++;}
   }
   const pct=rowTotal?Math.floor(rowDone/rowTotal*100):0;
   const pc=(TIDE_GRADES.find(gr=>pct>=gr.min)||TIDE_GRADES[TIDE_GRADES.length-1]).color;
   const ds=document.getElementById(`hzds-${hid}`);
   const ps=document.getElementById(`hzps-${hid}`);
-  if(ds) ds.innerHTML=`${rowDone}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
+  if(ds) ds.innerHTML=`${Math.round(rowDone)}<span style="color:var(--text3);font-size:9px">/${rowTotal}</span>`;
   if(ps) ps.innerHTML=`<span style="color:${pc};font-weight:600">${pct}%</span><div style="margin-top:3px;height:3px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pc};border-radius:2px"></div></div>`;
   // update daily % row (in thead)
   const {pct:dp}=dayProg(day);
@@ -4470,7 +4500,7 @@ function _setHabitState(hid,day,done,skip){
   const mo=md(CY,CM);
   if(!mo.completions[hid])mo.completions[hid]={};
   if(!mo.skips[hid])mo.skips[hid]={};
-  mo.completions[hid][day]=done;
+  mo.completions[hid][day]=done?habitTarget(hid,day):0; // drag-mark fills to the full daily target
   mo.skips[hid][day]=skip;
 }
 function _setFathomState(iid,day,done,skip){
