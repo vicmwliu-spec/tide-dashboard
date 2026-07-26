@@ -67,9 +67,13 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
 .notes-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
+/* ── Intention ── */
+.intention-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
+.intention-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.intention-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Top row ── */
 .top-row{display:flex;gap:14px;margin-bottom:14px;align-items:stretch}
-.top-row .quote-card,.top-row .priority-card,.top-row .notes-card{flex:1;width:0;margin-bottom:0}
+.top-row .intention-card,.top-row .quote-card,.top-row .priority-card,.top-row .notes-card{flex:1;width:0;margin-bottom:0}
 .top-left-col{width:35%;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
 
 /* ── Stats ── */
@@ -347,7 +351,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
   .priority-card,.notes-card{padding:8px 12px;min-height:0}
   .top-row{flex-direction:column;gap:6px;margin-bottom:10px}
   .top-left-col{width:100%}
-  .top-row .quote-card,.top-row .priority-card,.top-row .notes-card{width:100%}
+  .top-row .intention-card,.top-row .quote-card,.top-row .priority-card,.top-row .notes-card{width:100%}
 
   /* Stats */
   .stats-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
@@ -1067,6 +1071,7 @@ function render(){
   } else {
     const topRow=document.createElement('div');
     topRow.className='top-row';
+    topRow.appendChild(mkIntention());
     topRow.appendChild(mkPriority());
     topRow.appendChild(mkQuote());
     topRow.appendChild(mkNotes());
@@ -1132,6 +1137,17 @@ function mkQuote(){
       onkeydown="richtextKD(event)"
     ></div>`;
   setTimeout(()=>{const qta=document.getElementById('qta');if(qta)qta.innerHTML=D.quote||''},0);
+  return d;
+}
+function mkIntention(){
+  const d=document.createElement('div');
+  d.className='intention-card';
+  d.innerHTML=`
+    <div class="intention-ta" id="ita" contenteditable="true"
+      oninput="saveIntention(this.innerHTML)"
+      onkeydown="richtextKD(event)"
+    ></div>`;
+  setTimeout(()=>{const ita=document.getElementById('ita');if(ita)ita.innerHTML=D.intention||''},0);
   return d;
 }
 function mkPriority(){
@@ -2950,6 +2966,7 @@ function confirmDeleteHabit(gid,hid){
 function _showArchiveToast(msg='Habit archived'){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
 function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchived=null;clearTimeout(_toastTimer);const t=document.getElementById('arch-toast');if(t)t.style.display='none';if(a.type==='fathom')restoreFathomItem(a.id);else restoreHabit(a.gid,a.hid);}
 
+function saveIntention(v){D.intention=(v==='<br>')?'':v;save()}
 function saveQuote(v){D.quote=(v==='<br>')?'':v;save()}
 function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
 function saveNotes(v){D.notes=(v==='<br>')?'':v;save()}
