@@ -279,6 +279,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 
 /* ── Horizontal: no-scroll fixed layout ── */
 #hz-tbl{width:100%;min-width:unset;table-layout:fixed}
+/* Fathom table uses the same layout so its columns align with the Habits table + chart */
+#fathom-tbl{width:100%;min-width:unset;table-layout:fixed}
 /* ── Grid fade-in on render ── */
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .grid-card{animation:fadeIn .18s ease}
@@ -1755,8 +1757,11 @@ function _refreshPresetBtns(){
     'Overall': ['Overall',...refLabels],
   };
   grpNames.forEach(n=>{ window._lgPresets[n]=[n,...refLabels]; });
+  // "All" = every group/habit curve (+refs) but NOT the Overall line
+  window._lgPresets['All']=[...grpNames,...refLabels];
   let html=bs('PT',window._lgPresets['PT'],'P+T');
   html+=bs('Overall',window._lgPresets['Overall'],'Overall');
+  if(grpNames.length) html+=bs('All',window._lgPresets['All'],chartUnit==='habit'?'Habits':'Groups');
   grpNames.forEach(n=>{ html+=bs(n,window._lgPresets[n],n); });
   el.innerHTML=html;
 }
@@ -4218,7 +4223,7 @@ function mkFathomGrid(){
   t.style.minWidth=((fathomEditMode?240:140)+days*34+56+56)+'px';
   const cg=document.createElement('colgroup');
   const cH=document.createElement('col');cH.style.width=fathomEditMode?'240px':'140px';cg.appendChild(cH);
-  const cD=document.createElement('col');cD.span=days;cD.style.width='34px';cg.appendChild(cD);
+  const cD=document.createElement('col');cD.span=days;cg.appendChild(cD); // no width: day cols share space equally, matching the Habits table
   const cDn=document.createElement('col');cDn.style.width='56px';cg.appendChild(cDn);
   const cP=document.createElement('col');cP.style.width='56px';cg.appendChild(cP);
   t.appendChild(cg);
