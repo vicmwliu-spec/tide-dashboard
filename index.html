@@ -1733,7 +1733,7 @@ function mkChart(){
     <div style="display:flex;gap:8px">
       ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}
       ${editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Habit</button>`:''}
-      <button class="btn" onclick="toggleChartUnit()">Chart: ${chartUnit==='group'?'Groups':'Habits'}</button>
+      ${_chartUnitToggle()}
       <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>
   </div>
@@ -1754,13 +1754,13 @@ function _refreshPresetBtns(){
   // Build preset map: each preset = its own labels + P+T
   window._lgPresets={
     'PT': refLabels,
-    'Aggregate': ['Aggregate',...refLabels],
+    'Total': ['Total',...refLabels],
   };
   grpNames.forEach(n=>{ window._lgPresets[n]=[n,...refLabels]; });
-  // "All" = every individual curve (+refs) but NOT the Aggregate line
+  // "All" = every individual curve (+refs) but NOT the Total line
   window._lgPresets['All']=[...grpNames,...refLabels];
   let html=bs('PT',window._lgPresets['PT'],'P+T');
-  html+=bs('Aggregate',window._lgPresets['Aggregate'],'Aggregate');
+  html+=bs('Total',window._lgPresets['Total'],'Total');
   if(grpNames.length) html+=bs('All',window._lgPresets['All'],'All');
   grpNames.forEach(n=>{ html+=bs(n,window._lgPresets[n],n); });
   el.innerHTML=html;
@@ -1790,6 +1790,15 @@ function toggleChartDs(label){
   _refreshPresetBtns();
 }
 function toggleChartUnit(){ chartUnit=chartUnit==='group'?'habit':'group'; chartSoloState=null; render(); }
+function setChartUnit(u){ if(chartUnit===u)return; chartUnit=u; chartSoloState=null; render(); }
+// Segmented Groups|Habits control — the active mode is highlighted so the current mode is obvious.
+function _chartUnitToggle(){
+  return `<span style="display:inline-flex;align-items:center;gap:3px">
+    <span style="font-size:10px;color:var(--text3)">Chart:</span>
+    <button class="btn ${chartUnit==='group'?'btn-on':''}" onclick="setChartUnit('group')" style="padding:2px 8px">Groups</button>
+    <button class="btn ${chartUnit==='habit'?'btn-on':''}" onclick="setChartUnit('habit')" style="padding:2px 8px">Habits</button>
+  </span>`;
+}
 function buildChart(){
   const cv=document.getElementById('pc');
   if(!cv) return;
@@ -1800,7 +1809,7 @@ function buildChart(){
   const datasets=[];
   datasets.push({label:'Perfection',data:(()=>{const fad=firstActiveDay();let mt=0;for(let d=1;d<=days;d++)mt+=dayProg(d).total;if(!mt)return[];const pts=[];let acc=0;for(let d=fad;d<=days;d++){acc+=dayProg(d).total;pts.push({x:d,y:Math.round(acc/mt*100)});}return pts;})(),borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0});
   datasets.push({label:'Trajectory',data:cumulProgressData(),borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3});
-  datasets.push({label:'Aggregate',data:overall,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:5});
+  datasets.push({label:'Total',data:overall,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:true,pointRadius:0,pointHoverRadius:5});
   groups.forEach(g=>{datasets.push({label:g.name,data:g.data,borderColor:g.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4});});
   chartInst=new Chart(cv,{
     type:'line',
@@ -1831,7 +1840,7 @@ function updateChart(){
   const {overall,groups}=cumulData();
   const cp=cumulProgressData();
   chartInst.data.datasets.forEach(ds=>{
-    if(ds.label==='Aggregate') ds.data=overall;
+    if(ds.label==='Total') ds.data=overall;
     if(ds.label==='Trajectory') ds.data=cp;
     const g=groups.find(gg=>gg.name===ds.label);
     if(g) ds.data=g.data;
@@ -3731,7 +3740,7 @@ function mkGridHorizontal(){
   bar.className='grid-bar';
   const hasData2=!!D.months[mk(CY,CM)];
   const _arch2=isMonthArchived();const _snap2=hasMonthSnapshot();
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Habit</button>`:''} <button class="btn" onclick="toggleChartUnit()">Chart: ${chartUnit==='group'?'Groups':'Habits'}</button> ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Habit</button>`:''} ${_chartUnitToggle()} ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
@@ -3773,7 +3782,7 @@ function buildHzTable(){
   chartTh.className='hz-chart-td';
   const _hzcc=chartConf();
   const _hzLegend=[
-    {key:'overall',color:_hzcc.overall,label:'Aggregate',dashed:false},
+    {key:'overall',color:_hzcc.overall,label:'Total',dashed:false},
     {key:'cumul',  color:_hzcc.cumul,  label:'Trajectory',dashed:true},
     {key:'ref',    color:_hzcc.ref,    label:'Perfection',dashed:true},
   ].map(({key,color,label,dashed})=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
@@ -4075,7 +4084,7 @@ function buildHzChart(){
   const datasets=[];
   datasets.push({label:'Perfection',data:(()=>{const fad=firstActiveDay();let mt=0;for(let d=1;d<=days;d++)mt+=dayProg(d).total;if(!mt)return[];const pts=[];let acc=0;for(let d=fad;d<=days;d++){acc+=dayProg(d).total;pts.push({x:d,y:Math.round(acc/mt*100)});}return pts;})(),borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0});
   datasets.push({label:'Trajectory',data:cumulProgressData(),borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3});
-  datasets.push({label:'Aggregate',data:overall,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:5});
+  datasets.push({label:'Total',data:overall,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:'origin',pointRadius:0,pointHoverRadius:5});
   groups.forEach(g=>{datasets.push({label:g.name,data:g.data,borderColor:g.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4});});
   window._lgGrpNames=groups.map(g=>g.name);
   window._lgRefLabels=['Perfection','Trajectory'];
@@ -4104,7 +4113,7 @@ function buildHzChart(){
   });
   requestAnimationFrame(()=>{
     if(!hzChartInst||!hzChartInst.chartArea) return;
-    const ds=hzChartInst.data.datasets.find(d=>d.label==='Aggregate');
+    const ds=hzChartInst.data.datasets.find(d=>d.label==='Total');
     if(ds){ds.backgroundColor=chartFillGradient(hzChartInst.ctx,hzChartInst.chartArea);hzChartInst.update('none');}
   });
   _refreshPresetBtns();
@@ -4115,13 +4124,13 @@ function updateHzChart(){
   const {overall,groups}=cumulData();
   const cp=cumulProgressData();
   hzChartInst.data.datasets.forEach(ds=>{
-    if(ds.label==='Aggregate') ds.data=overall;
+    if(ds.label==='Total') ds.data=overall;
     if(ds.label==='Trajectory') ds.data=cp;
     const g=groups.find(gg=>gg.name===ds.label);
     if(g) ds.data=g.data;
   });
   if(hzChartInst.chartArea){
-    const ds=hzChartInst.data.datasets.find(d=>d.label==='Aggregate');
+    const ds=hzChartInst.data.datasets.find(d=>d.label==='Total');
     if(ds) ds.backgroundColor=chartFillGradient(hzChartInst.ctx,hzChartInst.chartArea);
   }
   hzChartInst.options.animation={duration:400,easing:'easeOutQuart'};
