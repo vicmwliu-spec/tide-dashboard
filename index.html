@@ -459,7 +459,7 @@ html.dark .dnd-grip:hover{color:var(--text2)}
 <div id="app"></div>
 <div id="sel-bar"><span id="sel-count"></span><span class="sel-hint">Space to cycle &nbsp;·&nbsp; Esc to clear</span></div>
 <div id="edit-bar" onclick="_exitCurrentEditMode()">✎ Editing · ✓ Done</div>
-<div id="arch-toast"><span id="arch-toast-msg">Habit archived</span><button onclick="undoArchive()">Undo</button></div>
+<div id="arch-toast"><span id="arch-toast-msg">Lever archived</span><button onclick="undoArchive()">Undo</button></div>
 
 <script>
 // ─────────────────────────────────────────
@@ -1115,7 +1115,7 @@ function mkHeader(){
         archived
           ? `<button class="btn" onclick="unarchiveMonth()" title="Unarchive this month" style="padding:4px 8px;line-height:0;color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>`
           : hasSnap
-            ? `<button class="btn" onclick="archiveMonth()" title="Re-lock this month" style="padding:4px 8px;line-height:0;color:var(--text3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0"/></svg></button><button class="btn" onclick="useCurrentHabits()" title="Replace frozen habits with current habits">Use Current Habits</button>`
+            ? `<button class="btn" onclick="archiveMonth()" title="Re-lock this month" style="padding:4px 8px;line-height:0;color:var(--text3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0"/></svg></button><button class="btn" onclick="useCurrentHabits()" title="Replace frozen levers with current levers">Use Current Levers</button>`
             : `<button class="btn" onclick="archiveMonth()" title="Archive this month" style="padding:4px 8px;line-height:0;color:var(--text3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0"/></svg></button>`
       ):''}
     </div>
@@ -1662,7 +1662,7 @@ function buildStats(){
       <div style="margin-top:2px">
         <span class="stat-val" id="sv-month-grade" style="color:var(--grade)">${monthGrade?rate+'%':'—'}</span>
       </div>
-      <div class="stat-sub" id="sv-month-sub">${monthGrade?comp+'/'+poss+' habits':(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'')}</div>
+      <div class="stat-sub" id="sv-month-sub">${monthGrade?comp+'/'+poss+' levers':(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'')}</div>
       <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:var(--grade)"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>`;
   const daysCard=`<div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>`;
@@ -1670,7 +1670,7 @@ function buildStats(){
       <div style="margin-top:2px">
         <span class="stat-val" id="sv-today-grade" style="color:var(--grade)">${todayGrade?tPct+'%':'—'}</span>
       </div>
-      <div class="stat-sub" id="sv-today-sub">${todayGrade?`${tDone}/${tTotal} habits`:(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'No habits set')}</div>
+      <div class="stat-sub" id="sv-today-sub">${todayGrade?`${tDone}/${tTotal} levers`:(notStarted?(startsLabel?'Starts '+startsLabel:'Not started yet'):'No levers set')}</div>
       <div id="sv-today-grps">${_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:var(--grade)"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas)}
     </div>`;
@@ -1698,7 +1698,7 @@ function updStats(){
 
   if(monthGradeEl){monthGradeEl.textContent=monthGrade?rate+'%':'—';monthGradeEl.style.color='var(--grade)';}
   if(rateEl){rateEl.textContent='';}
-  if(monthSubEl) monthSubEl.textContent=monthGrade?comp+'/'+poss+' habits':(notStarted?notStartedSub:'');
+  if(monthSubEl) monthSubEl.textContent=monthGrade?comp+'/'+poss+' levers':(notStarted?notStartedSub:'');
   if(monthGrpsEl) monthGrpsEl.innerHTML=_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:var(--grade)"> · ${g.pct}%</span>`,color:'inherit'}));
   if(maxRateEl&&isCur&&dLeft>=0) maxRateEl.innerHTML=`Best possible: <span style="font-weight:600;color:var(--text2)">${maxRate}%</span>`;
   const maxRateGrpsEl=document.getElementById('sv-max-rate-grps');
@@ -1708,7 +1708,7 @@ function updStats(){
     todayGradeEl.style.color='var(--grade)';
   }
   if(todayRateEl){todayRateEl.textContent='';}
-  if(todaySubEl) todaySubEl.textContent=todayGrade?`${tDone}/${tTotal} habits`:(notStarted?notStartedSub:'No habits set');
+  if(todaySubEl) todaySubEl.textContent=todayGrade?`${tDone}/${tTotal} levers`:(notStarted?notStartedSub:'No levers set');
   if(todayGrpsEl) todayGrpsEl.innerHTML=_grpRows(tGroups,'total',g=>({val:`<span style="color:var(--text3)">${g.done}/${g.total}</span><span style="color:${gradeCol(g.pct,TODAY_GRADES)}"> · ${g.pct}%</span>`,color:'inherit'}));
   const todayNextEl=document.getElementById('sv-today-next');
   if(todayNextEl){const ntg=todayGrade?TODAY_GRADES.slice().reverse().find(g=>g.min>todayGrade.min):TODAY_GRADES.slice().reverse().find(g=>g.min>0);const nnt=ntg&&tTotal>0?Math.ceil(ntg.min/100*tTotal)-tDone:null;const _tInc2=tTotal-tDone;const _tIncL2=_tInc2>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_tInc2} incomplete</div>`:'';todayNextEl.innerHTML=nnt>0?`${nnt} more → ${ntg.letter} ${ntg.name}${_tIncL2}`:'';todayNextEl.style.display=nnt>0?'':'none';}
@@ -1732,7 +1732,7 @@ function mkChart(){
     <div class="grid-bar-l">Alignment Curve</div>
     <div style="display:flex;gap:8px">
       ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}
-      ${editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Habit</button>`:''}
+      ${editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Lever</button>`:''}
       ${_chartUnitToggle()}
       <button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>
@@ -1796,7 +1796,7 @@ function _chartUnitToggle(){
   return `<span style="display:inline-flex;align-items:center;gap:3px">
     <span style="font-size:10px;color:var(--text3)">Chart:</span>
     <button class="btn ${chartUnit==='group'?'btn-on':''}" onclick="setChartUnit('group')" style="padding:2px 8px">Groups</button>
-    <button class="btn ${chartUnit==='habit'?'btn-on':''}" onclick="setChartUnit('habit')" style="padding:2px 8px">Habits</button>
+    <button class="btn ${chartUnit==='habit'?'btn-on':''}" onclick="setChartUnit('habit')" style="padding:2px 8px">Levers</button>
   </span>`;
 }
 function buildChart(){
@@ -1861,7 +1861,7 @@ function mkHzChart(){
       <div>
         <div class="card-title" style="margin-bottom:4px">Today's Progress</div>
         <div style="font-size:28px;font-weight:800;letter-spacing:-.5px;color:var(--text1)">${pct}<span style="font-size:14px;font-weight:500;color:var(--text3)">%</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${td} of ${tt} habits done</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${td} of ${tt} levers done</div>
       </div>
       <button onclick="showChartPopup()" style="flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:8px 14px;font-size:12px;font-weight:600;color:var(--text1);cursor:pointer;font-family:var(--font)">View Chart →</button>
     </div>
@@ -2957,14 +2957,14 @@ function goMonth(m){CM=m;view='month';_navRender()}
 function toggleView(){view=view==='year'?'month':'year';render()}
 function toggleEdit(){if(isMonthArchived())return;editMode=!editMode;if(editMode)fathomEditMode=false;render();}
 function toggleFathomEdit(){fathomEditMode=!fathomEditMode;if(fathomEditMode)editMode=false;render();}
-function _updEditBar(){const b=document.getElementById('edit-bar');if(!b)return;const on=editMode||fathomEditMode;b.style.display=on?'flex':'none';b.textContent=(editMode?'✎ Editing Habits':fathomEditMode?'✎ Editing Fathom':'✎ Editing')+' · ✓ Done';}
+function _updEditBar(){const b=document.getElementById('edit-bar');if(!b)return;const on=editMode||fathomEditMode;b.style.display=on?'flex':'none';b.textContent=(editMode?'✎ Editing Levers':fathomEditMode?'✎ Editing Fathom':'✎ Editing')+' · ✓ Done';}
 function _exitCurrentEditMode(){if(editMode)editMode=false;else if(fathomEditMode)fathomEditMode=false;render();}
 function hasHabitHistory(hid){return Object.values(D.months).some(m=>m?.completions?.[hid]&&Object.values(m.completions[hid]).some(v=>v));}
-function archiveHabit(gid,hid){const g=D.groups.find(g=>g.id===gid);const h=g?.habits.find(h=>h.id===hid);if(h){h.archived=true;_lastArchived={type:'habit',gid,hid};save();_showArchiveToast('Habit archived');render();}}
+function archiveHabit(gid,hid){const g=D.groups.find(g=>g.id===gid);const h=g?.habits.find(h=>h.id===hid);if(h){h.archived=true;_lastArchived={type:'habit',gid,hid};save();_showArchiveToast('Lever archived');render();}}
 function confirmDeleteHabit(gid,hid){
   const g=D.groups.find(g=>g.id===gid);
   const h=g?.habits.find(h=>h.id===hid);
-  const name=h?`"${h.name}"`:'this habit';
+  const name=h?`"${h.name}"`:'this lever';
   const monthsWithHistory=Object.values(D.months).filter(mo=>mo?.completions?.[hid]&&Object.values(mo.completions[hid]).some(v=>v));
   const monthsAtRisk=monthsWithHistory.filter(mo=>!_habitInAnySnapshot(mo,hid));
   let msg;
@@ -2977,7 +2977,7 @@ function confirmDeleteHabit(gid,hid){
   }
   if(confirm(msg))purgeHabit(gid,hid);
 }
-function _showArchiveToast(msg='Habit archived'){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
+function _showArchiveToast(msg='Lever archived'){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
 function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchived=null;clearTimeout(_toastTimer);const t=document.getElementById('arch-toast');if(t)t.style.display='none';if(a.type==='fathom')restoreFathomItem(a.id);else restoreHabit(a.gid,a.hid);}
 
 function saveIntention(v){D.intention=(v==='<br>')?'':v;save()}
@@ -2992,7 +2992,7 @@ function resetMonth(){
 }
 
 function archiveMonth(){
-  if(!confirm(`Archive ${MON[CM]} ${CY}? The habit list and Fathom items will be locked for this month. You can still edit completions.`)) return;
+  if(!confirm(`Archive ${MON[CM]} ${CY}? The lever list and Fathom items will be locked for this month. You can still edit completions.`)) return;
   const mo=md(CY,CM);
   if(!mo.snapshot){
     mo.snapshot={
@@ -3004,20 +3004,20 @@ function archiveMonth(){
   save();render();
 }
 function unarchiveMonth(){
-  if(!confirm(`Unarchive ${MON[CM]} ${CY}? The habit list stays frozen. Use "Use Current Habits" to switch to your updated list.`)) return;
+  if(!confirm(`Unarchive ${MON[CM]} ${CY}? The lever list stays frozen. Use "Use Current Levers" to switch to your updated list.`)) return;
   const mo=D.months[mk(CY,CM)];
   if(mo) delete mo.archived;
   save();render();
 }
 function useCurrentHabits(){
-  if(!confirm(`Replace ${MON[CM]} ${CY}'s habit list with your current habits? The frozen list will be lost.`)) return;
+  if(!confirm(`Replace ${MON[CM]} ${CY}'s lever list with your current levers? The frozen list will be lost.`)) return;
   const mo=D.months[mk(CY,CM)];
   if(mo) delete mo.snapshot;
   save();render();
 }
 
 function archiveWeek(weekIndex){
-  if(!confirm(`Archive Week ${weekIndex}? Its current habit list will be frozen so this week keeps its own history, even if you change your habits afterward. Completions already logged are never affected.`)) return;
+  if(!confirm(`Archive Week ${weekIndex}? Its current lever list will be frozen so this week keeps its own history, even if you change your levers afterward. Completions already logged are never affected.`)) return;
   const mo=md(CY,CM);
   mo.weekSnapshots=mo.weekSnapshots||{};
   mo.weekArchived=mo.weekArchived||{};
@@ -3030,7 +3030,7 @@ function archiveWeekThroughDay(weekIndex,day){
   const span=spans.find(s=>s.week===weekIndex);
   if(!span) return;
   const through=Math.max(span.start,Math.min(day,span.end));
-  if(!confirm(`Archive Week ${weekIndex} through day ${through}? Days ${span.start}-${through} will keep today's habit list, even if you change your habits afterward. Days after ${through} will automatically use whatever habits are live at the time.`)) return;
+  if(!confirm(`Archive Week ${weekIndex} through day ${through}? Days ${span.start}-${through} will keep today's lever list, even if you change your levers afterward. Days after ${through} will automatically use whatever levers are live at the time.`)) return;
   const mo=md(CY,CM);
   mo.weekSnapshots=mo.weekSnapshots||{};
   mo.weekArchived=mo.weekArchived||{};
@@ -3047,7 +3047,7 @@ function unarchiveWeek(weekIndex){
   save();render();
 }
 function useCurrentWeekHabits(weekIndex){
-  if(!confirm(`Switch Week ${weekIndex} to your current habits? Its frozen habit list will be discarded (logged completions are kept).`)) return;
+  if(!confirm(`Switch Week ${weekIndex} to your current levers? Its frozen lever list will be discarded (logged completions are kept).`)) return;
   const mo=D.months[mk(CY,CM)];
   if(mo){
     if(mo.weekArchived) delete mo.weekArchived[weekIndex];
@@ -3445,7 +3445,7 @@ function deleteAARTemplate(tid){
 function addGroup(){
   const color=PAL[D.groups.length%PAL.length];
   const hid=uid();const sd=todayStr();
-  D.groups.push({id:uid(),name:'New Group',color,startDate:sd,habits:[{id:hid,name:'New Habit',goalDays:31,startDate:sd}]});
+  D.groups.push({id:uid(),name:'New Group',color,startDate:sd,habits:[{id:hid,name:'New Lever',goalDays:31,startDate:sd}]});
   applyHabitStartDateSkips(hid,sd);
   save();render();
 }
@@ -3458,7 +3458,7 @@ function _defaultGroup(){
 }
 function addLooseHabit(){
   const g=_defaultGroup();
-  const h={id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()};
+  const h={id:uid(),name:'New Lever',goalDays:31,startDate:todayStr()};
   g.habits.push(h);
   applyHabitStartDateSkips(h.id,h.startDate);
   save();render();
@@ -3549,7 +3549,7 @@ function deleteGroup(gid){
   const g=D.groups.find(g=>g.id===gid);
   if(!g) return;
   const kept=(g.habits||[]).filter(h=>!h.archived).length;
-  if(!confirm(kept?`Delete this group? Its ${kept} habit${kept>1?'s':''} will be kept (moved out of the group).`:'Delete this group?')) return;
+  if(!confirm(kept?`Delete this group? Its ${kept} lever${kept>1?'s':''} will be kept (moved out of the group).`:'Delete this group?')) return;
   if(g.habits&&g.habits.length){
     g.habits.forEach(h=>{ if(!h.color) h.color=g.color; }); // keep each habit's look after the group is gone
     _defaultGroup().habits.push(...g.habits);
@@ -3569,7 +3569,7 @@ function changeGroupStartDate(gid,date){
 
 function addHabit(gid){
   const g=D.groups.find(g=>g.id===gid);
-  if(g){const h={id:uid(),name:'New Habit',goalDays:31,startDate:todayStr()};g.habits.push(h);applyHabitStartDateSkips(h.id,h.startDate);save();render()}
+  if(g){const h={id:uid(),name:'New Lever',goalDays:31,startDate:todayStr()};g.habits.push(h);applyHabitStartDateSkips(h.id,h.startDate);save();render()}
 }
 
 function deleteHabit(gid,hid){
@@ -3592,7 +3592,7 @@ function purgeHabit(gid,hid){
   save();render();
 }
 function clearHabitHistory(hid){
-  if(!confirm('Clear all logged history for this habit? The habit stays active but all past completions and skips are erased.\n\nThis cannot be undone.')) return;
+  if(!confirm('Clear all logged history for this lever? The lever stays active but all past completions and skips are erased.\n\nThis cannot be undone.')) return;
   Object.values(D.months).forEach(mo=>{
     const inSnapshot=_habitInAnySnapshot(mo,hid);
     if(!inSnapshot){if(mo.completions?.[hid])mo.completions[hid]={};if(mo.skips?.[hid])mo.skips[hid]={};}
@@ -3605,7 +3605,7 @@ function mkArchivedPanel(){
   if(!allArchived.length) return null;
   const panel=document.createElement('div');
   panel.className='arch-panel';
-  panel.innerHTML=`<div class="arch-panel-title">Archived Habits</div>`+
+  panel.innerHTML=`<div class="arch-panel-title">Archived Levers</div>`+
     allArchived.map(h=>`<div class="arch-item">
       <div class="arch-item-name">${esc(h.name)}</div>
       <div class="arch-item-grp" style="color:${h.gc}">${esc(h.gn)}</div>
@@ -3740,7 +3740,7 @@ function mkGridHorizontal(){
   bar.className='grid-bar';
   const hasData2=!!D.months[mk(CY,CM)];
   const _arch2=isMonthArchived();const _snap2=hasMonthSnapshot();
-  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Habit</button>`:''} ${_chartUnitToggle()} ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
+  bar.innerHTML=`<div class="grid-bar-l">${MON[CM]} ${CY}</div><div style="display:flex;gap:8px">${!_arch2&&!_snap2&&hasData2&&editMode?`<button class="btn" style="color:#EF4444;border-color:#FCA5A5" onclick="resetMonth()">Reset Month</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''} ${!_arch2&&!_snap2&&editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Lever</button>`:''} ${_chartUnitToggle()} ${!_arch2?`<button class="btn ${editMode?'btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit'}</button>`:''}</div>`;
   const scroll=document.createElement('div');
   scroll.className='grid-scroll';
   scroll.id='hz-scroll';
@@ -3856,11 +3856,11 @@ function buildHzTable(){
     const ICO_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>';
     const ICO_DISCARD='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/></svg>';
     const splitBtnCls=wSplitThrough?'wk-arc-btn wk-arc-on':'wk-arc-btn';
-    const splitBtnTitle=wSplitThrough?`Archived through day ${wSplitThrough} — click to move the boundary up to today`:"Archive through today — earlier days keep this habit list, later days pick up whatever's live";
+    const splitBtnTitle=wSplitThrough?`Archived through day ${wSplitThrough} — click to move the boundary up to today`:"Archive through today — earlier days keep this lever list, later days pick up whatever's live";
     const splitBtn=(isCurWeek&&!wArchived)?`<button class="${splitBtnCls}" onclick="event.stopPropagation();archiveWeekThroughDay(${ws.week},${todayD})" title="${splitBtnTitle}">${ICO_CLOCK}</button>`:'';
     const archBtns=!editMode?'':wArchived
-      ?`<button class="wk-arc-btn wk-arc-on" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Archived — click to unlock this week's habit list">${ICO_LOCK}</button><button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current habits">${ICO_DISCARD}</button>`
-      :`<button class="wk-arc-btn" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Archive Week — freeze this week's habit list so it keeps its own history">${ICO_LOCK}</button>${splitBtn}${wHasSnap?`<button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">${ICO_DISCARD}</button>`:''}`;
+      ?`<button class="wk-arc-btn wk-arc-on" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Archived — click to unlock this week's lever list">${ICO_LOCK}</button><button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current levers">${ICO_DISCARD}</button>`
+      :`<button class="wk-arc-btn" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Archive Week — freeze this week's lever list so it keeps its own history">${ICO_LOCK}</button>${splitBtn}${wHasSnap?`<button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">${ICO_DISCARD}</button>`:''}`;
     th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?wd.pct+'%':'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
     rC.appendChild(th);
   });
@@ -3898,7 +3898,7 @@ function buildHzTable(){
           <input class="grp-name-in" value="${esc(g.name)}" style="color:${g.color}" onchange="renameGroup('${g.id}',this.value)" onclick="event.stopPropagation()"/>
         </div>
         <button class="btn" style="padding:2px 6px;font-size:10px;color:#EF4444;border-color:#FCA5A5" onclick="deleteGroup('${g.id}')">&#10005;</button>
-        <button class="add-hbt-btn" onclick="addHabit('${g.id}')">+ Add Habit</button>
+        <button class="add-hbt-btn" onclick="addHabit('${g.id}')">+ Add Lever</button>
       </div>`;
       grpTr.draggable=true;
       grpTr.ondragstart=e=>{_dg={type:'group',gid:g.id};grpTr.classList.add('dnd-drag');e.dataTransfer.effectAllowed='move'};
@@ -3938,7 +3938,7 @@ function buildHzTable(){
         nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;overflow:hidden">
           <div style="display:flex;align-items:center;gap:2px">
             <span class="dnd-grip" style="margin-right:1px">⠿</span>
-            <button class="color-dot-btn" style="display:block;background:${hc};flex-shrink:0" onclick="openHabitColorPop(event,'${h.id}')" title="Habit color"></button>
+            <button class="color-dot-btn" style="display:block;background:${hc};flex-shrink:0" onclick="openHabitColorPop(event,'${h.id}')" title="Lever color"></button>
             <input class="hbt-in" style="text-align:left;flex:1;min-width:0;width:auto" value="${esc(h.name)}" onchange="renameHabit('${h.id}',this.value)" onclick="event.stopPropagation()"/>
           </div>
           <div style="display:flex;align-items:center;gap:4px;padding-left:16px">
