@@ -1066,7 +1066,7 @@ function render(){
       <div style="width:20px;height:2px;${dashed?`background:repeating-linear-gradient(90deg,${color} 0,${color} 4px,transparent 4px,transparent 8px)`:`background:${color}`}"></div>
       <span style="font-size:10px;color:var(--text3);white-space:nowrap">${label}</span>
     </div>`).join('');
-    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Integrity</span><div style="display:flex;gap:14px;align-items:flex-end">${_seLegendItems}</div></div><div class="chart-wrap" style="height:260px"><canvas id="se-all-time"></canvas></div>`;
+    seCard.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Alignment</span><div style="display:flex;gap:14px;align-items:flex-end">${_seLegendItems}</div></div><div class="chart-wrap" style="height:260px"><canvas id="se-all-time"></canvas></div>`;
     app.appendChild(seCard);
     setTimeout(()=>buildSlightEdgeChart('se-all-time'),0);
     app.appendChild(mkAnnual());
@@ -1658,7 +1658,7 @@ function buildStats(){
   const _tInc=tTotal-tDone;
   const _tIncLine=_tInc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_tInc} incomplete</div>`:'';
   const todayNextLine=neededForNextToday>0?`<div id="sv-today-next" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);font-weight:600">${neededForNextToday} more → ${nextTodayGrade.letter} ${nextTodayGrade.name}${_tIncLine}</div>`:`<div id="sv-today-next"></div>`;
-  const monthCard=`<div class="stat"><div class="stat-lbl">${MON[CM]} INTEGRITY</div>
+  const monthCard=`<div class="stat"><div class="stat-lbl">${MON[CM]} ALIGNMENT</div>
       <div style="margin-top:2px">
         <span class="stat-val" id="sv-month-grade" style="color:var(--grade)">${monthGrade?rate+'%':'—'}</span>
       </div>
@@ -1666,7 +1666,7 @@ function buildStats(){
       <div id="sv-month-grps">${_grpRows(monthGroups,'gt',g=>({val:`<span style="color:var(--text3)">${g.gd}/${g.gt}</span><span style="color:var(--grade)"> · ${g.pct}%</span>`,color:'inherit'}))}</div>
       ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>`;
   const daysCard=`<div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div>${maxRateBlock}</div>`;
-  const todayCard=`<div class="stat"><div class="stat-lbl">Today's Integrity</div>
+  const todayCard=`<div class="stat"><div class="stat-lbl">Today's Alignment</div>
       <div style="margin-top:2px">
         <span class="stat-val" id="sv-today-grade" style="color:var(--grade)">${todayGrade?tPct+'%':'—'}</span>
       </div>
@@ -1729,7 +1729,7 @@ function mkChart(){
   const d=document.createElement('div');
   d.className='chart-card';
   d.innerHTML=`<div class="grid-bar">
-    <div class="grid-bar-l">Integrity Curve</div>
+    <div class="grid-bar-l">Alignment Curve</div>
     <div style="display:flex;gap:8px">
       ${editMode?`<button class="btn" onclick="addGroup()">+ Add Group</button>`:''}
       ${editMode?`<button class="btn" onclick="addLooseHabit()">+ Add Lever</button>`:''}
@@ -1867,7 +1867,7 @@ function mkHzChart(){
     </div>
     <div style="margin-top:10px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px;transition:width .4s"></div></div>`;
   } else {
-    d.innerHTML=`<div class="card-title">Integrity Curve</div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
+    d.innerHTML=`<div class="card-title">Alignment Curve</div><div class="chart-wrap"><canvas id="hz-pc"></canvas></div>`;
     setTimeout(()=>buildHzChart(),0);
   }
   return d;
@@ -1879,7 +1879,7 @@ function showChartPopup(){
   ov.style.cssText='position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML=`<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:600px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.3)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <span style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Integrity Curve</span>
+      <span style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Alignment Curve</span>
       <button onclick="hideChartPopup()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);padding:2px 6px;line-height:1">✕</button>
     </div>
     <div style="position:relative;height:340px"><canvas id="hz-pc"></canvas></div>
@@ -1974,7 +1974,7 @@ function buildGroupHeaderRow(groups,editable,cornerLabel){
 
   const pctH=document.createElement('th');
   pctH.className='sr sr-1 st hz-sum-th';pctH.rowSpan=2;
-  pctH.textContent='INT %';r1.appendChild(pctH);
+  pctH.textContent='AL %';r1.appendChild(pctH);
 
   return r1;
 }
@@ -2064,7 +2064,7 @@ function buildTFoot(){
 
   const rows={
     done:mkAnaRow('Done'),
-    rate:mkAnaRow('Integrity %'),
+    rate:mkAnaRow('Alignment %'),
   };
 
   activeGroups().forEach((g,gi)=>{
@@ -2495,7 +2495,7 @@ function mkTide(){
   d.innerHTML=`<div class="card-title">TIDE · Q${qi+1} ${CY}</div>
     <div style="display:flex;flex-direction:column;align-items:center;padding:20px 0 16px">
       <div id="tide-letter" style="font-size:56px;font-weight:700;line-height:1;color:var(--grade);letter-spacing:-.02em">${_tideStarted?pct+'%':'–'}</div>
-      <div id="tide-name" style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-top:8px">${_tideStarted?'Integrity':'Not started'}</div>
+      <div id="tide-name" style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-top:8px">${_tideStarted?'Alignment':'Not started'}</div>
       <div id="tide-pct" style="display:none"></div>
       ${qHintLine}
       ${fTideLine}
@@ -2514,7 +2514,7 @@ function updTide(){
   const nameEl=document.getElementById('tide-name');
   const pctEl=document.getElementById('tide-pct');
   if(letterEl){letterEl.textContent=_tideStarted?pct+'%':'–';letterEl.style.color='var(--grade)';}
-  if(nameEl){nameEl.textContent=_tideStarted?'Integrity':'Not started';nameEl.style.color='var(--text3)';}
+  if(nameEl){nameEl.textContent=_tideStarted?'Alignment':'Not started';nameEl.style.color='var(--text3)';}
   const fEl=document.getElementById('tide-fathom-line');
   if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fp}%`;}else fEl.style.display='none';}
   activeGroups().filter(g=>!g._default).forEach(g=>{
@@ -3801,7 +3801,7 @@ function buildHzTable(){
   pctPh1.className='sr sr-1 st hz-sum-th';
   pctPh1.rowSpan=4;
   pctPh1.style.verticalAlign='bottom';
-  pctPh1.textContent='INT %';
+  pctPh1.textContent='AL %';
   rA.appendChild(donePh1);rA.appendChild(pctPh1);
   thead.appendChild(rA);
 
@@ -4261,7 +4261,7 @@ function mkFathomGrid(){
   const donePh=document.createElement('th');
   donePh.className='sr sr-2 st hz-sum-th first-sum';donePh.rowSpan=3;donePh.style.verticalAlign='bottom';donePh.textContent='Done';
   const pctPh=document.createElement('th');
-  pctPh.className='sr sr-1 st hz-sum-th';pctPh.rowSpan=3;pctPh.style.verticalAlign='bottom';pctPh.textContent='INT %';
+  pctPh.className='sr sr-1 st hz-sum-th';pctPh.rowSpan=3;pctPh.style.verticalAlign='bottom';pctPh.textContent='AL %';
   rA.appendChild(donePh);rA.appendChild(pctPh);
   thead.appendChild(rA);
 
