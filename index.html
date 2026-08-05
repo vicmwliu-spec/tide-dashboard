@@ -1135,7 +1135,7 @@ function mkQuote(){
   d.className='quote-card';
   d.innerHTML=`
     <div class="quote-ta" id="qta" contenteditable="true"
-      oninput="saveQuote(this.innerHTML)"
+      oninput="saveQuote(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
   setTimeout(()=>{const qta=document.getElementById('qta');if(qta)qta.innerHTML=D.quote||''},0);
@@ -1146,7 +1146,7 @@ function mkIntention(){
   d.className='intention-card';
   d.innerHTML=`
     <div class="intention-ta" id="ita" contenteditable="true"
-      oninput="saveIntention(this.innerHTML)"
+      oninput="saveIntention(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
   setTimeout(()=>{const ita=document.getElementById('ita');if(ita)ita.innerHTML=D.intention||''},0);
@@ -1157,7 +1157,7 @@ function mkPriority(){
   d.className='priority-card';
   d.innerHTML=`
     <div class="priority-ta" id="pta" contenteditable="true"
-      oninput="savePriority(this.innerHTML)"
+      oninput="savePriority(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
   setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=D.priority||''},0);
@@ -1168,7 +1168,7 @@ function mkNotes(){
   d.className='notes-card';
   d.innerHTML=`
     <div class="notes-ta" id="nta" contenteditable="true"
-      oninput="saveNotes(this.innerHTML)"
+      oninput="saveNotes(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
   setTimeout(()=>{const nta=document.getElementById('nta');if(nta)nta.innerHTML=D.notes||''},0);
@@ -3128,8 +3128,18 @@ function richtextKD(e){
       const root=e.target;
       while(n&&n.nodeName!=='LI'&&n!==root) n=n.parentNode;
       if(n&&n.nodeName==='LI'){
+        const prevLi=n.previousElementSibling;
         if(n.textContent.trim()===''){
           e.preventDefault();
+          if(prevLi){
+            // Empty item mid-list: drop it outright. Outdenting here would
+            // split the <ol> and restart the numbers below at 1.
+            n.remove();
+            rtPlaceCaretAtEnd(prevLi);
+            rtNormalizeLists(root);
+            root.dispatchEvent(new Event('input',{bubbles:true}));
+            return;
+          }
           document.execCommand('outdent');
           return;
         }
@@ -3151,6 +3161,12 @@ function richtextKD(e){
           }
         }
         if(atStart){
+          if(prevLi){
+            // Merge into the item above (Notion/Docs behavior). Native handles
+            // the merge cleanly within one <ol>; just tidy up afterwards.
+            setTimeout(()=>{rtNormalizeLists(root);},0);
+            return;
+          }
           e.preventDefault();
           document.execCommand('outdent');
           return;
@@ -3194,6 +3210,38 @@ function richtextKD(e){
     }
   }
 }
+
+// ─── List normalization ──────────────────────────────────────────
+// execCommand('outdent'/'indent') splits one <ol> into two siblings, and the
+// second one restarts numbering at 1. Merge them back so numbers stay
+// continuous. Nodes are MOVED (never re-serialized) so the caret survives.
+function rtNormalizeLists(root){
+  if(!root) return;
+  const styleOf=el=>el.style.listStyleType||'';
+  let changed=true,guard=0;
+  while(changed&&guard++<20){
+    changed=false;
+    root.querySelectorAll('ol,ul').forEach(l=>{
+      if(!l.querySelector('li')){ l.remove(); changed=true; }
+    });
+    root.querySelectorAll('ol,ul').forEach(l=>{
+      const nx=l.nextElementSibling;
+      if(!nx||nx.tagName!==l.tagName) return;
+      const a=styleOf(l),b=styleOf(nx);
+      if(a&&b&&a!==b) return;
+      if(!a&&b) l.style.listStyleType=b;
+      while(nx.firstChild) l.appendChild(nx.firstChild);
+      nx.remove(); changed=true;
+    });
+  }
+  // Lists are contiguous again, so natural numbering is correct.
+  root.querySelectorAll('ol[start]').forEach(l=>l.removeAttribute('start'));
+}
+function rtPlaceCaretAtEnd(el){
+  const r=document.createRange();r.selectNodeContents(el);r.collapse(false);
+  const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+}
+function rtOnInput(el){ rtNormalizeLists(el); return el.innerHTML; }
 
 // ─────────────────────────────────────────
 //  AFTER ACTION REVIEW
@@ -3259,6 +3307,7 @@ function openAAR(day){
   editor.style.cssText='padding:20px 24px;outline:none;font-size:14px;line-height:1.85;color:var(--text1);min-height:240px;font-family:var(--font)';
   editor.innerHTML=content||'';
   editor.addEventListener('keydown',richtextKD);
+  editor.addEventListener('input',()=>rtNormalizeLists(editor));
   editorWrap.appendChild(editor);
 
   // Templates
@@ -3348,6 +3397,7 @@ function openWeekAAR(wn){
   editor.style.cssText='padding:20px 24px;outline:none;font-size:14px;line-height:1.85;color:var(--text1);min-height:240px;font-family:var(--font)';
   editor.innerHTML=content||'';
   editor.addEventListener('keydown',richtextKD);
+  editor.addEventListener('input',()=>rtNormalizeLists(editor));
   editorWrap.appendChild(editor);
 
   const tmplSection=buildAARTemplateSection();
