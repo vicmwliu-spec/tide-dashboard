@@ -3159,6 +3159,16 @@ function richtextKD(e){
       td=n&&n.closest?n.closest('.rt-table td'):null;
     }
     if(td){
+      // A list inside a cell indents/outdents like it does outside the table;
+      // only non-list content falls through to cell navigation.
+      let ln=s.getRangeAt(0).startContainer;
+      ln=ln.nodeType===Node.TEXT_NODE?ln.parentElement:ln;
+      const li=ln&&ln.closest?ln.closest('li'):null;
+      if(li&&td.contains(li)){
+        e.preventDefault();
+        document.execCommand(e.shiftKey?'outdent':'indent');
+        return;
+      }
       e.preventDefault();
       const t=td.closest('table'),cells=[...t.querySelectorAll('td')];
       const i=cells.indexOf(td)+(e.shiftKey?-1:1);
