@@ -186,7 +186,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .rt-tw{overflow-x:auto;margin:10px 0;max-width:100%}
 .rt-table{border-collapse:collapse;width:max-content;min-width:100%;font-size:13px;font-family:var(--font);table-layout:fixed}
 .rt-table td{border:1px solid var(--border);padding:6px 9px;min-width:96px;max-width:320px;vertical-align:top;line-height:1.55;word-wrap:break-word;outline:none}
-.rt-table tr:first-child td{background:var(--surface2);font-weight:600}
+/* Header row / header column are opt-in classes (rt-hopt marks a table as migrated) */
+.rt-table.rt-hr tr:first-child td,.rt-table.rt-hc tr td:first-child{background:var(--surface2);font-weight:600}
+.rt-table:not(.rt-hopt) tr:first-child td{background:var(--surface2);font-weight:600}
+/* Explicit per-column widths (colgroup) take over once a table has been sized */
+.rt-table.rt-fixed{width:auto;min-width:0;table-layout:fixed}
+.rt-table.rt-fixed td{min-width:0;max-width:none}
 .rt-table td.rt-sel{background:rgba(59,130,246,.20)}
 /* Floating table controls — rendered on <body>, never saved into card HTML */
 #rt-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
@@ -195,8 +200,20 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* Invisible padding ring so the button is easy to hit and hard to slip off */
 #rt-ctl .rt-btn::before{content:'';position:absolute;inset:-8px;border-radius:50%}
 #rt-ctl .rt-btn:hover{color:var(--text1);background:var(--surface2)}
-#rt-ctl .rt-grip{background:var(--border);border-radius:2px;opacity:.55}
+#rt-ctl .rt-grip{background:var(--border);border-radius:2px;opacity:.55;cursor:grab}
 #rt-ctl .rt-grip:hover{opacity:1;background:#3B82F6}
+#rt-ctl .rt-grip.rt-mv{opacity:1;background:#3B82F6;cursor:grabbing}
+/* Column resize handles */
+#rt-ctl .rt-rz{position:fixed;pointer-events:auto;cursor:col-resize;width:7px}
+#rt-ctl .rt-rz::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:1px;background:transparent}
+#rt-ctl .rt-rz:hover::after,#rt-ctl .rt-rz.rt-rz-on::after{background:#3B82F6}
+/* Drop indicator while reordering a row/column */
+#rt-ctl .rt-ins{position:fixed;background:#3B82F6;pointer-events:none;border-radius:1px}
+/* Table options menu (header row/column) */
+#rt-ctl .rt-menu{position:fixed;pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:158px;font-family:var(--font)}
+#rt-ctl .rt-menu .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
+#rt-ctl .rt-menu .rt-item:hover{background:var(--surface2)}
+#rt-ctl .rt-menu .rt-ck{color:#3B82F6;font-size:12px;width:13px;text-align:center}
 /* Slash command menu */
 #rt-slash{position:fixed;z-index:1200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:184px;font-family:var(--font);display:none}
 #rt-slash .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
@@ -3094,6 +3111,21 @@ function richtextKD(e){
     rtDeleteSelection();
     return;
   }
+  // Copy / cut / paste of rows, columns and cell blocks
+  if(e.ctrlKey||e.metaKey){
+    const k=e.key.toLowerCase();
+    if((k==='c'||k==='x')&&_rtSel.length){
+      e.preventDefault();
+      rtClipRead();
+      if(k==='x') rtDeleteSelection();
+      return;
+    }
+    if(k==='v'&&_rtClip&&rtAnchorCell()){
+      e.preventDefault();
+      rtPasteClip();
+      return;
+    }
+  }
   // Tab moves between cells; Tab in the last cell appends a row
   if(e.key==='Tab'){
     const s=window.getSelection();
@@ -3307,6 +3339,7 @@ function rtOnInput(el){ rtNormalizeLists(el); rtSlashUpdate(el); return el.inner
 // can never be serialized into the innerHTML we persist to localStorage.
 const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
+let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false;
 
 function rtFire(el){ if(el) el.dispatchEvent(new Event('input',{bubbles:true})); }
 function rtHost(n){
@@ -3321,6 +3354,26 @@ function rtMakeCell(){
 }
 function rtRows(t){ return t.tBodies[0]?[...t.tBodies[0].rows]:[]; }
 function rtColCount(t){ const r=rtRows(t)[0]; return r?r.cells.length:0; }
+// Materialize a <colgroup> so per-column widths can be set and persisted. Tables saved
+// before this existed upgrade themselves the first time they're hovered.
+function rtEnsureCols(t){
+  if(!t.classList.contains('rt-hopt')) t.classList.add('rt-hopt','rt-hr');
+  const n=rtColCount(t);
+  let cg=t.querySelector('colgroup');
+  if(!cg){
+    const tr0=rtRows(t)[0];
+    const widths=tr0?[...tr0.cells].map(td=>Math.round(td.getBoundingClientRect().width)||120):[];
+    cg=document.createElement('colgroup');
+    widths.forEach(w=>{ const c=document.createElement('col'); c.style.width=w+'px'; cg.appendChild(c); });
+    t.insertBefore(cg,t.firstChild);
+    t.classList.add('rt-fixed');
+  }
+  while(cg.children.length<n){ const c=document.createElement('col'); c.style.width='120px'; cg.appendChild(c); }
+  while(cg.children.length>n) cg.lastElementChild.remove();
+  t.classList.add('rt-fixed');
+  return [...cg.children];
+}
+function rtColWidth(c){ return parseFloat(c.style.width)||120; }
 
 function rtInsertTable(host){
   if(!host) return;
@@ -3361,11 +3414,37 @@ function rtAddRow(t,idx){
   return tr;
 }
 function rtAddCol(t,idx){
+  const cg=t.querySelector('colgroup');
   rtRows(t).forEach(tr=>{
     const td=rtMakeCell();
     if(idx==null||idx>=tr.cells.length) tr.appendChild(td);
     else tr.insertBefore(td,tr.cells[idx]);
   });
+  if(cg){
+    const c=document.createElement('col'); c.style.width='120px';
+    if(idx==null||idx>=cg.children.length) cg.appendChild(c);
+    else cg.insertBefore(c,cg.children[idx]);
+  }
+}
+function rtMoveRow(t,from,to){
+  const rows=rtRows(t),tr=rows[from];
+  if(!tr||from===to) return;
+  const ref=to>=rows.length?null:rows[to];
+  t.tBodies[0].insertBefore(tr,ref===tr?tr.nextSibling:ref);
+}
+function rtMoveCol(t,from,to){
+  if(from===to) return;
+  rtRows(t).forEach(tr=>{
+    const cells=[...tr.cells],td=cells[from];
+    if(!td) return;
+    const ref=to>=cells.length?null:cells[to];
+    tr.insertBefore(td,ref===td?td.nextSibling:ref);
+  });
+  const cg=t.querySelector('colgroup');
+  if(cg){
+    const cols=[...cg.children],c=cols[from];
+    if(c){ const ref=to>=cols.length?null:cols[to]; cg.insertBefore(c,ref===c?c.nextSibling:ref); }
+  }
 }
 function rtRemoveTable(t){
   const w=t.closest('.rt-tw');
@@ -3379,7 +3458,9 @@ function rtDelRows(t,idxs){
 }
 function rtDelCols(t,idxs){
   const s=idxs.slice().sort((a,b)=>b-a);
+  const cg=t.querySelector('colgroup');
   rtRows(t).forEach(tr=>s.forEach(i=>{ if(tr.cells[i]) tr.cells[i].remove(); }));
+  if(cg) s.forEach(i=>{ if(cg.children[i]) cg.children[i].remove(); });
   if(!rtColCount(t)) rtRemoveTable(t);
 }
 // ── cell selection ──
@@ -3396,19 +3477,91 @@ function rtSelectRange(t,a,b){
 }
 // Backspace/Delete over a cell selection: full rows/cols are removed,
 // anything else just has its contents cleared.
-function rtDeleteSelection(){
+// Classify the current selection: whole rows, whole columns, or an arbitrary block.
+function rtSelShape(){
   const t=_rtSel[0].closest('table');
   const nrows=rtRows(t).length,ncols=rtColCount(t);
   const rc={},cc={};
   _rtSel.forEach(td=>{ const p=rtPos(td); rc[p.r]=(rc[p.r]||0)+1; cc[p.c]=(cc[p.c]||0)+1; });
-  const fullRows=Object.keys(rc).filter(r=>rc[r]===ncols).map(Number);
-  const fullCols=Object.keys(cc).filter(c=>cc[c]===nrows).map(Number);
-  const host=rtHost(t);
-  if(fullRows.length&&fullRows.length*ncols===_rtSel.length) rtDelRows(t,fullRows);
-  else if(fullCols.length&&fullCols.length*nrows===_rtSel.length) rtDelCols(t,fullCols);
+  const rows=Object.keys(rc).map(Number).sort((a,b)=>a-b);
+  const cols=Object.keys(cc).map(Number).sort((a,b)=>a-b);
+  const fullRows=rows.filter(r=>rc[r]===ncols),fullCols=cols.filter(c=>cc[c]===nrows);
+  let kind='cells';
+  if(fullRows.length&&fullRows.length*ncols===_rtSel.length) kind='rows';
+  else if(fullCols.length&&fullCols.length*nrows===_rtSel.length) kind='cols';
+  return {t,kind,rows,cols,fullRows,fullCols};
+}
+function rtDeleteSelection(){
+  const s=rtSelShape(),host=rtHost(s.t);
+  if(s.kind==='rows') rtDelRows(s.t,s.fullRows);
+  else if(s.kind==='cols') rtDelCols(s.t,s.fullCols);
   else _rtSel.forEach(td=>{ td.innerHTML='<br>'; });
   rtClearSel();
   rtFire(host);
+}
+// ── copy / cut / paste ──
+let _rtClip=null;
+function rtClipRead(){
+  const s=rtSelShape();
+  const grid=s.rows.map(r=>s.cols.map(c=>{
+    const td=rtRows(s.t)[r]&&rtRows(s.t)[r].cells[c];
+    return td?td.innerHTML:'<br>';
+  }));
+  _rtClip={kind:s.kind,grid};
+  try{
+    const tsv=grid.map(row=>row.map(h=>{
+      const d=document.createElement('div');d.innerHTML=h;
+      return (d.textContent||'').replace(/\s+/g,' ').trim();
+    }).join('\t')).join('\n');
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(tsv).catch(()=>{});
+  }catch(_){}
+  return s;
+}
+function rtAnchorCell(){
+  if(_rtSel.length){
+    let best=_rtSel[0],bp=rtPos(best);
+    _rtSel.forEach(td=>{ const p=rtPos(td); if(p.r<bp.r||(p.r===bp.r&&p.c<bp.c)){ best=td; bp=p; } });
+    return best;
+  }
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount) return null;
+  let n=sel.getRangeAt(0).startContainer;
+  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  return n&&n.closest?n.closest('.rt-table td'):null;
+}
+function rtPasteClip(){
+  if(!_rtClip) return false;
+  const anchor=rtAnchorCell();
+  if(!anchor) return false;
+  const t=anchor.closest('table');
+  if(!t) return false;
+  rtEnsureCols(t);
+  const at=rtPos(anchor),g=_rtClip.grid;
+  if(_rtClip.kind==='rows'){
+    g.slice().reverse().forEach(row=>{
+      const tr=rtAddRow(t,at.r);
+      row.forEach((h,i)=>{ if(tr.cells[i]) tr.cells[i].innerHTML=h||'<br>'; });
+    });
+  }else if(_rtClip.kind==='cols'){
+    const w=g[0]?g[0].length:0;
+    for(let k=w-1;k>=0;k--){
+      rtAddCol(t,at.c);
+      rtRows(t).forEach((tr,ri)=>{ const h=g[ri]&&g[ri][k]; if(tr.cells[at.c]) tr.cells[at.c].innerHTML=h||'<br>'; });
+    }
+  }else{
+    const need=at.r+g.length,needC=at.c+(g[0]?g[0].length:0);
+    while(rtRows(t).length<need) rtAddRow(t);
+    while(rtColCount(t)<needC) rtAddCol(t);
+    g.forEach((row,ri)=>row.forEach((h,ci)=>{
+      const tr=rtRows(t)[at.r+ri];
+      const td=tr&&tr.cells[at.c+ci];
+      if(td) td.innerHTML=h||'<br>';
+    }));
+  }
+  rtClearSel();
+  rtFire(rtHost(t));
+  rtShowCtl(t);
+  return true;
 }
 // ── floating controls ──
 function rtHideCtl(){
@@ -3422,6 +3575,7 @@ function rtShowCtl(t){
   rtCtlCancelHide();
   el.innerHTML='';el.style.display='block';_rtCtlTable=t;
   const tr0=rtRows(t)[0]; if(!tr0){ rtHideCtl(); return; }
+  rtEnsureCols(t); // upgrades legacy tables (colgroup + header-option classes)
   const tb=t.getBoundingClientRect();
   // Clamp to the scroll wrapper so controls stay inside the card on wide tables.
   const w=t.closest('.rt-tw');
@@ -3433,15 +3587,46 @@ function rtShowCtl(t){
     const left=Math.max(r.left+2,wr.left);
     const width=Math.max(6,Math.min(r.right-2,wr.right)-left);
     const g=mk('rt-grip',`left:${left}px;top:${tb.top-7}px;width:${width}px;height:4px`);
-    g.title='Select column';
-    g.onclick=()=>rtSetSel(rtRows(t).map(tr=>tr.cells[ci]));
+    g.title='Drag to move column, click to select';
+    if(_rtMv&&_rtMv.moved&&_rtMv.kind==='col'&&_rtMv.from===ci) g.classList.add('rt-mv');
+    g.onmousedown=e=>rtMvStart(e,t,'col',ci,g);
+    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtRows(t).map(tr=>tr.cells[ci])); };
+    // Resize handle on this column's right boundary.
+    const bx=Math.min(r.right,wr.right);
+    if(bx>=wr.left&&bx<=wr.right+1){
+      const rz=mk('rt-rz',`left:${bx-3}px;top:${tb.top}px;height:${tb.height}px`);
+      rz.title='Drag to resize column';
+      if(_rtRz&&_rtRz.ci===ci) rz.classList.add('rt-rz-on');
+      rz.onmousedown=e=>rtRzStart(e,t,ci,rz);
+    }
   });
-  rtRows(t).forEach(tr=>{
+  rtRows(t).forEach((tr,ri)=>{
     const r=tr.getBoundingClientRect();
     const g=mk('rt-grip',`left:${wr.left-7}px;top:${r.top+2}px;width:4px;height:${Math.max(6,r.height-4)}px`);
-    g.title='Select row';
-    g.onclick=()=>rtSetSel([...tr.cells]);
+    g.title='Drag to move row, click to select';
+    if(_rtMv&&_rtMv.moved&&_rtMv.kind==='row'&&_rtMv.from===ri) g.classList.add('rt-mv');
+    g.onmousedown=e=>rtMvStart(e,t,'row',ri,g);
+    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel([...tr.cells]); };
   });
+  // Options (header row / header column)
+  const ob=mk('rt-btn',`left:${wr.left-24}px;top:${tb.top-24}px`);
+  ob.textContent='⋯';ob.title='Table options';
+  ob.onclick=()=>{ _rtMenu=!_rtMenu; rtShowCtl(t); };
+  if(_rtMenu){
+    const m=mk('rt-menu',`left:${wr.left-24}px;top:${tb.top}px`);
+    [['rt-hr','Header row'],['rt-hc','Header column']].forEach(([cls,label])=>{
+      const row=document.createElement('div');row.className='rt-item';
+      const on=t.classList.contains(cls);
+      row.innerHTML=`<span class="rt-ck">${on?'✓':''}</span><span></span>`;
+      row.lastElementChild.textContent=label;
+      row.onclick=()=>{
+        t.classList.add('rt-hopt');
+        t.classList.toggle(cls);
+        rtFire(rtHost(t)); rtShowCtl(t);
+      };
+      m.appendChild(row);
+    });
+  }
   const bcx=Math.min(tb.right+2,wr.right-20);
   const bc=mk('rt-btn',`left:${bcx}px;top:${tb.top+tb.height/2-10}px`);
   bc.textContent='+';bc.title='Add column';
@@ -3455,7 +3640,82 @@ function rtShowCtl(t){
 // without the control being destroyed underneath it.
 let _rtHideT=null,_rtRaf=null;
 function rtCtlCancelHide(){ if(_rtHideT){ clearTimeout(_rtHideT); _rtHideT=null; } }
-function rtScheduleHide(){ rtCtlCancelHide(); _rtHideT=setTimeout(()=>{ _rtHideT=null; rtHideCtl(); },250); }
+function rtScheduleHide(){
+  // Never pull the controls out from under an in-flight drag or an open menu.
+  if(_rtRz||_rtMv||_rtMenu) return;
+  rtCtlCancelHide(); _rtHideT=setTimeout(()=>{ _rtHideT=null; rtHideCtl(); },250);
+}
+// ── column resize ──
+function rtRzStart(e,t,ci,handle){
+  e.preventDefault(); e.stopPropagation();
+  const cols=rtEnsureCols(t);
+  if(!cols[ci]) return;
+  _rtRz={t,ci,x0:e.clientX,w0:rtColWidth(cols[ci])};
+  handle.classList.add('rt-rz-on');
+  document.body.style.userSelect='none';
+}
+function rtRzMove(e){
+  const cols=rtEnsureCols(_rtRz.t);
+  const c=cols[_rtRz.ci]; if(!c) return;
+  c.style.width=Math.max(56,Math.min(720,_rtRz.w0+(e.clientX-_rtRz.x0)))+'px';
+  rtReposition();
+}
+function rtRzEnd(){
+  const t=_rtRz.t; _rtRz=null;
+  document.body.style.userSelect='';
+  rtFire(rtHost(t));
+  rtShowCtl(t);
+}
+// ── row / column reorder ──
+function rtMvStart(e,t,kind,from,grip){
+  e.preventDefault(); e.stopPropagation();
+  _rtMvJustMoved=false;
+  _rtMv={t,kind,from,x0:e.clientX,y0:e.clientY,moved:false,to:from,grip};
+  document.body.style.userSelect='none';
+}
+function rtMvMove(e){
+  const m=_rtMv;
+  if(!m.moved){
+    if(Math.abs(e.clientX-m.x0)<4&&Math.abs(e.clientY-m.y0)<4) return;
+    m.moved=true;
+    if(m.grip) m.grip.classList.add('rt-mv');
+    rtClearSel();
+  }
+  const t=m.t,tb=t.getBoundingClientRect();
+  const rects=m.kind==='col'
+    ? [...rtRows(t)[0].cells].map(td=>td.getBoundingClientRect())
+    : rtRows(t).map(tr=>tr.getBoundingClientRect());
+  let to=rects.length;
+  for(let i=0;i<rects.length;i++){
+    const r=rects[i];
+    const mid=m.kind==='col'?(r.left+r.right)/2:(r.top+r.bottom)/2;
+    const p=m.kind==='col'?e.clientX:e.clientY;
+    if(p<mid){ to=i; break; }
+  }
+  m.to=to;
+  const el=document.getElementById('rt-ctl'); if(!el) return;
+  let ins=el.querySelector('.rt-ins');
+  if(!ins){ ins=document.createElement('div'); ins.className='rt-ins'; el.appendChild(ins); }
+  if(m.kind==='col'){
+    const x=to>=rects.length?rects[rects.length-1].right:rects[to].left;
+    ins.style.cssText=`left:${x-1}px;top:${tb.top}px;width:2px;height:${tb.height}px`;
+  }else{
+    const y=to>=rects.length?rects[rects.length-1].bottom:rects[to].top;
+    ins.style.cssText=`left:${tb.left}px;top:${y-1}px;width:${tb.width}px;height:2px`;
+  }
+}
+function rtMvEnd(){
+  const m=_rtMv; _rtMv=null;
+  document.body.style.userSelect='';
+  const el=document.getElementById('rt-ctl');
+  const ins=el&&el.querySelector('.rt-ins'); if(ins) ins.remove();
+  if(!m.moved) return;
+  _rtMvJustMoved=true;
+  setTimeout(()=>{ _rtMvJustMoved=false; },0);
+  if(m.kind==='col') rtMoveCol(m.t,m.from,m.to); else rtMoveRow(m.t,m.from,m.to);
+  rtFire(rtHost(m.t));
+  rtShowCtl(m.t);
+}
 function rtReposition(){
   if(_rtRaf) return;
   _rtRaf=requestAnimationFrame(()=>{
@@ -3479,13 +3739,15 @@ document.addEventListener('mouseover',e=>{
 document.addEventListener('mousedown',e=>{
   if(!e.target.closest) return;
   if(e.target.closest('#rt-slash')) return;
-  if(!e.target.closest('#rt-ctl')) rtSlashClose();
+  if(!e.target.closest('#rt-ctl')){ rtSlashClose(); if(_rtMenu){ _rtMenu=false; if(_rtCtlTable) rtShowCtl(_rtCtlTable); } }
   const td=e.target.closest('.rt-table td');
   if(td){ _rtDrag={t:td.closest('table'),start:td}; rtClearSel(); return; }
   _rtDrag=null;
   if(!e.target.closest('#rt-ctl')) rtClearSel();
 },true);
 document.addEventListener('mousemove',e=>{
+  if(_rtRz){ e.preventDefault(); rtRzMove(e); return; }
+  if(_rtMv){ e.preventDefault(); rtMvMove(e); return; }
   if(!_rtDrag||!e.target.closest) return;
   const td=e.target.closest('.rt-table td');
   if(td&&td.closest('table')===_rtDrag.t&&td!==_rtDrag.start){
@@ -3494,7 +3756,11 @@ document.addEventListener('mousemove',e=>{
     const s=window.getSelection(); if(s) s.removeAllRanges();
   }
 });
-document.addEventListener('mouseup',()=>{ _rtDrag=null; });
+document.addEventListener('mouseup',()=>{
+  if(_rtRz) rtRzEnd();
+  else if(_rtMv) rtMvEnd();
+  _rtDrag=null;
+});
 window.addEventListener('scroll',rtReposition,true);
 window.addEventListener('resize',rtReposition);
 
