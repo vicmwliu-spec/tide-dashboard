@@ -209,6 +209,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-ctl .rt-rz:hover::after,#rt-ctl .rt-rz.rt-rz-on::after{background:#3B82F6}
 /* Drop indicator while reordering a row/column */
 #rt-ctl .rt-ins{position:fixed;background:#3B82F6;pointer-events:none;border-radius:1px}
+/* Resize guides: alignment line, width badge, matched-column highlight */
+#rt-ctl .rt-guide{position:fixed;pointer-events:none;width:0;border-left:1px dashed #3B82F6;opacity:.9}
+#rt-ctl .rt-badge{position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-md);border-radius:var(--r2);padding:3px 7px;font-family:var(--font);font-size:11px;line-height:1.45;color:var(--text1);white-space:nowrap;text-align:center}
+#rt-ctl .rt-badge .rt-snap{display:block;color:#3B82F6;font-size:10px}
+#rt-ctl .rt-grip.rt-eq{opacity:1;background:#3B82F6}
+#rt-ctl .rt-menu .rt-sep{height:1px;background:var(--border);margin:4px 6px}
 /* Table options menu (header row/column) */
 #rt-ctl .rt-menu{position:fixed;pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:158px;font-family:var(--font)}
 #rt-ctl .rt-menu .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
@@ -3589,15 +3595,25 @@ function rtShowCtl(t){
     const g=mk('rt-grip',`left:${left}px;top:${tb.top-7}px;width:${width}px;height:4px`);
     g.title='Drag to move column, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='col'&&_rtMv.from===ci) g.classList.add('rt-mv');
+    if(_rtRz&&_rtRz.t===t&&_rtRz.matches&&_rtRz.matches.indexOf(ci)>=0) g.classList.add('rt-eq');
     g.onmousedown=e=>rtMvStart(e,t,'col',ci,g);
     g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtRows(t).map(tr=>tr.cells[ci])); };
     // Resize handle on this column's right boundary.
     const bx=Math.min(r.right,wr.right);
     if(bx>=wr.left&&bx<=wr.right+1){
       const rz=mk('rt-rz',`left:${bx-3}px;top:${tb.top}px;height:${tb.height}px`);
-      rz.title='Drag to resize column';
+      rz.title='Drag to resize · double-click to distribute evenly';
       if(_rtRz&&_rtRz.ci===ci) rz.classList.add('rt-rz-on');
       rz.onmousedown=e=>rtRzStart(e,t,ci,rz);
+      rz.ondblclick=e=>{ e.preventDefault(); e.stopPropagation(); _rtRz=null; document.body.style.userSelect=''; rtDistributeCols(t); };
+      // Alignment guide + width badge for the column currently being dragged.
+      if(_rtRz&&_rtRz.t===t&&_rtRz.ci===ci){
+        mk('rt-guide',`left:${bx}px;top:${tb.top-8}px;height:${tb.height+16}px`);
+        const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${tb.top-10}px`);
+        b.innerHTML='<span></span>'+(_rtRz.label?'<span class="rt-snap"></span>':'');
+        b.firstElementChild.textContent=Math.round(_rtRz.w)+'px';
+        if(_rtRz.label) b.lastElementChild.textContent=_rtRz.label;
+      }
     }
   });
   rtRows(t).forEach((tr,ri)=>{
@@ -3626,6 +3642,14 @@ function rtShowCtl(t){
       };
       m.appendChild(row);
     });
+    const sep=document.createElement('div');sep.className='rt-sep';m.appendChild(sep);
+    [['Distribute columns evenly',()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
+      const row=document.createElement('div');row.className='rt-item';
+      row.innerHTML='<span class="rt-ck">↔</span><span></span>';
+      row.lastElementChild.textContent=label;
+      row.onclick=()=>{ _rtMenu=false; fn(); };
+      m.appendChild(row);
+    });
   }
   const bcx=Math.min(tb.right+2,wr.right-20);
   const bc=mk('rt-btn',`left:${bcx}px;top:${tb.top+tb.height/2-10}px`);
@@ -3646,19 +3670,90 @@ function rtScheduleHide(){
   rtCtlCancelHide(); _rtHideT=setTimeout(()=>{ _rtHideT=null; rtHideCtl(); },250);
 }
 // ── column resize ──
+const RT_MINW=56,RT_MAXW=720,RT_SNAP=7;
+function rtInnerWidth(t){
+  const w=t.closest('.rt-tw');
+  if(!w) return t.getBoundingClientRect().width;
+  const r=w.getBoundingClientRect(),cs=getComputedStyle(w);
+  return Math.max(RT_MINW,r.width-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0));
+}
+// Natural width of the widest cell in each column, measured once off-screen.
+function rtContentWidths(t){
+  const rows=rtRows(t),n=rtColCount(t),out=new Array(n).fill(RT_MINW);
+  const probe=document.createElement('div');
+  probe.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0;white-space:pre-wrap;font:'+getComputedStyle(t).font;
+  document.body.appendChild(probe);
+  try{
+    for(let c=0;c<n;c++){
+      let max=RT_MINW;
+      rows.forEach(tr=>{
+        const td=tr.cells[c]; if(!td) return;
+        probe.innerHTML=td.innerHTML;
+        max=Math.max(max,Math.ceil(probe.getBoundingClientRect().width)+22); // + cell padding/border
+      });
+      out[c]=Math.min(RT_MAXW,max);
+    }
+  }finally{ probe.remove(); }
+  return out;
+}
+const RT_FRAC=['','','½','⅓','¼','⅕','⅙'];
+// Pure: resolve a raw dragged width to the nearest meaningful width.
+function rtRzSnap(t,ci,raw,fitW){
+  const cols=rtEnsureCols(t),n=cols.length;
+  const cand=[];
+  cols.forEach((c,i)=>{ if(i!==ci) cand.push({w:rtColWidth(c),label:'Equal',col:i}); });
+  const inner=rtInnerWidth(t);
+  for(let k=1;k<=Math.max(n,4);k++) cand.push({w:inner/k,label:k===1?'Full width':(RT_FRAC[k]||('1/'+k))});
+  if(fitW) cand.push({w:fitW,label:'Fit content'});
+  let best=null;
+  cand.forEach(o=>{
+    const d=Math.abs(o.w-raw);
+    if(d<=RT_SNAP&&(!best||d<best.d)) best={d,o};
+  });
+  if(best){
+    const w=Math.round(best.o.w);
+    // Every other column landing on the same width gets highlighted too.
+    const matches=[];
+    cols.forEach((c,i)=>{ if(i!==ci&&Math.abs(rtColWidth(c)-w)<=1) matches.push(i); });
+    let label=best.o.label;
+    if(label==='Equal') label=matches.length>1?'Equal to '+matches.length+' cols':'Equal width';
+    return {w,label,matches};
+  }
+  const grid=Math.round(raw/20)*20;
+  if(Math.abs(grid-raw)<=3) return {w:grid,label:'',matches:[]};
+  return {w:Math.round(raw),label:'',matches:[]};
+}
 function rtRzStart(e,t,ci,handle){
   e.preventDefault(); e.stopPropagation();
   const cols=rtEnsureCols(t);
   if(!cols[ci]) return;
-  _rtRz={t,ci,x0:e.clientX,w0:rtColWidth(cols[ci])};
+  _rtRz={t,ci,x0:e.clientX,w0:rtColWidth(cols[ci]),w:rtColWidth(cols[ci]),label:'',matches:[],fit:rtContentWidths(t)[ci]};
   handle.classList.add('rt-rz-on');
   document.body.style.userSelect='none';
 }
 function rtRzMove(e){
   const cols=rtEnsureCols(_rtRz.t);
   const c=cols[_rtRz.ci]; if(!c) return;
-  c.style.width=Math.max(56,Math.min(720,_rtRz.w0+(e.clientX-_rtRz.x0)))+'px';
+  const raw=Math.max(RT_MINW,Math.min(RT_MAXW,_rtRz.w0+(e.clientX-_rtRz.x0)));
+  // Alt bypasses snapping for a freehand width.
+  const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}:rtRzSnap(_rtRz.t,_rtRz.ci,raw,_rtRz.fit);
+  _rtRz.w=Math.max(RT_MINW,Math.min(RT_MAXW,s.w));
+  _rtRz.label=s.label; _rtRz.matches=s.matches;
+  c.style.width=_rtRz.w+'px';
   rtReposition();
+}
+// ── whole-table sizing commands ──
+function rtDistributeCols(t){
+  const cols=rtEnsureCols(t);
+  if(!cols.length) return;
+  const w=Math.max(RT_MINW,Math.round(rtInnerWidth(t)/cols.length));
+  cols.forEach(c=>{ c.style.width=w+'px'; });
+  rtFire(rtHost(t)); rtShowCtl(t);
+}
+function rtFitCols(t){
+  const cols=rtEnsureCols(t),fit=rtContentWidths(t);
+  cols.forEach((c,i)=>{ c.style.width=Math.max(RT_MINW,Math.min(RT_MAXW,fit[i]||RT_MINW))+'px'; });
+  rtFire(rtHost(t)); rtShowCtl(t);
 }
 function rtRzEnd(){
   const t=_rtRz.t; _rtRz=null;
