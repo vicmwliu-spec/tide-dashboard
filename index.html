@@ -182,6 +182,25 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol{list-style-type:decimal}
 #aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol,.notes-ta ol ol,.intention-ta ol ol{list-style-type:lower-alpha}
 #aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol,.notes-ta ol ol ol,.intention-ta ol ol ol{list-style-type:lower-roman}
+/* Rich-text simple table (Notion-style) */
+.rt-tw{overflow-x:auto;margin:10px 0;max-width:100%}
+.rt-table{border-collapse:collapse;width:max-content;min-width:100%;font-size:13px;font-family:var(--font);table-layout:fixed}
+.rt-table td{border:1px solid var(--border);padding:6px 9px;min-width:96px;max-width:320px;vertical-align:top;line-height:1.55;word-wrap:break-word;outline:none}
+.rt-table tr:first-child td{background:var(--surface2);font-weight:600}
+.rt-table td.rt-sel{background:rgba(59,130,246,.20)}
+/* Floating table controls — rendered on <body>, never saved into card HTML */
+#rt-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
+#rt-ctl .rt-btn,#rt-ctl .rt-grip{position:fixed;pointer-events:auto;cursor:pointer}
+#rt-ctl .rt-btn{display:flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text3);font-size:13px;line-height:1;box-shadow:var(--shadow-md)}
+#rt-ctl .rt-btn:hover{color:var(--text1);background:var(--surface2)}
+#rt-ctl .rt-grip{background:var(--border);border-radius:2px;opacity:.55}
+#rt-ctl .rt-grip:hover{opacity:1;background:#3B82F6}
+/* Slash command menu */
+#rt-slash{position:fixed;z-index:1200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:184px;font-family:var(--font);display:none}
+#rt-slash .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
+#rt-slash .rt-item .rt-ico{color:var(--text3);font-size:12px;width:15px;text-align:center}
+#rt-slash .rt-item.on{background:var(--surface2)}
+#rt-slash .rt-empty{padding:8px 10px;font-size:12px;color:var(--text3)}
 /* Richtext contenteditable */
 .quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);line-height:1.6;word-break:break-word;min-height:1.4em}
 .quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
@@ -3060,6 +3079,44 @@ function useCurrentWeekHabits(weekIndex){
 //  RICH TEXT
 // ─────────────────────────────────────────
 function richtextKD(e){
+  // Slash menu owns the arrows/Enter/Escape while it is open
+  if(_rtSlash&&_rtSlash.items.length){
+    if(e.key==='ArrowDown'){e.preventDefault();_rtSlash.idx=(_rtSlash.idx+1)%_rtSlash.items.length;rtSlashRender();return;}
+    if(e.key==='ArrowUp'){e.preventDefault();_rtSlash.idx=(_rtSlash.idx-1+_rtSlash.items.length)%_rtSlash.items.length;rtSlashRender();return;}
+    if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();rtSlashRun(_rtSlash.idx);return;}
+  }
+  if(e.key==='Escape'&&_rtSlash){e.preventDefault();rtSlashClose();return;}
+  // Backspace/Delete over selected cells → remove full rows/cols, else clear
+  if((e.key==='Backspace'||e.key==='Delete')&&_rtSel.length){
+    e.preventDefault();
+    rtDeleteSelection();
+    return;
+  }
+  // Tab moves between cells; Tab in the last cell appends a row
+  if(e.key==='Tab'){
+    const s=window.getSelection();
+    let td=null;
+    if(s&&s.rangeCount){
+      let n=s.getRangeAt(0).startContainer;
+      n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+      td=n&&n.closest?n.closest('.rt-table td'):null;
+    }
+    if(td){
+      e.preventDefault();
+      const t=td.closest('table'),cells=[...t.querySelectorAll('td')];
+      const i=cells.indexOf(td)+(e.shiftKey?-1:1);
+      if(i<0) return;
+      if(i>=cells.length){
+        const tr=rtAddRow(t);
+        rtPlaceCaretAtEnd(tr.cells[0]);
+        rtFire(rtHost(t));
+        rtHideCtl();
+        return;
+      }
+      rtPlaceCaretAtEnd(cells[i]);
+      return;
+    }
+  }
   // Ctrl/Cmd inline formatting shortcuts
   if(e.ctrlKey||e.metaKey){
     if(e.key==='b'){e.preventDefault();document.execCommand('bold',false,null)}
@@ -3241,7 +3298,237 @@ function rtPlaceCaretAtEnd(el){
   const r=document.createRange();r.selectNodeContents(el);r.collapse(false);
   const s=window.getSelection();s.removeAllRanges();s.addRange(r);
 }
-function rtOnInput(el){ rtNormalizeLists(el); return el.innerHTML; }
+function rtOnInput(el){ rtNormalizeLists(el); rtSlashUpdate(el); return el.innerHTML; }
+
+// ─── Simple tables (Notion-style) ────────────────────────────────
+// Control UI lives in a fixed layer on <body>, never inside the card, so it
+// can never be serialized into the innerHTML we persist to localStorage.
+const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor';
+let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
+
+function rtFire(el){ if(el) el.dispatchEvent(new Event('input',{bubbles:true})); }
+function rtHost(n){
+  const el=n&&n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  return el&&el.closest?el.closest(RT_HOSTS):null;
+}
+function rtMakeCell(){
+  const td=document.createElement('td');
+  td.setAttribute('contenteditable','true');
+  td.innerHTML='<br>';
+  return td;
+}
+function rtRows(t){ return t.tBodies[0]?[...t.tBodies[0].rows]:[]; }
+function rtColCount(t){ const r=rtRows(t)[0]; return r?r.cells.length:0; }
+
+function rtInsertTable(host){
+  if(!host) return;
+  const wrap=document.createElement('div');
+  wrap.className='rt-tw';
+  wrap.setAttribute('contenteditable','false');
+  const tbl=document.createElement('table');
+  tbl.className='rt-table';
+  const body=document.createElement('tbody');
+  for(let r=0;r<3;r++){
+    const tr=document.createElement('tr');
+    for(let c=0;c<3;c++) tr.appendChild(rtMakeCell());
+    body.appendChild(tr);
+  }
+  tbl.appendChild(body);wrap.appendChild(tbl);
+  // Drop it after whatever top-level block the caret sits in.
+  let block=null;
+  const sel=window.getSelection();
+  if(sel&&sel.rangeCount){
+    let n=sel.getRangeAt(0).startContainer;
+    n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+    while(n&&n.parentElement&&n.parentElement!==host) n=n.parentElement;
+    if(n&&n.parentElement===host) block=n;
+  }
+  const after=document.createElement('p');after.innerHTML='<br>';
+  if(block){ host.insertBefore(wrap,block.nextSibling); host.insertBefore(after,wrap.nextSibling); }
+  else { host.appendChild(wrap); host.appendChild(after); }
+  const first=wrap.querySelector('td');
+  if(first) rtPlaceCaretAtEnd(first);
+  rtFire(host);
+}
+function rtAddRow(t,idx){
+  const cols=rtColCount(t),tr=document.createElement('tr');
+  for(let i=0;i<cols;i++) tr.appendChild(rtMakeCell());
+  const rows=rtRows(t);
+  if(idx==null||idx>=rows.length) t.tBodies[0].appendChild(tr);
+  else t.tBodies[0].insertBefore(tr,rows[idx]);
+  return tr;
+}
+function rtAddCol(t,idx){
+  rtRows(t).forEach(tr=>{
+    const td=rtMakeCell();
+    if(idx==null||idx>=tr.cells.length) tr.appendChild(td);
+    else tr.insertBefore(td,tr.cells[idx]);
+  });
+}
+function rtRemoveTable(t){
+  const w=t.closest('.rt-tw');
+  rtHideCtl();
+  if(w) w.remove();
+}
+function rtDelRows(t,idxs){
+  const rows=rtRows(t);
+  idxs.slice().sort((a,b)=>b-a).forEach(i=>{ if(rows[i]) rows[i].remove(); });
+  if(!rtRows(t).length) rtRemoveTable(t);
+}
+function rtDelCols(t,idxs){
+  const s=idxs.slice().sort((a,b)=>b-a);
+  rtRows(t).forEach(tr=>s.forEach(i=>{ if(tr.cells[i]) tr.cells[i].remove(); }));
+  if(!rtColCount(t)) rtRemoveTable(t);
+}
+// ── cell selection ──
+function rtClearSel(){ _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; }
+function rtSetSel(cells){ rtClearSel(); _rtSel=cells.filter(Boolean); _rtSel.forEach(td=>td.classList.add('rt-sel')); }
+function rtPos(td){ return {r:[...td.closest('tbody').rows].indexOf(td.parentElement),c:td.cellIndex}; }
+function rtSelectRange(t,a,b){
+  const p1=rtPos(a),p2=rtPos(b);
+  const r1=Math.min(p1.r,p2.r),r2=Math.max(p1.r,p2.r);
+  const c1=Math.min(p1.c,p2.c),c2=Math.max(p1.c,p2.c);
+  const out=[];
+  rtRows(t).forEach((tr,ri)=>{ if(ri<r1||ri>r2) return; [...tr.cells].forEach((td,ci)=>{ if(ci>=c1&&ci<=c2) out.push(td); }); });
+  rtSetSel(out);
+}
+// Backspace/Delete over a cell selection: full rows/cols are removed,
+// anything else just has its contents cleared.
+function rtDeleteSelection(){
+  const t=_rtSel[0].closest('table');
+  const nrows=rtRows(t).length,ncols=rtColCount(t);
+  const rc={},cc={};
+  _rtSel.forEach(td=>{ const p=rtPos(td); rc[p.r]=(rc[p.r]||0)+1; cc[p.c]=(cc[p.c]||0)+1; });
+  const fullRows=Object.keys(rc).filter(r=>rc[r]===ncols).map(Number);
+  const fullCols=Object.keys(cc).filter(c=>cc[c]===nrows).map(Number);
+  const host=rtHost(t);
+  if(fullRows.length&&fullRows.length*ncols===_rtSel.length) rtDelRows(t,fullRows);
+  else if(fullCols.length&&fullCols.length*nrows===_rtSel.length) rtDelCols(t,fullCols);
+  else _rtSel.forEach(td=>{ td.innerHTML='<br>'; });
+  rtClearSel();
+  rtFire(host);
+}
+// ── floating controls ──
+function rtHideCtl(){
+  const el=document.getElementById('rt-ctl');
+  if(el){ el.style.display='none'; el.innerHTML=''; }
+  _rtCtlTable=null;
+}
+function rtShowCtl(t){
+  let el=document.getElementById('rt-ctl');
+  if(!el){ el=document.createElement('div'); el.id='rt-ctl'; document.body.appendChild(el); }
+  el.innerHTML='';el.style.display='block';_rtCtlTable=t;
+  const tr0=rtRows(t)[0]; if(!tr0){ rtHideCtl(); return; }
+  const tb=t.getBoundingClientRect();
+  const mk=(cls,css)=>{ const d=document.createElement('div'); d.className=cls; d.style.cssText=css; el.appendChild(d); return d; };
+  [...tr0.cells].forEach((td,ci)=>{
+    const r=td.getBoundingClientRect();
+    const g=mk('rt-grip',`left:${r.left+2}px;top:${tb.top-7}px;width:${Math.max(6,r.width-4)}px;height:4px`);
+    g.title='Select column';
+    g.onclick=()=>rtSetSel(rtRows(t).map(tr=>tr.cells[ci]));
+  });
+  rtRows(t).forEach(tr=>{
+    const r=tr.getBoundingClientRect();
+    const g=mk('rt-grip',`left:${tb.left-7}px;top:${r.top+2}px;width:4px;height:${Math.max(6,r.height-4)}px`);
+    g.title='Select row';
+    g.onclick=()=>rtSetSel([...tr.cells]);
+  });
+  const bc=mk('rt-btn',`left:${tb.right+5}px;top:${tb.top+tb.height/2-9}px`);
+  bc.textContent='+';bc.title='Add column';
+  bc.onclick=()=>{ rtAddCol(t); rtFire(rtHost(t)); rtShowCtl(t); };
+  const br=mk('rt-btn',`left:${tb.left+tb.width/2-9}px;top:${tb.bottom+5}px`);
+  br.textContent='+';br.title='Add row';
+  br.onclick=()=>{ rtAddRow(t); rtFire(rtHost(t)); rtShowCtl(t); };
+}
+document.addEventListener('mouseover',e=>{
+  if(!e.target.closest) return;
+  const t=e.target.closest('.rt-table');
+  if(t){ if(t!==_rtCtlTable) rtShowCtl(t); return; }
+  if(e.target.closest('#rt-ctl')) return;
+  if(_rtCtlTable) rtHideCtl();
+});
+document.addEventListener('mousedown',e=>{
+  if(!e.target.closest) return;
+  if(e.target.closest('#rt-slash')) return;
+  if(!e.target.closest('#rt-ctl')) rtSlashClose();
+  const td=e.target.closest('.rt-table td');
+  if(td){ _rtDrag={t:td.closest('table'),start:td}; rtClearSel(); return; }
+  _rtDrag=null;
+  if(!e.target.closest('#rt-ctl')) rtClearSel();
+},true);
+document.addEventListener('mousemove',e=>{
+  if(!_rtDrag||!e.target.closest) return;
+  const td=e.target.closest('.rt-table td');
+  if(td&&td.closest('table')===_rtDrag.t&&td!==_rtDrag.start){
+    e.preventDefault();
+    rtSelectRange(_rtDrag.t,_rtDrag.start,td);
+    const s=window.getSelection(); if(s) s.removeAllRanges();
+  }
+});
+document.addEventListener('mouseup',()=>{ _rtDrag=null; });
+window.addEventListener('scroll',()=>{ if(_rtCtlTable) rtHideCtl(); },true);
+window.addEventListener('resize',()=>{ if(_rtCtlTable) rtHideCtl(); });
+
+// ─── Slash command menu ──────────────────────────────────────────
+const RT_CMDS=[
+  {k:'table',ic:'▦',label:'Table',run:h=>rtInsertTable(h)},
+  {k:'divider',ic:'—',label:'Divider',run:()=>document.execCommand('insertHTML',false,'<hr><p><br></p>')},
+  {k:'bulleted',ic:'•',label:'Bulleted list',run:()=>document.execCommand('insertUnorderedList')},
+  {k:'numbered',ic:'1.',label:'Numbered list',run:()=>document.execCommand('insertOrderedList')}
+];
+let _rtSlash=null;
+function rtSlashClose(){ _rtSlash=null; const el=document.getElementById('rt-slash'); if(el) el.style.display='none'; }
+function rtSlashUpdate(host){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount) return rtSlashClose();
+  const rng=sel.getRangeAt(0),node=rng.startContainer;
+  if(node.nodeType!==Node.TEXT_NODE) return rtSlashClose();
+  const m=node.textContent.slice(0,rng.startOffset).match(/(?:^|\s)\/([a-zA-Z]*)$/);
+  if(!m) return rtSlashClose();
+  const q=m[1].toLowerCase();
+  const items=RT_CMDS.filter(c=>c.k.startsWith(q)||c.label.toLowerCase().includes(q));
+  _rtSlash={host,node,start:rng.startOffset-m[1].length-1,qlen:m[1].length,items,idx:0};
+  rtSlashRender();
+}
+function rtSlashRender(){
+  let el=document.getElementById('rt-slash');
+  if(!el){ el=document.createElement('div'); el.id='rt-slash'; document.body.appendChild(el); }
+  if(!_rtSlash){ el.style.display='none'; return; }
+  const {items,idx}=_rtSlash;
+  el.innerHTML=items.length
+    ? items.map((c,i)=>`<div class="rt-item${i===idx?' on':''}" data-i="${i}"><span class="rt-ico">${c.ic}</span>${c.label}</div>`).join('')
+    : '<div class="rt-empty">No matches</div>';
+  el.style.display='block';
+  el.querySelectorAll('.rt-item').forEach(d=>{
+    d.onmousedown=ev=>{ ev.preventDefault(); rtSlashRun(+d.dataset.i); };
+  });
+  const sel=window.getSelection();
+  if(sel&&sel.rangeCount){
+    const rects=sel.getRangeAt(0).getClientRects();
+    let r=rects[0];
+    if(!r){ const p=sel.getRangeAt(0).startContainer.parentElement; if(p) r=p.getBoundingClientRect(); }
+    if(r){
+      const h=el.offsetHeight;
+      el.style.left=Math.max(6,Math.min(r.left,window.innerWidth-el.offsetWidth-10))+'px';
+      el.style.top=Math.max(6,(r.bottom+h+8>window.innerHeight)?r.top-h-6:r.bottom+6)+'px';
+    }
+  }
+}
+function rtSlashRun(i){
+  if(!_rtSlash) return;
+  const {host,node,start,qlen,items}=_rtSlash;
+  const cmd=items[i];
+  if(!cmd) return;
+  try{
+    const r=document.createRange();
+    r.setStart(node,start);r.setEnd(node,start+qlen+1);
+    const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+    document.execCommand('delete');
+  }catch(err){}
+  rtSlashClose();
+  cmd.run(host);
+  rtFire(host);
+}
 
 // ─────────────────────────────────────────
 //  AFTER ACTION REVIEW
@@ -3307,7 +3594,7 @@ function openAAR(day){
   editor.style.cssText='padding:20px 24px;outline:none;font-size:14px;line-height:1.85;color:var(--text1);min-height:240px;font-family:var(--font)';
   editor.innerHTML=content||'';
   editor.addEventListener('keydown',richtextKD);
-  editor.addEventListener('input',()=>rtNormalizeLists(editor));
+  editor.addEventListener('input',()=>rtOnInput(editor));
   editorWrap.appendChild(editor);
 
   // Templates
@@ -3397,7 +3684,7 @@ function openWeekAAR(wn){
   editor.style.cssText='padding:20px 24px;outline:none;font-size:14px;line-height:1.85;color:var(--text1);min-height:240px;font-family:var(--font)';
   editor.innerHTML=content||'';
   editor.addEventListener('keydown',richtextKD);
-  editor.addEventListener('input',()=>rtNormalizeLists(editor));
+  editor.addEventListener('input',()=>rtOnInput(editor));
   editorWrap.appendChild(editor);
 
   const tmplSection=buildAARTemplateSection();
