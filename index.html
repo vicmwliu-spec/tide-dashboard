@@ -1354,6 +1354,7 @@ function buildClockSVG(){
   const lblMeta=[];
   let hitArcs='';
   const MIN_HIT_MIN=25; // short blocks get a wider invisible tap/click target so they stay editable
+  const tbName=b=>tbArrows(b.name||'');
   blocks.forEach((b,idx)=>{
     const span=_span(b);
     const a1=_tbAngle(b.startMin),a2=_tbAngle(b.endMin);
@@ -1363,7 +1364,7 @@ function buildClockSVG(){
     const durMin=span%60,durHr=Math.floor(span/60);
     const durStr=(durHr?durHr+'h ':'')+(durMin?durMin+'m':'');
     const arcStroke=_isLightColor(b.color)?'stroke="rgba(0,0,0,0.18)" stroke-width="1.5"':_isDarkColor(b.color)?'stroke="rgba(255,255,255,0.25)" stroke-width="1.5"':'';
-    const tipAttrs=`data-tbid="${b.id}" data-tipname="${b.name.replace(/"/g,'&quot;')}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}"`;
+    const tipAttrs=`data-tbid="${b.id}" data-tipname="${esc(tbName(b))}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}"`;
     arcs+=`<path d="${ap(bRI[idx],bRO[idx],a1,a2)}" fill="${b.color}" opacity=".68" ${arcStroke} style="cursor:grab;filter:drop-shadow(0 0 4px ${b.color}88);pointer-events:none" ${tipAttrs} class="tb-arc"/>`;
     if(span<MIN_HIT_MIN){
       const padMin=(MIN_HIT_MIN-span)/2;
@@ -1406,7 +1407,7 @@ function buildClockSVG(){
     const baseColor=_visColor(b.color);
     const lblColor=(_isLightColor(b.color)||_isDarkColor(b.color))?baseColor:_lighten(b.color,0.35);
     labels+=`<line x1="${lx1.toFixed(1)}" y1="${ly1.toFixed(1)}" x2="${lx2.toFixed(1)}" y2="${ly2.toFixed(1)}" stroke="${lblColor}" stroke-width="1.2" opacity=".7" style="pointer-events:none"/>`;
-    labels+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="5.5" font-weight="700" letter-spacing=".03em" fill="${lblColor}" font-family="Inter,system-ui" style="pointer-events:none">${b.name}</text>`;
+    labels+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="5.5" font-weight="700" letter-spacing=".03em" fill="${lblColor}" font-family="Inter,system-ui" style="pointer-events:none">${esc(tbName(b))}</text>`;
   });
   // Current time dot
   const nowA=_tbAngle(nowMin),[nx,ny]=pt(TB_RO-1,nowA);
@@ -1549,7 +1550,7 @@ function openTimeBlockModal(block){
       <button onclick="closeTimeBlockModal()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;line-height:1;padding:2px 6px">✕</button>
     </div>
     ${grps.length?`<div style="margin-bottom:12px"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">From Group</div><div style="display:flex;gap:5px;flex-wrap:wrap">${groupChips}</div></div>`:''}
-    <div style="margin-bottom:14px"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Block Name</div><input id="tb-name" type="text" placeholder="e.g. Morning Flow…" value="${b.name}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none;--ph-color:var(--text3)"/></div>
+    <div style="margin-bottom:14px"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Block Name</div><input id="tb-name" type="text" placeholder="e.g. Morning Flow…" value="${esc(b.name||'')}" oninput="tbNameInput(this)" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none;--ph-color:var(--text3)"/></div>
     <div style="display:flex;gap:10px;margin-bottom:14px">
       <div style="flex:1"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Start</div><input id="tb-start" type="time" value="${toTime(b.startMin)}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none"/></div>
       <div style="flex:1"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">End</div><input id="tb-end" type="time" value="${toTime(b.endMin)}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none"/></div>
@@ -1581,11 +1582,27 @@ function openTimeBlockModal(block){
     }
   }
 }
+// Typed arrow shorthands become real glyphs so they survive into the clock label,
+// where the name is escaped before being written into the SVG.
+function tbArrows(s){
+  return String(s)
+    .replace(/<-+>/g,'↔').replace(/<=+>/g,'⇔')
+    .replace(/-+>/g,'→').replace(/=+>/g,'⇒')
+    .replace(/<-+/g,'←').replace(/<=+/g,'⇐');
+}
+// Convert as you type, keeping the caret where the typing left it.
+function tbNameInput(el){
+  const p=el.selectionStart,v=el.value,n=tbArrows(v);
+  if(n===v) return;
+  el.value=n;
+  const c=Math.max(0,p-(v.length-n.length));
+  el.setSelectionRange(c,c);
+}
 function closeTimeBlockModal(){const el=document.getElementById('tb-overlay');if(el)el.remove();}
 function tbToggleDay(btn){const on=btn.style.background.includes('var(--text1)');btn.style.background=on?'var(--surface2)':'var(--text1)';btn.style.color=on?'var(--text3)':'var(--bg)';}
 function tbPickColor(btn){document.querySelectorAll('#tb-overlay [data-color]').forEach(b=>b.style.border='2.5px solid transparent');const cb=document.getElementById('tb-custom-color');if(cb)cb.style.border='2.5px solid transparent';btn.style.border='2.5px solid var(--text1)';}
 function saveTimeBlockFromModal(id){
-  const name=(document.getElementById('tb-name').value||'').trim();if(!name)return;
+  const name=tbArrows((document.getElementById('tb-name').value||'').trim());if(!name)return;
   const sv=document.getElementById('tb-start').value,ev=document.getElementById('tb-end').value;
   const [sh,sm]=(sv||'00:00').split(':').map(Number),[eh,em]=(ev||'01:00').split(':').map(Number);
   const colorBtn=document.querySelector('#tb-overlay [data-color][style*="var(--text1)"]');
