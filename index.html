@@ -1135,6 +1135,8 @@ function render(){
   }
   _updSelBar();
   _updEditBar();
+  // Runs after the card editors have filled themselves in (they restore on a 0ms timer).
+  setTimeout(rtFreezeTables,0);
 }
 
 // ─────────────────────────────────────────
@@ -3143,7 +3145,7 @@ function richtextKD(e){
       if(k==='x') rtDeleteSelection();
       return;
     }
-    if(k==='v'&&_rtClip&&rtAnchorCell()){
+    if(k==='v'&&_rtClip&&_rtClip.grid&&rtAnchorCell()){
       e.preventDefault();
       rtPasteClip();
       return;
@@ -3408,6 +3410,32 @@ function rtEnsureCols(t){
 }
 function rtColWidth(c){ return parseFloat(c.style.width)||120; }
 
+// Drop a table wrapper after whatever top-level block the caret sits in, followed by an
+// empty paragraph so there is always somewhere to type below it.
+function rtPlaceWrap(host,wrap){
+  let block=null;
+  const sel=window.getSelection();
+  if(sel&&sel.rangeCount){
+    let n=sel.getRangeAt(0).startContainer;
+    n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+    while(n&&n.parentElement&&n.parentElement!==host) n=n.parentElement;
+    if(n&&n.parentElement===host) block=n;
+  }
+  const after=document.createElement('p');after.innerHTML='<br>';
+  if(block){ host.insertBefore(wrap,block.nextSibling); host.insertBefore(after,wrap.nextSibling); }
+  else { host.appendChild(wrap); host.appendChild(after); }
+}
+// Tables saved before colgroups existed are still fluid and reflow with the window.
+// Freeze them to px on first render rather than waiting for a hover.
+function rtFreezeTables(){
+  document.querySelectorAll(RT_HOSTS).forEach(host=>{
+    let froze=false;
+    host.querySelectorAll('.rt-table:not(.rt-fixed)').forEach(t=>{
+      if(rtColCount(t)){ rtEnsureCols(t); froze=true; }
+    });
+    if(froze) rtFire(host);
+  });
+}
 function rtInsertTable(host){
   if(!host) return;
   const wrap=document.createElement('div');
@@ -3422,18 +3450,14 @@ function rtInsertTable(host){
     body.appendChild(tr);
   }
   tbl.appendChild(body);wrap.appendChild(tbl);
-  // Drop it after whatever top-level block the caret sits in.
-  let block=null;
-  const sel=window.getSelection();
-  if(sel&&sel.rangeCount){
-    let n=sel.getRangeAt(0).startContainer;
-    n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
-    while(n&&n.parentElement&&n.parentElement!==host) n=n.parentElement;
-    if(n&&n.parentElement===host) block=n;
+  rtPlaceWrap(host,wrap);
+  // Size is fixed from the moment of insertion: the columns divide the card's current
+  // width evenly and are written as px, so the table never reflows when the window does.
+  const cols=rtEnsureCols(tbl);
+  if(cols.length){
+    const cw=Math.max(RT_MINW,Math.round(rtInnerWidth(tbl)/cols.length));
+    cols.forEach(c=>{ c.style.width=cw+'px'; });
   }
-  const after=document.createElement('p');after.innerHTML='<br>';
-  if(block){ host.insertBefore(wrap,block.nextSibling); host.insertBefore(after,wrap.nextSibling); }
-  else { host.appendChild(wrap); host.appendChild(after); }
   const first=wrap.querySelector('td');
   if(first) rtPlaceCaretAtEnd(first);
   rtFire(host);
@@ -3534,20 +3558,78 @@ function rtDeleteSelection(){
 }
 // ── copy / cut / paste ──
 let _rtClip=null;
+// Mirror a grid of cell text to the system clipboard as TSV. The same string is kept on
+// _rtClip so a later paste can tell whether the clipboard still holds what we put there.
+function rtClipMirror(rows){
+  const tsv=rows.map(r=>r.join('\t')).join('\n');
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText)
+      navigator.clipboard.writeText(tsv).catch(()=>{ if(_rtClip) _rtClip.tsv=null; });
+    else if(_rtClip) _rtClip.tsv=null;
+  }catch(_){ if(_rtClip) _rtClip.tsv=null; }
+  return tsv;
+}
+function rtCellText(td){ return ((td&&td.textContent)||'').replace(/\s+/g,' ').trim(); }
+// Copy a whole table: the wrapper's markup, so column widths, header flags and cell
+// content all travel together and the clone is a fully working table on arrival.
+function rtCopyTable(t){
+  const wrap=t.closest('.rt-tw');
+  if(!wrap) return false;
+  rtEnsureCols(t);
+  rtClearSel();  // .rt-sel highlights must not be baked into the snapshot
+  _rtClip={kind:'table',html:wrap.outerHTML,tsv:''};
+  _rtClip.tsv=rtClipMirror(rtRows(t).map(tr=>[...tr.cells].map(rtCellText)));
+  return true;
+}
+function rtDuplicateTable(t){
+  if(!rtCopyTable(t)) return false;
+  const wrap=t.closest('.rt-tw'),host=rtHost(t);
+  const tmp=document.createElement('div');tmp.innerHTML=_rtClip.html;
+  const copy=tmp.firstElementChild;
+  if(!copy||!host) return false;
+  const after=document.createElement('p');after.innerHTML='<br>';
+  wrap.parentNode.insertBefore(copy,wrap.nextSibling);
+  copy.parentNode.insertBefore(after,copy.nextSibling);
+  const first=copy.querySelector('td');
+  if(first) rtPlaceCaretAtEnd(first);
+  rtFire(host);
+  return true;
+}
+// Paste a copied table as a sibling block. A caret inside another table would nest the
+// copy, so in that case it lands directly after the table being edited instead.
+function rtPasteTable(){
+  if(!_rtClip||_rtClip.kind!=='table') return false;
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount) return false;
+  let n=sel.getRangeAt(0).startContainer;
+  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  const host=rtHost(n);
+  if(!host) return false;
+  const tmp=document.createElement('div');tmp.innerHTML=_rtClip.html;
+  const wrap=tmp.firstElementChild;
+  if(!wrap) return false;
+  const inner=n&&n.closest?n.closest('.rt-tw'):null;
+  if(inner&&host.contains(inner)){
+    const after=document.createElement('p');after.innerHTML='<br>';
+    inner.parentNode.insertBefore(wrap,inner.nextSibling);
+    wrap.parentNode.insertBefore(after,wrap.nextSibling);
+  }else rtPlaceWrap(host,wrap);
+  const first=wrap.querySelector('td');
+  if(first) rtPlaceCaretAtEnd(first);
+  rtFire(host);
+  return true;
+}
 function rtClipRead(){
   const s=rtSelShape();
   const grid=s.rows.map(r=>s.cols.map(c=>{
     const td=rtRows(s.t)[r]&&rtRows(s.t)[r].cells[c];
     return td?td.innerHTML:'<br>';
   }));
-  _rtClip={kind:s.kind,grid};
-  try{
-    const tsv=grid.map(row=>row.map(h=>{
-      const d=document.createElement('div');d.innerHTML=h;
-      return (d.textContent||'').replace(/\s+/g,' ').trim();
-    }).join('\t')).join('\n');
-    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(tsv).catch(()=>{});
-  }catch(_){}
+  _rtClip={kind:s.kind,grid,tsv:''};
+  _rtClip.tsv=rtClipMirror(grid.map(row=>row.map(h=>{
+    const d=document.createElement('div');d.innerHTML=h;
+    return rtCellText(d);
+  })));
   return s;
 }
 function rtAnchorCell(){
@@ -3673,6 +3755,16 @@ function rtShowCtl(t){
     [['Distribute columns evenly',()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
       const row=document.createElement('div');row.className='rt-item';
       row.innerHTML='<span class="rt-ck">↔</span><span></span>';
+      row.lastElementChild.textContent=label;
+      row.onclick=()=>{ _rtMenu=false; fn(); };
+      m.appendChild(row);
+    });
+    const sep2=document.createElement('div');sep2.className='rt-sep';m.appendChild(sep2);
+    [['⧉','Copy table',()=>{ rtCopyTable(t); rtHideCtl(); }],
+     ['⊞','Duplicate table',()=>{ rtDuplicateTable(t); rtHideCtl(); }]].forEach(([ic,label,fn])=>{
+      const row=document.createElement('div');row.className='rt-item';
+      row.innerHTML='<span class="rt-ck"></span><span></span>';
+      row.firstElementChild.textContent=ic;
       row.lastElementChild.textContent=label;
       row.onclick=()=>{ _rtMenu=false; fn(); };
       m.appendChild(row);
@@ -3885,6 +3977,17 @@ document.addEventListener('mouseup',()=>{
 });
 window.addEventListener('scroll',rtReposition,true);
 window.addEventListener('resize',rtReposition);
+// Whole-table paste is handled on the paste event rather than in keydown so the system
+// clipboard can be compared against the TSV written at copy time. If the user has copied
+// something else since, the held table is stale and the native paste is left alone.
+document.addEventListener('paste',e=>{
+  if(!_rtClip||_rtClip.kind!=='table') return;
+  if(_rtClip.tsv){
+    const txt=e.clipboardData?e.clipboardData.getData('text/plain'):'';
+    if(txt.replace(/\r/g,'')!==_rtClip.tsv) return;
+  }
+  if(rtPasteTable()) e.preventDefault();
+});
 
 // ─── Slash command menu ──────────────────────────────────────────
 const RT_CMDS=[
@@ -4024,6 +4127,7 @@ function openAAR(day){
   document.body.appendChild(overlay);
 
   setTimeout(()=>{
+    rtFreezeTables();
     editor.focus();
     const range=document.createRange();
     range.selectNodeContents(editor);range.collapse(false);
@@ -4110,6 +4214,7 @@ function openWeekAAR(wn){
   document.body.appendChild(overlay);
 
   setTimeout(()=>{
+    rtFreezeTables();
     editor.focus();
     const range=document.createRange();
     range.selectNodeContents(editor);range.collapse(false);
@@ -4186,6 +4291,7 @@ function loadAARTemplate(tid){
   const cur=editor.innerHTML.trim();
   if(cur&&cur!=='<br>'&&!confirm('Load template? This replaces your current entry.')) return;
   editor.innerHTML=t.content;
+  rtFreezeTables();
   editor.focus();
 }
 
