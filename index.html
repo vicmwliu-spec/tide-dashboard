@@ -3229,6 +3229,20 @@ function richtextKD(e){
           const nextRow=rtRows(t)[p.r+(down?1:-1)];
           const target=nextRow&&nextRow.cells[p.c];
           if(target){ e.preventDefault(); rtPlaceCaretAtEnd(target); return; }
+          // Past the first/last row: leave the table for the block beside it, creating
+          // one if the guard paragraph was deleted.
+          const wrap=td.closest('.rt-tw'),host=rtHost(wrap);
+          if(wrap&&host){
+            let sib=down?wrap.nextElementSibling:wrap.previousElementSibling;
+            if(!sib||sib.classList.contains('rt-tw')){
+              sib=document.createElement('p');sib.innerHTML='<br>';
+              host.insertBefore(sib,down?wrap.nextSibling:wrap);
+              rtFire(host);
+            }
+            e.preventDefault();
+            if(down) rtPlaceCaretAtStart(sib); else rtPlaceCaretAtEnd(sib);
+            return;
+          }
         }
       }
     }
@@ -3414,6 +3428,10 @@ function rtPlaceCaretAtEnd(el){
   const r=document.createRange();r.selectNodeContents(el);r.collapse(false);
   const s=window.getSelection();s.removeAllRanges();s.addRange(r);
 }
+function rtPlaceCaretAtStart(el){
+  const r=document.createRange();r.selectNodeContents(el);r.collapse(true);
+  const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+}
 function rtOnInput(el){ rtNormalizeLists(el); rtSlashUpdate(el); return el.innerHTML; }
 
 // ─── Simple tables (Notion-style) ────────────────────────────────
@@ -3472,15 +3490,31 @@ function rtPlaceWrap(host,wrap){
   if(block){ host.insertBefore(wrap,block.nextSibling); host.insertBefore(after,wrap.nextSibling); }
   else { host.appendChild(wrap); host.appendChild(after); }
 }
+// The wrapper is contenteditable="false", so a table sitting first or last in a card
+// leaves nowhere to put the caret beside it — you cannot click above it, type above it,
+// or insert anything above it. Keep an empty paragraph on each side (two adjacent tables
+// need one between them too). Returns true if anything was added.
+function rtGuardBlocks(host){
+  if(!host) return false;
+  let added=false;
+  const gap=()=>{ const p=document.createElement('p');p.innerHTML='<br>';added=true;return p; };
+  const isTable=el=>!!el&&el.classList&&el.classList.contains('rt-tw');
+  [...host.querySelectorAll('.rt-tw')].forEach(w=>{
+    if(w.parentElement!==host) return;
+    if(!w.previousElementSibling||isTable(w.previousElementSibling)) host.insertBefore(gap(),w);
+    if(!w.nextElementSibling) host.appendChild(gap());
+  });
+  return added;
+}
 // Tables saved before colgroups existed are still fluid and reflow with the window.
 // Freeze them to px on first render rather than waiting for a hover.
 function rtFreezeTables(){
   document.querySelectorAll(RT_HOSTS).forEach(host=>{
-    let froze=false;
+    let dirty=rtGuardBlocks(host);
     host.querySelectorAll('.rt-table:not(.rt-fixed)').forEach(t=>{
-      if(rtColCount(t)){ rtEnsureCols(t); froze=true; }
+      if(rtColCount(t)){ rtEnsureCols(t); dirty=true; }
     });
-    if(froze) rtFire(host);
+    if(dirty) rtFire(host);
   });
 }
 function rtInsertTable(host){
@@ -3498,6 +3532,7 @@ function rtInsertTable(host){
   }
   tbl.appendChild(body);wrap.appendChild(tbl);
   rtPlaceWrap(host,wrap);
+  rtGuardBlocks(host);
   // Size is fixed from the moment of insertion: the columns divide the card's current
   // width evenly and are written as px, so the table never reflows when the window does.
   const cols=rtEnsureCols(tbl);
@@ -3640,6 +3675,7 @@ function rtDuplicateTable(t){
   const after=document.createElement('p');after.innerHTML='<br>';
   wrap.parentNode.insertBefore(copy,wrap.nextSibling);
   copy.parentNode.insertBefore(after,copy.nextSibling);
+  rtGuardBlocks(host);
   const first=copy.querySelector('td');
   if(first) rtPlaceCaretAtEnd(first);
   rtFire(host);
@@ -3664,6 +3700,7 @@ function rtPasteTable(){
     inner.parentNode.insertBefore(wrap,inner.nextSibling);
     wrap.parentNode.insertBefore(after,wrap.nextSibling);
   }else rtPlaceWrap(host,wrap);
+  rtGuardBlocks(host);
   const first=wrap.querySelector('td');
   if(first) rtPlaceCaretAtEnd(first);
   rtFire(host);
