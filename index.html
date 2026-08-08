@@ -560,13 +560,15 @@ let editMode = false;
 let fathomEditMode = false;
 let _lastArchived = null;
 let _toastTimer = null;
-let view = 'month'; // 'month'|'year'
+// View and chart mode are remembered per device, the same way darkMode is above —
+// localStorage only, deliberately not part of D so they don't sync across devices.
+let view = localStorage.getItem('tide_view')==='year'?'year':'month'; // 'month'|'year'
 let gridLayout = 'horizontal'; // 'vertical'|'horizontal'
 let chartInst = null;
 let hzChartInst = null;
 let seChartInst = null;
-let chartSoloState = null;
-let chartUnit = 'group'; // 'group'|'habit' — chart lines per group or per habit
+let chartSoloState = localStorage.getItem('tide_chart_solo')||null;
+let chartUnit = localStorage.getItem('tide_chart_unit')==='habit'?'habit':'group'; // 'group'|'habit' — chart lines per group or per habit
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
 let _aarDay = null; // currently open AAR day
@@ -1839,9 +1841,23 @@ function _applyChartVisibility(showFn){
   });
   _refreshPresetBtns();
 }
+function _saveChartSolo(){
+  if(chartSoloState) localStorage.setItem('tide_chart_solo',chartSoloState);
+  else localStorage.removeItem('tide_chart_solo');
+}
+// Re-apply the remembered preset to a freshly built chart. Unlike soloChart this never
+// toggles, and a key that no longer matches a preset (renamed or deleted group) is
+// dropped rather than filtering every series away.
+function _applyChartSolo(){
+  if(!chartSoloState) return;
+  const show=window._lgPresets&&window._lgPresets[chartSoloState];
+  if(!show){ chartSoloState=null; _saveChartSolo(); _refreshPresetBtns(); return; }
+  _applyChartVisibility(l=>show.includes(l));
+}
 function soloChart(key,labels){
   if(chartSoloState===key){chartSoloState=null;_applyChartVisibility(()=>true);}
   else{chartSoloState=key;const show=labels||(window._lgPresets&&window._lgPresets[key])||[];_applyChartVisibility(l=>show.includes(l));}
+  _saveChartSolo();
 }
 function toggleChartDs(label){
   chartSoloState=null;
@@ -1852,8 +1868,10 @@ function toggleChartDs(label){
   });
   _refreshPresetBtns();
 }
-function toggleChartUnit(){ chartUnit=chartUnit==='group'?'habit':'group'; chartSoloState=null; render(); }
-function setChartUnit(u){ if(chartUnit===u)return; chartUnit=u; chartSoloState=null; render(); }
+// Presets are per-unit, so switching unit clears the solo state — persist the clear too.
+function _saveChartUnit(){ localStorage.setItem('tide_chart_unit',chartUnit); _saveChartSolo(); }
+function toggleChartUnit(){ chartUnit=chartUnit==='group'?'habit':'group'; chartSoloState=null; _saveChartUnit(); render(); }
+function setChartUnit(u){ if(chartUnit===u)return; chartUnit=u; chartSoloState=null; _saveChartUnit(); render(); }
 // Segmented Groups|Habits control — the active mode is highlighted so the current mode is obvious.
 function _chartUnitToggle(){
   return `<span style="display:inline-flex;align-items:center;gap:3px">
@@ -1896,6 +1914,7 @@ function buildChart(){
     }
   });
   _refreshPresetBtns();
+  _applyChartSolo();
 }
 
 function updateChart(){
@@ -3016,8 +3035,9 @@ function _navRender(){if(isMonthArchived()&&(editMode||fathomEditMode)){editMode
 function prevMo(){CM===0?(CM=11,CY--):CM--;_navRender()}
 function nextMo(){CM===11?(CM=0,CY++):CM++;_navRender()}
 function goToday(){CY=now.getFullYear();CM=now.getMonth();_navRender()}
-function goMonth(m){CM=m;view='month';_navRender()}
-function toggleView(){view=view==='year'?'month':'year';render()}
+function _saveView(){ localStorage.setItem('tide_view',view); }
+function goMonth(m){CM=m;view='month';_saveView();_navRender()}
+function toggleView(){view=view==='year'?'month':'year';_saveView();render()}
 function toggleEdit(){if(isMonthArchived())return;editMode=!editMode;if(editMode)fathomEditMode=false;render();}
 function toggleFathomEdit(){fathomEditMode=!fathomEditMode;if(fathomEditMode)editMode=false;render();}
 function _updEditBar(){const b=document.getElementById('edit-bar');if(!b)return;const on=editMode||fathomEditMode;b.style.display=on?'flex':'none';b.textContent=(editMode?'✎ Editing Levers':fathomEditMode?'✎ Editing Fathom':'✎ Editing')+' · ✓ Done';}
@@ -3184,6 +3204,33 @@ function richtextKD(e){
       }
       rtPlaceCaretAtEnd(cells[i]);
       return;
+    }
+  }
+  // Up/Down step to the neighbouring row in the same column. Each cell is its own
+  // contenteditable island, so without this the caret simply cannot leave. Multi-line
+  // cells keep their native line-by-line movement until the caret reaches the edge.
+  if((e.key==='ArrowDown'||e.key==='ArrowUp')&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    const s=window.getSelection();
+    if(s&&s.rangeCount&&s.getRangeAt(0).collapsed){
+      let n=s.getRangeAt(0).startContainer;
+      n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+      const td=n&&n.closest?n.closest('.rt-table td'):null;
+      if(td){
+        const down=e.key==='ArrowDown';
+        const cr=s.getRangeAt(0).getBoundingClientRect(),box=td.getBoundingClientRect();
+        const cs=getComputedStyle(td),lh=parseFloat(cs.lineHeight)||16;
+        // An empty cell reports a zero rect and counts as both first and last line.
+        const atEdge=!cr||!cr.height
+          ? true
+          : down ? cr.bottom>box.bottom-(parseFloat(cs.paddingBottom)||0)-lh/2
+                 : cr.top<box.top+(parseFloat(cs.paddingTop)||0)+lh/2;
+        if(atEdge){
+          const t=td.closest('table'),p=rtPos(td);
+          const nextRow=rtRows(t)[p.r+(down?1:-1)];
+          const target=nextRow&&nextRow.cells[p.c];
+          if(target){ e.preventDefault(); rtPlaceCaretAtEnd(target); return; }
+        }
+      }
     }
   }
   // Ctrl/Cmd inline formatting shortcuts
@@ -3576,8 +3623,11 @@ function rtCopyTable(t){
   const wrap=t.closest('.rt-tw');
   if(!wrap) return false;
   rtEnsureCols(t);
-  rtClearSel();  // .rt-sel highlights must not be baked into the snapshot
-  _rtClip={kind:'table',html:wrap.outerHTML,tsv:''};
+  // Snapshot a clone so the live selection survives (Ctrl+X reads it again to delete),
+  // and strip the highlight classes so they aren't baked into the copy.
+  const snap=wrap.cloneNode(true);
+  snap.querySelectorAll('.rt-sel').forEach(td=>td.classList.remove('rt-sel'));
+  _rtClip={kind:'table',html:snap.outerHTML,tsv:''};
   _rtClip.tsv=rtClipMirror(rtRows(t).map(tr=>[...tr.cells].map(rtCellText)));
   return true;
 }
@@ -3621,6 +3671,9 @@ function rtPasteTable(){
 }
 function rtClipRead(){
   const s=rtSelShape();
+  // Highlighting every cell means "the table", not "all of its rows" — copy the whole
+  // thing so column widths and header flags travel with it.
+  if(s.rows.length===rtRows(s.t).length&&s.cols.length===rtColCount(s.t)&&rtCopyTable(s.t)) return s;
   const grid=s.rows.map(r=>s.cols.map(c=>{
     const td=rtRows(s.t)[r]&&rtRows(s.t)[r].cells[c];
     return td?td.innerHTML:'<br>';
@@ -4977,6 +5030,9 @@ function buildHzChart(){
     if(ds){ds.backgroundColor=chartFillGradient(hzChartInst.ctx,hzChartInst.chartArea);hzChartInst.update('none');}
   });
   _refreshPresetBtns();
+  // A rebuilt chart starts with every series visible; restore the active preset so the
+  // highlighted button and the lines on screen actually agree.
+  _applyChartSolo();
 }
 
 function updateHzChart(){
