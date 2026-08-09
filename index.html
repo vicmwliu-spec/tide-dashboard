@@ -86,7 +86,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
 .pcard.editing{border-color:var(--accent)}
 .pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap}
-.pcard-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text1)}
+.pcard-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)}
 .pcard-per{font-size:10px;color:var(--text3);margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums}
 .pcard-bd{padding:5px 16px 13px;min-height:80px}
 .pcard-ft{border-top:1px solid var(--border2);padding:5px 11px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -101,7 +101,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard-fmt button{font-family:var(--font);font-size:10px;color:var(--text3);background:none;border:1px solid var(--border);border-radius:20px;padding:3px 9px;cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
 .pcard-fmt button:hover{border-color:var(--text3);color:var(--text2)}
 .pcard-fmt button.on{border-color:var(--accent);color:var(--accent);background:var(--today-bg);font-weight:600}
-.pcard-lblin{flex:1;min-width:0;font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text1);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 7px;outline:none}
+.pcard-lblin{flex:1;min-width:0;font-family:var(--font);font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 7px;outline:none}
 .pcard-lblin:focus{border-color:var(--accent)}
 .pcard-x{background:none;border:none;color:var(--text3);font-size:17px;line-height:1;cursor:pointer;padding:0 4px;border-radius:4px;font-family:var(--font);flex-shrink:0}
 .pcard-x:hover{background:var(--border);color:var(--red)}
@@ -1399,20 +1399,28 @@ function mkPlannerCard(def,ix){
   const mh=def.minH?`min-height:${def.minH}px`:'';
   let body,foot;
   if(def.type==='habits'){
+    const hEd=def.editing&&editMode;
     body=`<div class="pcard-bd" style="${mh}" id="hcard-${def.id}">${habitCardBody(def)}</div>`;
-    foot=`<div class="pcard-ft">
-        <button class="pcard-lnk${def.editing?' on':''}" onclick="toggleHabitCardEdit('${def.id}')">${def.editing?'Done':'Edit habits'}</button>
-      </div>`;
+    // Editing habits is configuration, so it lives behind the global edit toggle
+    // like the rest of the card's controls. At rest the card is just pills.
+    foot=editMode?`<div class="pcard-ft">
+        <button class="pcard-lnk${hEd?' on':''}" onclick="toggleHabitCardEdit('${def.id}')">${hEd?'Done':'Edit habits'}</button>
+      </div>`:'';
   }else{
     const html=cardHTML(def.id);
     body=`<div class="pcard-bd notes-ta" style="${mh}" id="card-${def.id}" contenteditable="true"
         oninput="saveCard('${def.id}',rtOnInput(this))" onkeydown="richtextKD(event)"></div>`;
     const prev=(def.cadence!=='none')&&!html&&prevPeriodHTML(def);
-    foot=`<div class="pcard-ft">
-        ${prev?`<button class="pcard-lnk" onclick="cardFromPrev('${def.id}')">Start from ${def.cadence==='day'?'yesterday':'last '+def.cadence}</button>`:''}
-        <button class="pcard-lnk" onclick="saveCardTemplate('${def.id}')">Save as template</button>
-        ${def.template?`<button class="pcard-lnk" onclick="resetCardToTemplate('${def.id}')">Reset to template</button>`:''}
-      </div>`;
+    // "Start from …" is a daily action, so it stays at rest. The template buttons
+    // are configuration and follow the rest of the card's controls into edit mode.
+    // An empty footer renders as nothing at all, so its border-top goes with it.
+    const lnks=[];
+    if(prev) lnks.push(`<button class="pcard-lnk" onclick="cardFromPrev('${def.id}')">Start from ${def.cadence==='day'?'yesterday':'last '+def.cadence}</button>`);
+    if(editMode){
+      lnks.push(`<button class="pcard-lnk" onclick="saveCardTemplate('${def.id}')">Save as template</button>`);
+      if(def.template) lnks.push(`<button class="pcard-lnk" onclick="resetCardToTemplate('${def.id}')">Reset to template</button>`);
+    }
+    foot=lnks.length?`<div class="pcard-ft">${lnks.join('')}</div>`:'';
     // Restore on a 0ms timer, the same way the four cards always have, so
     // rtFreezeTables runs after the content is in.
     setTimeout(()=>{
@@ -1531,7 +1539,9 @@ function habitCardBody(def){
   const groups=groupsForDay(PD.getFullYear(),PD.getMonth(),day);
   const rows=[];
   groups.forEach(g=>g.habits.forEach(h=>rows.push({h,g})));
-  if(def.editing){
+  // Edit rows only while the global edit toggle is on, so leaving edit mode can
+  // never strand the card in a state whose Done button is hidden.
+  if(def.editing&&editMode){
     return `<div class="hlist">${rows.map(({h,g})=>`
       <div class="hlist-row">
         <i style="background:${g.color}"></i>
