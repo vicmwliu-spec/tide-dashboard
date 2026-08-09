@@ -82,13 +82,17 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* ── Planner card grid ──
    There is no fixed section on the Today view — only cards. Width is a per-card
    property (span 1–4); height is a floor set by dragging the bottom edge. */
-.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start;margin-bottom:14px}
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:stretch;margin-bottom:14px}
 .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
 .pcard.editing{border-color:var(--accent)}
 .pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap}
 .pcard-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)}
 .pcard-per{font-size:10px;color:var(--text3);margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums}
-.pcard-bd{padding:5px 16px 13px;min-height:80px}
+.pcard-bd{padding:8px 16px 14px;min-height:80px;flex:1}
+/* A block at the very top of a card sits at exactly the body's top padding, so
+   a table inserted first lines up identically on every card. */
+.pcard-bd>*:first-child,#aar-editor>*:first-child{margin-top:0}
+.pcard-bd>*:last-child,#aar-editor>*:last-child{margin-bottom:0}
 .pcard-ft{border-top:1px solid var(--border2);padding:5px 11px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .pcard-lnk{background:none;border:none;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px}
 .pcard-lnk:hover{color:var(--accent);background:var(--surface2)}
@@ -110,7 +114,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pgrip{position:absolute;left:0;right:0;bottom:-3px;height:9px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2}
 .pgrip::after{content:'';width:40px;height:3px;border-radius:3px;background:var(--border)}
 .pgrip:hover::after,.pcard.rz .pgrip::after{background:var(--accent)}
-.pcard.rz{user-select:none}
+.pgrip-x{position:absolute;top:0;bottom:0;right:-3px;width:9px;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:2}
+.pgrip-x::after{content:'';height:40px;width:3px;border-radius:3px;background:var(--border)}
+.pgrip-x:hover::after,.pcard.rzx .pgrip-x::after{background:var(--accent)}
+.pcard.rz,.pcard.rzx{user-select:none}
+.pcard.rzx{outline:1px solid var(--accent);outline-offset:-1px}
+.pcard.dnd-over{outline:2px dashed var(--accent);outline-offset:-2px}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
 .paddcard:hover{border-color:var(--accent);color:var(--accent)}
 /* Habits card — pills only. No streak, no count, no grade. */
@@ -796,10 +805,11 @@ const CARD_CADENCES=['month','week','day','none'];
 const CARD_FMT_KEYS=['month','week','day','dayweek'];
 function defaultCardDefs(){
   return [
-    {id:'intention',type:'text',label:'THIS MONTH / PERIOD',span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null,template:''},
-    {id:'priority', type:'text',label:'WEEKLY',             span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null,template:''},
-    {id:'quote',    type:'text',label:'THIS WEEK',          span:1,minH:0,cadence:'week', showPeriod:true,periodFormat:null,template:''},
-    {id:'notes',    type:'text',label:'TODAY',              span:1,minH:0,cadence:'day',  showPeriod:true,periodFormat:null,template:''},
+    {id:'intention',type:'text',label:'THIS MONTH / PERIOD',span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null},
+    {id:'priority', type:'text',label:'WEEKLY',             span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null},
+    {id:'quote',    type:'text',label:'THIS WEEK',          span:1,minH:0,cadence:'week', showPeriod:true,periodFormat:null},
+    {id:'notes',    type:'text',label:'TODAY',              span:1,minH:0,cadence:'day',  showPeriod:true,periodFormat:null},
+    clockCardDef(),
   ];
 }
 // '2026-08' | '2026-08-W3' | '2026-08-09' | '_'. Week numbering comes from
@@ -841,6 +851,20 @@ function migrateCardsToPeriods(){
   put('quote','week',D.quote);
   put('notes','day',D.notes);
   D.cards={defs:defaultCardDefs(),data};
+  localStorage.setItem(SK,JSON.stringify(D));
+}
+
+function clockCardDef(id){
+  return {id:id||'clock',type:'clock',label:'TODAY’S SHAPE',span:1,minH:0,cadence:'none',showPeriod:false,periodFormat:null};
+}
+// The clock used to sit outside the grid, so anyone with existing card defs has
+// no card for it. Add one once, at the end, rather than letting it disappear.
+function migrateClockToCard(){
+  if(!D.cards||!D.cards.defs) return;
+  if(D.cards.defs.some(c=>c.type==='clock')) return;
+  if(D._migClockCard) return;
+  D._migClockCard=1;
+  D.cards.defs.push(clockCardDef());
   localStorage.setItem(SK,JSON.stringify(D));
 }
 
@@ -1233,16 +1257,9 @@ function render(){
   app.innerHTML='';
   app.appendChild(mkHeader());
   if(view==='today'){
-    // The card grid is the whole page, plus the clock — which is already the best
-    // planning surface in the app and belongs beside the day's plan.
+    // The card grid is the whole page. The clock is a card in it like anything
+    // else, so there is nothing on this view that sits outside the grid.
     app.appendChild(mkCardGrid());
-    const low=document.createElement('div');
-    low.style.cssText='display:flex;justify-content:flex-end;gap:14px';
-    const clock=mkTimeBlockCard();
-    clock.style.maxWidth='320px';
-    clock.style.flex='0 1 320px';
-    low.appendChild(clock);
-    app.appendChild(low);
   } else if(view==='year'){
     const seCard=document.createElement('div');
     seCard.className='chart-card';
@@ -1312,7 +1329,7 @@ function mkHeader(){
     <div class="hdr-r">
       <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
       <button class="btn" onclick="toggleDark()" title="${darkMode?'Day Mode':'Night Mode'}" style="padding:4px 8px;line-height:0;color:var(--text2)">${darkMode?`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`:`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}</button>
-      <div class="seg">${[['today','Today'],['month','Habits'],['year','Year']].map(([v,l])=>
+      <div class="seg">${[['today','Today'],['month','Tracker'],['year','Year']].map(([v,l])=>
         `<button class="${v===view?'on':''}" onclick="setView('${v}')">${l}</button>`).join('')}</div>
     </div>`;
   return d;
@@ -1355,7 +1372,8 @@ function mkCardGrid(){
     add.style.cssText='display:flex;flex-direction:column;gap:8px';
     add.innerHTML=`
       <button class="paddcard" onclick="addPlannerCard('text')">+ Add a text card</button>
-      <button class="paddcard" onclick="addPlannerCard('habits')">+ Add a habits card</button>`;
+      <button class="paddcard" onclick="addPlannerCard('habits')">+ Add a habits card</button>
+      <button class="paddcard" onclick="addPlannerCard('clock')">+ Add a clock card</button>`;
     wrap.appendChild(add);
   }
   return wrap;
@@ -1368,26 +1386,24 @@ function mkPlannerCard(def,ix){
   d.style.gridColumn=`span ${Math.min(4,Math.max(1,def.span||1))}`;
   d.draggable=false;
 
-  const stamp=(def.showPeriod&&def.cadence!=='none')?cardStamp(def):'';
+  // A clock shows the same day whatever period you're looking at, so cadence and
+  // the date stamp are meaningless for it and its config row omits them.
+  const dated=def.type!=='clock';
+  const stamp=(dated&&def.showPeriod&&def.cadence!=='none')?cardStamp(def):'';
   const head = editMode
     ? `<div class="pcard-hd" style="align-items:center;gap:6px">
          <span class="pgrab" title="Drag to reorder" draggable="true"
-           ondragstart="_cardDragStart(event,'${def.id}')" ondragover="event.preventDefault()"
-           ondrop="_cardDrop(event,'${def.id}')">⠿</span>
+           ondragstart="_cardDragStart(event,'${def.id}')">⠿</span>
          <input class="pcard-lblin" value="${_esc(def.label)}" oninput="setCardLabel('${def.id}',this.value)"/>
          <button class="pcard-x" title="Remove card" onclick="removePlannerCard('${def.id}')">×</button>
        </div>
-       <div class="pcard-cfg">
+       ${dated?`<div class="pcard-cfg">
          <select onchange="setCardCadence('${def.id}',this.value)" title="How often this card starts fresh">
            ${CARD_CADENCES.map(c=>`<option value="${c}"${c===def.cadence?' selected':''}>${c}</option>`).join('')}
          </select>
          <label><input type="checkbox"${def.showPeriod?' checked':''} onchange="setCardFlag('${def.id}','showPeriod',this.checked)"/>date</label>
-         <span class="cfg-t">width</span>
-         <select onchange="setCardSpan('${def.id}',this.value)">
-           ${[1,2,3,4].map(w=>`<option value="${w}"${w===(def.span||1)?' selected':''}>${w}</option>`).join('')}
-         </select>
-       </div>
-       ${def.showPeriod&&def.cadence!=='none'?`<div class="pcard-fmt">${
+       </div>`:''}
+       ${dated&&def.showPeriod&&def.cadence!=='none'?`<div class="pcard-fmt">${
          CARD_FMT_KEYS.map(k=>`<button class="${(def.periodFormat||def.cadence)===k?'on':''}"
            onclick="setCardFormat('${def.id}','${k}')">${_esc(CARD_FORMATS[k](PD))}</button>`).join('')
        }</div>`:''}`
@@ -1398,7 +1414,20 @@ function mkPlannerCard(def,ix){
 
   const mh=def.minH?`min-height:${def.minH}px`:'';
   let body,foot;
-  if(def.type==='habits'){
+  if(def.type==='clock'){
+    // Same host div mkTimeBlockCard uses, so buildClockSVG finds it by id and
+    // needs no change. The clock is now a card like any other.
+    body=`<div class="pcard-bd" style="${mh};display:flex;align-items:center;justify-content:center">
+        <div id="tb-clock-wrap" style="width:100%;max-width:280px;aspect-ratio:1"></div>
+      </div>`;
+    foot='';
+    setTimeout(()=>{
+      if(!document.getElementById('tb-clock-wrap')) return;
+      buildClockSVG();
+      if(_tbClockTimer)clearInterval(_tbClockTimer);
+      _tbClockTimer=setInterval(buildClockSVG,60000);
+    },0);
+  }else if(def.type==='habits'){
     const hEd=def.editing&&editMode;
     body=`<div class="pcard-bd" style="${mh}" id="hcard-${def.id}">${habitCardBody(def)}</div>`;
     // Editing habits is configuration, so it lives behind the global edit toggle
@@ -1416,21 +1445,28 @@ function mkPlannerCard(def,ix){
     // An empty footer renders as nothing at all, so its border-top goes with it.
     const lnks=[];
     if(prev) lnks.push(`<button class="pcard-lnk" onclick="cardFromPrev('${def.id}')">Start from ${def.cadence==='day'?'yesterday':'last '+def.cadence}</button>`);
-    if(editMode){
-      lnks.push(`<button class="pcard-lnk" onclick="saveCardTemplate('${def.id}')">Save as template</button>`);
-      if(def.template) lnks.push(`<button class="pcard-lnk" onclick="resetCardToTemplate('${def.id}')">Reset to template</button>`);
-    }
     foot=lnks.length?`<div class="pcard-ft">${lnks.join('')}</div>`:'';
     // Restore on a 0ms timer, the same way the four cards always have, so
     // rtFreezeTables runs after the content is in.
     setTimeout(()=>{
       const el=document.getElementById('card-'+def.id);
-      if(el){ el.innerHTML=html||def.template||''; rtSeedUndo(el); }
+      if(el){ el.innerHTML=html||''; rtSeedUndo(el); }
     },0);
   }
 
-  d.innerHTML=head+body+foot+(editMode?`<div class="pgrip" title="Drag to resize · double-click to reset"
-    onmousedown="_cardRzStart(event,'${def.id}')" ondblclick="setCardHeight('${def.id}',0)"></div>`:'');
+  d.innerHTML=head+body+foot+(editMode?`<div class="pgrip" title="Drag to set height · double-click to reset"
+    onmousedown="_cardRzStart(event,'${def.id}')" ondblclick="setCardHeight('${def.id}',0)"></div>
+    <div class="pgrip-x" title="Drag to set width · double-click to reset"
+    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1)"></div>`:'');
+
+  // Drop target is the whole card, not the grip — the same split every other
+  // reorder in this file uses (groups, habits, FATHOM, AAR templates): the handle
+  // starts the drag, the row receives it.
+  if(editMode){
+    d.ondragover=e=>{ if(_dg?.type==='card'&&_dg.id!==def.id){ e.preventDefault(); d.classList.add('dnd-over'); } };
+    d.ondragleave=()=>d.classList.remove('dnd-over');
+    d.ondrop=e=>{ d.classList.remove('dnd-over'); _cardDrop(e,def.id) };
+  }
   return d;
 }
 
@@ -1448,9 +1484,10 @@ function setCardCadence(id,v){
 }
 function addPlannerCard(type){
   const id='c'+Math.random().toString(36).slice(2,9);
-  cardDefs().push(type==='habits'
-    ? {id,type:'habits',label:'HABITS',span:2,minH:0,cadence:'none',showPeriod:false,periodFormat:null}
-    : {id,type:'text',label:'NEW CARD',span:1,minH:0,cadence:'day',showPeriod:true,periodFormat:null,template:''});
+  cardDefs().push(
+    type==='habits' ? {id,type:'habits',label:'HABITS',span:2,minH:0,cadence:'none',showPeriod:false,periodFormat:null}
+  : type==='clock'  ? clockCardDef(id)
+  : {id,type:'text',label:'NEW CARD',span:1,minH:0,cadence:'day',showPeriod:true,periodFormat:null});
   _cardsDirty(); render();
 }
 // Removal keeps the stored content, so a card taken off the page can come back.
@@ -1460,16 +1497,35 @@ function removePlannerCard(id){
   if(!confirm(`Remove "${defs[i].label}" from this page? What you've written in it is kept.`)) return;
   defs.splice(i,1); _cardsDirty(); render();
 }
-let _cardDrag=null;
-function _cardDragStart(e,id){ _cardDrag=id; e.dataTransfer.effectAllowed='move'; }
+// Uses the shared _dg drag state rather than a private one, so cards get the
+// existing _dg-gated drag-autoscroll for free and behave like every other
+// reorderable thing in the app.
+function _cardDragStart(e,id){
+  _dg={type:'card',id};
+  e.dataTransfer.effectAllowed='move';
+  try{ e.dataTransfer.setData('text/plain',id) }catch{}
+  const card=e.target.closest('.pcard'); if(card) card.classList.add('dnd-drag');
+}
+document.addEventListener('dragend',()=>{
+  if(_dg?.type!=='card') return;
+  _dg=null;
+  document.querySelectorAll('.pcard.dnd-drag,.pcard.dnd-over').forEach(c=>c.classList.remove('dnd-drag','dnd-over'));
+});
 function _cardDrop(e,overId){
   e.preventDefault();
-  if(!_cardDrag||_cardDrag===overId) return;
+  if(_dg?.type!=='card'||_dg.id===overId) return;
   const defs=cardDefs();
-  const from=defs.findIndex(c=>c.id===_cardDrag), to=defs.findIndex(c=>c.id===overId);
-  if(from<0||to<0) return;
-  defs.splice(to,0,defs.splice(from,1)[0]);
-  _cardDrag=null; _cardsDirty(); render();
+  const from=defs.findIndex(c=>c.id===_dg.id), to=defs.findIndex(c=>c.id===overId);
+  _dg=null;
+  if(from<0||to<0||from===to) return;
+  // Drop on the left half inserts before the target, right half after — the
+  // horizontal form of what _dropGroup already does.
+  const {left,width}=e.currentTarget.getBoundingClientRect();
+  let ins=e.clientX<left+width/2?to:to+1;
+  const [moved]=defs.splice(from,1);
+  if(from<ins) ins--;
+  defs.splice(Math.max(0,Math.min(defs.length,ins)),0,moved);
+  _cardsDirty(); render();
 }
 // Height by dragging the bottom edge, the same mousedown/move/up shape the clock
 // blocks use. Committed on mouseup so a drag is one save, not sixty.
@@ -1492,19 +1548,41 @@ document.addEventListener('mouseup',()=>{
   const c=cardDef(id); if(c){ c.minH=px; _cardsDirty(); }
 });
 
-// ── Templates and seeding ──
-function saveCardTemplate(id){
-  const c=cardDef(id), el=document.getElementById('card-'+id);
-  if(!c||!el) return;
-  c.template=el.innerHTML==='<br>'?'':el.innerHTML;
-  _cardsDirty(); render(); // re-render so "Reset to template" appears
+// Width by dragging the right edge, snapping to whole columns so the grid stays
+// a grid. Previewed live on the element, committed once on mouseup.
+let _cardRzx=null;
+function _cardRzxStart(e,id){
+  e.preventDefault();
+  const card=e.target.closest('.pcard'), grid=card.closest('.pgrid');
+  if(!grid) return;
+  const gw=grid.getBoundingClientRect().width, gap=14;
+  _cardRzx={id,card,colW:(gw-gap*(PGRID_COLS-1))/PGRID_COLS,gap,left:card.getBoundingClientRect().left,span:def_span(id)};
+  card.classList.add('rzx');
 }
-function resetCardToTemplate(id){
-  const c=cardDef(id); if(!c) return;
-  if(!confirm('Replace this card with its template?')) return;
-  saveCard(id,c.template||'');
-  render();
-}
+const PGRID_COLS=4;
+function def_span(id){ const c=cardDef(id); return Math.min(PGRID_COLS,Math.max(1,(c&&c.span)||1)) }
+document.addEventListener('mousemove',e=>{
+  if(!_cardRzx) return;
+  const {colW,gap,left,card}=_cardRzx;
+  const want=Math.round((e.clientX-left+gap)/(colW+gap));
+  const span=Math.min(PGRID_COLS,Math.max(1,want||1));
+  if(span!==_cardRzx.span){
+    _cardRzx.span=span;
+    card.style.gridColumn=`span ${span}`;
+    card.dataset.span=span;
+  }
+});
+document.addEventListener('mouseup',()=>{
+  if(!_cardRzx) return;
+  const {id,span,card}=_cardRzx;
+  card.classList.remove('rzx'); _cardRzx=null;
+  setCardSpan(id,span);
+});
+
+// ── Carrying forward ──
+// Templates were removed: a new period starts blank, and "Start from …" pulls
+// your own last entry forward on the one morning you want it. Any def.template
+// still in the data is simply ignored, not deleted.
 // The period before this card's own, so "start from" means last week on a weekly
 // card and yesterday on a daily one.
 function prevPeriodDate(def,d){
@@ -6274,7 +6352,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); render(); });
+loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); render(); });
 </script>
 </body>
 </html>
