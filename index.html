@@ -180,8 +180,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul{list-style-type:circle}
 #aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul{list-style-type:square}
 #aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol{list-style-type:decimal}
-#aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol,.notes-ta ol ol,.intention-ta ol ol{list-style-type:lower-alpha}
-#aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol,.notes-ta ol ol ol,.intention-ta ol ol ol{list-style-type:lower-roman}
+/* Numbered lists stay numbered at every depth. A lettered list is something you ask
+   for with the "A. " shortcut, which sets list-style-type inline and so still wins. */
 /* Checklists. The checkbox is drawn entirely in CSS from a data attribute — an
    <input> would be useless here because its checked state is a property and never
    survives the innerHTML round trip we persist card content through. */
@@ -3406,22 +3406,26 @@ function richtextKD(e){
     if(textBefore==='-'){
       e.preventDefault();
       selectAndDelete();
-      document.execCommand('insertUnorderedList');
+      if(!rtConvertList('UL')) document.execCommand('insertUnorderedList');
     } else if(textBefore==='1.'){
       e.preventDefault();
       selectAndDelete();
-      document.execCommand('insertOrderedList');
+      if(!rtConvertList('OL')) document.execCommand('insertOrderedList');
     } else if(textBefore==='A.'||textBefore==='a.'){
       e.preventDefault();
       selectAndDelete();
-      document.execCommand('insertOrderedList');
-      setTimeout(()=>{
-        const s=window.getSelection();
-        if(!s||!s.rangeCount) return;
-        let n=s.getRangeAt(0).startContainer;
-        while(n&&n.nodeName!=='OL') n=n.parentElement;
-        if(n) n.style.listStyleType='lower-alpha';
-      },0);
+      const ol=rtConvertList('OL');
+      if(ol) ol.style.listStyleType='lower-alpha';
+      else{
+        document.execCommand('insertOrderedList');
+        setTimeout(()=>{
+          const s=window.getSelection();
+          if(!s||!s.rangeCount) return;
+          let n=s.getRangeAt(0).startContainer;
+          while(n&&n.nodeName!=='OL') n=n.parentElement;
+          if(n) n.style.listStyleType='lower-alpha';
+        },0);
+      }
     }
   }
 }
@@ -3437,6 +3441,41 @@ function rtTodoLi(){
   let n=s.getRangeAt(0).startContainer;
   n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return n&&n.closest?n.closest('ul.rt-todo > li'):null;
+}
+// Turn the caret's list item into a UL or an OL. execCommand('insertOrderedList') is a
+// toggle over the whole block: inside an existing <li> it rewrites the surrounding list
+// and lifts the item out of its nesting, so you can't start a numbered list under a
+// bullet. This converts only the item's own parent list, leaving its depth alone.
+// Returns the new list, or null when the caret isn't in a list — callers fall back to
+// execCommand for that case.
+function rtConvertList(tag,todo){
+  todo=!!todo;
+  const s=window.getSelection();
+  if(!s||!s.rangeCount) return null;
+  let n=s.getRangeAt(0).startContainer;
+  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  const li=n&&n.closest?n.closest('li'):null;
+  const list=li&&li.parentElement;
+  if(!list||(list.tagName!=='UL'&&list.tagName!=='OL')) return null;
+  // A checklist and a bullet list are both <ul> but are different kinds, so matching
+  // the tag alone isn't enough to call this a no-op.
+  if(list.tagName===tag&&list.classList.contains('rt-todo')===todo) return list;
+  // Items below the caret keep the original list's kind, so a checklist stays a
+  // checklist below the item being converted.
+  if(li.nextSibling){
+    const tail=document.createElement(list.tagName);
+    tail.className=list.className;
+    while(li.nextSibling) tail.appendChild(li.nextSibling);
+    list.parentNode.insertBefore(tail,list.nextSibling);
+  }
+  const nl=document.createElement(tag);
+  if(todo) nl.className='rt-todo';
+  nl.appendChild(li);
+  if(!todo) li.removeAttribute('data-done');
+  list.parentNode.insertBefore(nl,list.nextSibling);
+  if(!list.querySelector('li')) list.remove();
+  rtPlaceCaretAtEnd(li); // moving the node dropped the selection
+  return nl;
 }
 function rtNormalizeLists(root){
   if(!root) return;
@@ -4126,20 +4165,23 @@ document.addEventListener('paste',e=>{
 const RT_CMDS=[
   {k:'table',ic:'▦',label:'Table',run:h=>rtInsertTable(h)},
   {k:'divider',ic:'—',label:'Divider',run:()=>document.execCommand('insertHTML',false,'<hr><p><br></p>')},
-  {k:'bulleted',ic:'•',label:'Bulleted list',run:()=>document.execCommand('insertUnorderedList')},
-  {k:'numbered',ic:'1.',label:'Numbered list',run:()=>document.execCommand('insertOrderedList')},
+  {k:'bulleted',ic:'•',label:'Bulleted list',run:()=>{if(!rtConvertList('UL'))document.execCommand('insertUnorderedList')}},
+  {k:'numbered',ic:'1.',label:'Numbered list',run:()=>{if(!rtConvertList('OL'))document.execCommand('insertOrderedList')}},
   {k:'todo',ic:'☑',label:'To-do list',run:()=>rtInsertTodo()},
   {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>document.execCommand('strikeThrough',false,null)}
 ];
 // Build a checklist out of a normal bullet list, then tag it — the same trick the
 // "A. " auto-list uses to restyle the <ol> execCommand just made.
 function rtInsertTodo(){
-  document.execCommand('insertUnorderedList');
-  const s=window.getSelection();
-  if(!s||!s.rangeCount) return;
-  let n=s.getRangeAt(0).startContainer;
-  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
-  const ul=n&&n.closest?n.closest('ul'):null;
+  let ul=rtConvertList('UL',true);
+  if(!ul){
+    document.execCommand('insertUnorderedList');
+    const s=window.getSelection();
+    if(!s||!s.rangeCount) return;
+    let n=s.getRangeAt(0).startContainer;
+    n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+    ul=n&&n.closest?n.closest('ul'):null;
+  }
   if(ul) ul.classList.add('rt-todo');
 }
 // Clicking the box toggles; clicking the text just places the caret. The box is drawn
