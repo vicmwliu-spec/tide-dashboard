@@ -3259,6 +3259,16 @@ function richtextKD(e){
       }
     }
   }
+  // Undo/redo run off our own history — see rtUndo. preventDefault unconditionally, even
+  // when there's nothing to step to, or native undo would edit behind the stack's back.
+  if((e.ctrlKey||e.metaKey)&&/^[zy]$/i.test(e.key)){
+    const h=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
+    if(h){
+      e.preventDefault();
+      rtUndo(h,/^y$/i.test(e.key)||e.shiftKey);
+      return;
+    }
+  }
   // Ctrl/Cmd inline formatting shortcuts
   if(e.ctrlKey||e.metaKey){
     if(e.key==='b'){e.preventDefault();document.execCommand('bold',false,null)}
@@ -3441,13 +3451,22 @@ function rtListKind(l){
 // item out of its nesting, so you can't start a numbered list under a bullet. This
 // converts only the item's own parent list, leaving its depth alone. Returns the new
 // list, or null when the caret isn't in a list — rtSetList falls back for that case.
+// Deleting the "A." marker text often leaves the collapsed selection sitting on the list
+// element itself rather than in a text node, so walking straight up finds no <li>.
+// Descend to the child the offset points at first.
+function rtCaretLi(){
+  const s=window.getSelection();
+  if(!s||!s.rangeCount) return null;
+  const r=s.getRangeAt(0);
+  let n=r.startContainer;
+  if(n.nodeType===Node.ELEMENT_NODE) n=n.childNodes[r.startOffset]||n.lastChild||n;
+  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  return n&&n.closest?n.closest('li'):null;
+}
 function rtConvertList(kind){
   const spec=RT_LIST[kind];
-  const s=window.getSelection();
-  if(!spec||!s||!s.rangeCount) return null;
-  let n=s.getRangeAt(0).startContainer;
-  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
-  const li=n&&n.closest?n.closest('li'):null;
+  if(!spec) return null;
+  const li=rtCaretLi();
   const list=li&&li.parentElement;
   if(!list||(list.tagName!=='UL'&&list.tagName!=='OL')) return null;
   if(rtListKind(list)===kind) return list;
@@ -3470,24 +3489,16 @@ function rtConvertList(kind){
   rtPlaceCaretAtEnd(li); // moving the node dropped the selection
   return nl;
 }
-// Every entry point goes through here: convert in place when the caret is already in a
-// list, otherwise let the browser build one and stamp the kind onto it.
+// Every entry point goes through here. With no list yet, let the browser make a plain one
+// and then convert that — going through the single-item path either way, so nothing can
+// restyle a whole list wholesale.
 function rtSetList(kind){
   const spec=RT_LIST[kind];
   if(!spec) return null;
-  let list=rtConvertList(kind);
-  if(!list){
-    document.execCommand(spec.tag==='OL'?'insertOrderedList':'insertUnorderedList');
-    const s=window.getSelection();
-    if(!s||!s.rangeCount) return null;
-    let n=s.getRangeAt(0).startContainer;
-    n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
-    list=n&&n.closest?n.closest(spec.tag.toLowerCase()):null;
-    if(!list) return null;
-    if(spec.cls) list.classList.add(spec.cls);
-    if(spec.mark) list.style.listStyleType=spec.mark;
-  }
-  return list;
+  const list=rtConvertList(kind);
+  if(list) return list;
+  document.execCommand(spec.tag==='OL'?'insertOrderedList':'insertUnorderedList');
+  return rtConvertList(kind);
 }
 function rtNormalizeLists(root){
   if(!root) return;
@@ -3531,7 +3542,93 @@ function rtPlaceCaretAtStart(el){
   const r=document.createRange();r.selectNodeContents(el);r.collapse(true);
   const s=window.getSelection();s.removeAllRanges();s.addRange(r);
 }
-function rtOnInput(el){ rtNormalizeLists(el); rtSlashUpdate(el); return el.innerHTML; }
+function rtOnInput(el){ rtNormalizeLists(el); rtSlashUpdate(el); rtPushUndo(el); return el.innerHTML; }
+
+// ─── Undo history ────────────────────────────────────────────────
+// List conversions and table edits move nodes with raw DOM calls, which the browser's
+// native undo stack can't see — and raw mutation tends to poison it for the edits around
+// them too. So the cards keep their own history instead: whole-innerHTML snapshots, which
+// covers tables and checkboxes for free. Ctrl+Z is intercepted unconditionally; letting
+// native undo also run would leave the two stacks disagreeing about the document.
+const _rtU=new WeakMap();
+let _rtRestoring=false;
+function _rtUState(h){ let st=_rtU.get(h); if(!st){ st={s:[],i:-1,t:0}; _rtU.set(h,st); } return st; }
+// The caret as a path of child indices from the host, so a restore doesn't dump you at
+// the end of the card.
+function _rtPath(h){
+  const s=window.getSelection();
+  if(!s||!s.rangeCount) return null;
+  const r=s.getRangeAt(0);
+  if(!h.contains(r.startContainer)) return null;
+  const p=[];
+  let n=r.startContainer;
+  while(n&&n!==h){
+    if(!n.parentNode) return null;
+    p.unshift([].indexOf.call(n.parentNode.childNodes,n));
+    n=n.parentNode;
+  }
+  return n===h?{p:p,o:r.startOffset}:null;
+}
+function _rtSeek(h,c){
+  if(!c){ rtPlaceCaretAtEnd(h); return; }
+  let n=h;
+  for(let i=0;i<c.p.length;i++){
+    const nx=n.childNodes[c.p[i]];
+    if(!nx) break;
+    n=nx;
+  }
+  try{
+    const max=n.nodeType===Node.TEXT_NODE?n.textContent.length:n.childNodes.length;
+    const r=document.createRange();
+    r.setStart(n,Math.min(c.o,max));r.collapse(true);
+    const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+  }catch(err){ rtPlaceCaretAtEnd(h); }
+}
+function _rtCommit(h,st){
+  const html=h.innerHTML;
+  if(st.i>=0&&st.s[st.i].h===html) return;
+  st.s=st.s.slice(0,st.i+1);
+  st.s.push({h:html,c:_rtPath(h)});
+  if(st.s.length>80) st.s.shift();
+  st.i=st.s.length-1;
+}
+// `now` for programmatic edits, so each is one undo step; typing coalesces on a debounce.
+function rtPushUndo(h,now){
+  if(!h||_rtRestoring) return;
+  const st=_rtUState(h);
+  clearTimeout(st.t);
+  if(now) _rtCommit(h,st);
+  else st.t=setTimeout(()=>_rtCommit(h,st),350);
+}
+// Content replaced from outside (render() reloads the cards, the AAR editor reloads on
+// open) must not stay undoable back to somebody else's text. Reseed whenever what's on
+// screen isn't what the stack last saw.
+function rtSeedUndo(h){
+  const st=_rtUState(h);
+  if(st.i<0||st.s[st.i].h!==h.innerHTML){ clearTimeout(st.t); st.s=[{h:h.innerHTML,c:null}]; st.i=0; }
+}
+function rtUndo(h,redo){
+  const st=_rtU.get(h);
+  if(!st) return false;
+  clearTimeout(st.t);
+  // A typing burst may still be pending, so the first Ctrl+Z would otherwise step back
+  // over a state identical to what's on screen and appear to do nothing.
+  if(!redo) _rtCommit(h,st);
+  const ni=st.i+(redo?1:-1);
+  if(ni<0||ni>=st.s.length) return false;
+  st.i=ni;
+  _rtRestoring=true;
+  try{
+    h.innerHTML=st.s[ni].h;
+    _rtSeek(h,st.s[ni].c);
+    rtFire(h);
+  } finally { _rtRestoring=false; }
+  return true;
+}
+document.addEventListener('focusin',e=>{
+  const h=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
+  if(h) rtSeedUndo(h);
+});
 
 // ─── Simple tables (Notion-style) ────────────────────────────────
 // Control UI lives in a fixed layer on <body>, never inside the card, so it
@@ -3540,7 +3637,9 @@ const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
 let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false;
 
-function rtFire(el){ if(el) el.dispatchEvent(new Event('input',{bubbles:true})); }
+// Every programmatic edit routes through here, so this is also where each one becomes a
+// single undo step.
+function rtFire(el){ if(el){ el.dispatchEvent(new Event('input',{bubbles:true})); rtPushUndo(el,true); } }
 function rtHost(n){
   const el=n&&n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return el&&el.closest?el.closest(RT_HOSTS):null;
