@@ -109,7 +109,16 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard-lblin:focus{border-color:var(--accent)}
 .pcard-x{background:none;border:none;color:var(--text3);font-size:17px;line-height:1;cursor:pointer;padding:0 4px;border-radius:4px;font-family:var(--font);flex-shrink:0}
 .pcard-x:hover{background:var(--border);color:var(--red)}
-.pgrab{color:var(--text3);cursor:grab;font-size:13px;letter-spacing:-1px;user-select:none;flex-shrink:0}
+/* The whole header is the drag handle, in both modes. touch-action:none so a
+   touch drag reorders instead of scrolling the page. */
+.pcard-grab{cursor:grab;touch-action:none}
+.pcard.pdrag .pcard-grab{cursor:grabbing}
+.pgrab{color:transparent;font-size:13px;letter-spacing:-1px;user-select:none;flex-shrink:0;transition:color .1s}
+.pcard:hover .pgrab{color:var(--border)}
+.pcard-grab:hover .pgrab{color:var(--text3)}
+/* Lifted card follows the pointer; the placeholder holds its slot in the grid. */
+.pcard.pdrag{position:fixed;top:0;left:0;z-index:60;pointer-events:none;box-shadow:0 12px 28px rgba(0,0,0,.18);opacity:.95}
+.pcard-ph{border:2px dashed var(--accent);border-radius:var(--r);background:var(--today-bg);min-height:60px}
 /* Resize grip — min-height is a floor, never a clip, so nothing written is hidden. */
 .pgrip{position:absolute;left:0;right:0;bottom:-3px;height:9px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2}
 .pgrip::after{content:'';width:40px;height:3px;border-radius:3px;background:var(--border)}
@@ -119,7 +128,6 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pgrip-x:hover::after,.pcard.rzx .pgrip-x::after{background:var(--accent)}
 .pcard.rz,.pcard.rzx{user-select:none}
 .pcard.rzx{outline:1px solid var(--accent);outline-offset:-1px}
-.pcard.dnd-over{outline:2px dashed var(--accent);outline-offset:-2px}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
 .paddcard:hover{border-color:var(--accent);color:var(--accent)}
 /* Habits card — pills only. No streak, no count, no grade. */
@@ -797,18 +805,18 @@ function migrateCardsToGlobal(){
 }
 
 // ─── Planner cards ───────────────────────────────────────────────
-// The four top-row cards were four global strings, so TODAY was overwritten every
-// day and yesterday's plan was gone. They become one configurable set instead:
-// each card carries the cadence it already had in your head, and its content is
-// stored per period.
-const CARD_CADENCES=['month','week','day','none'];
-const CARD_FMT_KEYS=['month','week','day','dayweek'];
+// The four top-row cards were four global strings; they became one configurable
+// set of cards instead. Cards no longer reset on a schedule — what you write in
+// one stays there — so every def is cadence:'none' and reads the '_' key. The
+// cadence plumbing below is kept, unused, because the stored data is keyed by it
+// and older per-period entries are still in there.
+const CARD_FMT_KEYS=['month','week','day'];
 function defaultCardDefs(){
   return [
-    {id:'intention',type:'text',label:'THIS MONTH / PERIOD',span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null},
-    {id:'priority', type:'text',label:'WEEKLY',             span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null},
-    {id:'quote',    type:'text',label:'THIS WEEK',          span:1,minH:0,cadence:'week', showPeriod:true,periodFormat:null},
-    {id:'notes',    type:'text',label:'TODAY',              span:1,minH:0,cadence:'day',  showPeriod:true,periodFormat:null},
+    {id:'intention',type:'text',label:'THIS MONTH / PERIOD',span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'month'},
+    {id:'priority', type:'text',label:'WEEKLY',             span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'week'},
+    {id:'quote',    type:'text',label:'THIS WEEK',          span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'week'},
+    {id:'notes',    type:'text',label:'TODAY',              span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'day'},
     clockCardDef(),
   ];
 }
@@ -845,12 +853,33 @@ function migrateCardsToPeriods(){
   if(D.cards&&D.cards.defs) return;
   const d=new Date();
   const data={};
-  const put=(id,cadence,html)=>{ if(html) (data[id]||(data[id]={}))[cardPeriodKey(cadence,d)]=html };
-  put('intention','month',D.intention);
-  put('priority','month',D.priority);
-  put('quote','week',D.quote);
-  put('notes','day',D.notes);
+  const put=(id,html)=>{ if(html) (data[id]||(data[id]={}))['_']=html };
+  put('intention',D.intention);
+  put('priority',D.priority);
+  put('quote',D.quote);
+  put('notes',D.notes);
   D.cards={defs:defaultCardDefs(),data};
+  localStorage.setItem(SK,JSON.stringify(D));
+}
+
+// Cards used to reset every day/week/month, so existing content is keyed to the
+// period it was written in and would be unreachable now that every card reads '_'.
+// Promote each card's newest non-empty entry. The older entries are left in the
+// data, not deleted — invisible, but nothing is thrown away.
+function migrateCardsToOneEntry(){
+  if(!D.cards||!D.cards.defs||D._migOneEntry) return;
+  D._migOneEntry=1;
+  D.cards.defs.forEach(def=>{
+    // The stamp used to be implied by the cadence; keep showing the same words.
+    if(!def.periodFormat&&CARD_FMT_KEYS.includes(def.cadence)) def.periodFormat=def.cadence;
+    def.cadence='none';
+    const bag=(D.cards.data||{})[def.id];
+    if(!bag||bag['_']) return;
+    // Period keys sort chronologically as strings within a cadence, and a card
+    // only ever had one cadence at a time, so the last key is the newest entry.
+    const k=Object.keys(bag).filter(x=>bag[x]).sort().pop();
+    if(k) bag['_']=bag[k];
+  });
   localStorage.setItem(SK,JSON.stringify(D));
 }
 
@@ -1354,7 +1383,6 @@ const CARD_FORMATS={
   month:  d=>`${MON[d.getMonth()]} ${d.getFullYear()}`,
   week:   d=>`Wk ${weekOfDay(d.getFullYear(),d.getMonth(),d.getDate())} · ${_weekRangeLabel(d)}`,
   day:    d=>`${DOW[d.getDay()]} · ${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`,
-  dayweek:d=>`${DOW[d.getDay()]} · ${MON[d.getMonth()].slice(0,3)} ${d.getDate()} · Wk ${weekOfDay(d.getFullYear(),d.getMonth(),d.getDate())}`,
 };
 function cardStamp(def,d){
   const f=CARD_FORMATS[def.periodFormat||def.cadence];
@@ -1386,28 +1414,27 @@ function mkPlannerCard(def,ix){
   d.style.gridColumn=`span ${Math.min(4,Math.max(1,def.span||1))}`;
   d.draggable=false;
 
-  // A clock shows the same day whatever period you're looking at, so cadence and
-  // the date stamp are meaningless for it and its config row omits them.
+  // A clock always shows the current time, so a date stamp on it says nothing.
   const dated=def.type!=='clock';
-  const stamp=(dated&&def.showPeriod&&def.cadence!=='none')?cardStamp(def):'';
+  const stamp=(dated&&def.showPeriod)?cardStamp(def):'';
+  // The header is the drag handle in both modes — see _cardGrabStart.
   const head = editMode
-    ? `<div class="pcard-hd" style="align-items:center;gap:6px">
-         <span class="pgrab" title="Drag to reorder" draggable="true"
-           ondragstart="_cardDragStart(event,'${def.id}')">⠿</span>
+    ? `<div class="pcard-hd pcard-grab" style="align-items:center;gap:6px"
+           onpointerdown="_cardGrabStart(event,'${def.id}')">
+         <span class="pgrab">⠿</span>
          <input class="pcard-lblin" value="${_esc(def.label)}" oninput="setCardLabel('${def.id}',this.value)"/>
          <button class="pcard-x" title="Remove card" onclick="removePlannerCard('${def.id}')">×</button>
        </div>
        ${dated?`<div class="pcard-cfg">
-         <select onchange="setCardCadence('${def.id}',this.value)" title="How often this card starts fresh">
-           ${CARD_CADENCES.map(c=>`<option value="${c}"${c===def.cadence?' selected':''}>${c}</option>`).join('')}
-         </select>
          <label><input type="checkbox"${def.showPeriod?' checked':''} onchange="setCardFlag('${def.id}','showPeriod',this.checked)"/>date</label>
        </div>`:''}
-       ${dated&&def.showPeriod&&def.cadence!=='none'?`<div class="pcard-fmt">${
-         CARD_FMT_KEYS.map(k=>`<button class="${(def.periodFormat||def.cadence)===k?'on':''}"
+       ${dated&&def.showPeriod?`<div class="pcard-fmt">${
+         CARD_FMT_KEYS.map(k=>`<button class="${def.periodFormat===k?'on':''}"
            onclick="setCardFormat('${def.id}','${k}')">${_esc(CARD_FORMATS[k](PD))}</button>`).join('')
        }</div>`:''}`
-    : `<div class="pcard-hd">
+    : `<div class="pcard-hd pcard-grab" title="Drag to reorder"
+           onpointerdown="_cardGrabStart(event,'${def.id}')">
+         <span class="pgrab">⠿</span>
          <span class="pcard-lbl">${_esc(def.label)}</span>
          ${stamp?`<span class="pcard-per">${_esc(stamp)}</span>`:''}
        </div>`;
@@ -1439,13 +1466,9 @@ function mkPlannerCard(def,ix){
     const html=cardHTML(def.id);
     body=`<div class="pcard-bd notes-ta" style="${mh}" id="card-${def.id}" contenteditable="true"
         oninput="saveCard('${def.id}',rtOnInput(this))" onkeydown="richtextKD(event)"></div>`;
-    const prev=(def.cadence!=='none')&&!html&&prevPeriodHTML(def);
-    // "Start from …" is a daily action, so it stays at rest. The template buttons
-    // are configuration and follow the rest of the card's controls into edit mode.
-    // An empty footer renders as nothing at all, so its border-top goes with it.
-    const lnks=[];
-    if(prev) lnks.push(`<button class="pcard-lnk" onclick="cardFromPrev('${def.id}')">Start from ${def.cadence==='day'?'yesterday':'last '+def.cadence}</button>`);
-    foot=lnks.length?`<div class="pcard-ft">${lnks.join('')}</div>`:'';
+    // Nothing in a text card's footer any more: it never starts a new period, so
+    // there is no previous one to carry forward from.
+    foot='';
     // Restore on a 0ms timer, the same way the four cards always have, so
     // rtFreezeTables runs after the content is in.
     setTimeout(()=>{
@@ -1459,14 +1482,6 @@ function mkPlannerCard(def,ix){
     <div class="pgrip-x" title="Drag to set width · double-click to reset"
     onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1)"></div>`:'');
 
-  // Drop target is the whole card, not the grip — the same split every other
-  // reorder in this file uses (groups, habits, FATHOM, AAR templates): the handle
-  // starts the drag, the row receives it.
-  if(editMode){
-    d.ondragover=e=>{ if(_dg?.type==='card'&&_dg.id!==def.id){ e.preventDefault(); d.classList.add('dnd-over'); } };
-    d.ondragleave=()=>d.classList.remove('dnd-over');
-    d.ondrop=e=>{ d.classList.remove('dnd-over'); _cardDrop(e,def.id) };
-  }
   return d;
 }
 
@@ -1476,12 +1491,6 @@ function setCardFlag(id,k,v){ const c=cardDef(id); if(c){ c[k]=v; _cardsDirty();
 function setCardSpan(id,v){ const c=cardDef(id); if(c){ c.span=Math.min(4,Math.max(1,Number(v)||1)); _cardsDirty(); render(); } }
 function setCardFormat(id,k){ const c=cardDef(id); if(c){ c.periodFormat=k; _cardsDirty(); render(); } }
 function setCardHeight(id,px){ const c=cardDef(id); if(c){ c.minH=Math.max(0,Math.round(px)); _cardsDirty(); render(); } }
-// Changing cadence re-keys nothing: content already stored under the old cadence
-// stays where it is, and comes back if you switch back.
-function setCardCadence(id,v){
-  const c=cardDef(id);
-  if(c&&CARD_CADENCES.includes(v)){ c.cadence=v; c.periodFormat=null; _cardsDirty(); render(); }
-}
 function addPlannerCard(type){
   const id='c'+Math.random().toString(36).slice(2,9);
   cardDefs().push(
@@ -1497,36 +1506,110 @@ function removePlannerCard(id){
   if(!confirm(`Remove "${defs[i].label}" from this page? What you've written in it is kept.`)) return;
   defs.splice(i,1); _cardsDirty(); render();
 }
-// Uses the shared _dg drag state rather than a private one, so cards get the
-// existing _dg-gated drag-autoscroll for free and behave like every other
-// reorderable thing in the app.
-function _cardDragStart(e,id){
-  _dg={type:'card',id};
-  e.dataTransfer.effectAllowed='move';
-  try{ e.dataTransfer.setData('text/plain',id) }catch{}
-  const card=e.target.closest('.pcard'); if(card) card.classList.add('dnd-drag');
+// ── Reordering ──
+// Not HTML5 drag-and-drop. A reorder is a list move, not a swap — pulling a card
+// out shifts everything after it — and with HTML5 DnD you can't see that until
+// you let go, so the result looks random. Here the grid reflows under the cursor:
+// a placeholder sits where the card will land, so what you see is what you get.
+// Pointer events also give touch for free.
+
+// Where the card would land, given the pointer and the other cards' boxes. Pure,
+// so it can be tested without layout — jsdom has none. Reading order: insert
+// before the first card the pointer hasn't reached yet.
+function _cardDropIndex(x,y,boxes,dragIx){
+  let ins=boxes.length;
+  for(let i=0;i<boxes.length;i++){
+    if(i===dragIx) continue;
+    const b=boxes[i];
+    const after = y<b.top ? true
+                : y>b.bottom ? false
+                : x < b.left+b.width/2;
+    if(after){ ins=i; break; }
+  }
+  // Removing the card first shifts every later slot down by one.
+  if(dragIx<ins) ins--;
+  return Math.max(0,Math.min(boxes.length-1,ins));
 }
-document.addEventListener('dragend',()=>{
-  if(_dg?.type!=='card') return;
-  _dg=null;
-  document.querySelectorAll('.pcard.dnd-drag,.pcard.dnd-over').forEach(c=>c.classList.remove('dnd-drag','dnd-over'));
-});
-function _cardDrop(e,overId){
+
+let _cardDrag=null;
+function _cardGrabStart(e,id){
+  // Left button only, and never from a control inside the header.
+  if(e.button!==0||e.target.closest('input,button,select,textarea,[contenteditable]')) return;
+  const card=e.target.closest('.pcard'), grid=card&&card.closest('.pgrid');
+  if(!grid) return;
+  _cardDrag={id,card,grid,hd:e.currentTarget,x0:e.clientX,y0:e.clientY,
+             pid:e.pointerId,live:false,ins:-1};
+  try{ e.currentTarget.setPointerCapture(e.pointerId) }catch{}
+}
+// A few pixels of slop, so clicking the header (or its label field) is still a click.
+function _cardDragLift(){
+  const s=_cardDrag, r=s.card.getBoundingClientRect();
+  s.live=true;
+  s.dx=r.left-s.x0; s.dy=r.top-s.y0;
+  const ph=document.createElement('div');
+  ph.className='pcard-ph';
+  ph.style.gridColumn=s.card.style.gridColumn;
+  ph.style.height=r.height+'px';
+  s.ph=ph;
+  s.grid.insertBefore(ph,s.card);
+  s.card.classList.add('pdrag');
+  s.card.style.width=r.width+'px';
+  s.card.style.height=r.height+'px';
+  document.body.appendChild(s.card);
+  _cardDragMoveTo(s.x0,s.y0);
+}
+function _cardDragMoveTo(x,y){
+  const s=_cardDrag;
+  s.card.style.transform=`translate(${x+s.dx}px,${y+s.dy}px)`;
+}
+document.addEventListener('pointermove',e=>{
+  const s=_cardDrag; if(!s) return;
+  if(!s.live){
+    if(Math.abs(e.clientX-s.x0)+Math.abs(e.clientY-s.y0)<5) return;
+    _cardDragLift();
+  }
   e.preventDefault();
-  if(_dg?.type!=='card'||_dg.id===overId) return;
-  const defs=cardDefs();
-  const from=defs.findIndex(c=>c.id===_dg.id), to=defs.findIndex(c=>c.id===overId);
-  _dg=null;
-  if(from<0||to<0||from===to) return;
-  // Drop on the left half inserts before the target, right half after — the
-  // horizontal form of what _dropGroup already does.
-  const {left,width}=e.currentTarget.getBoundingClientRect();
-  let ins=e.clientX<left+width/2?to:to+1;
-  const [moved]=defs.splice(from,1);
-  if(from<ins) ins--;
-  defs.splice(Math.max(0,Math.min(defs.length,ins)),0,moved);
-  _cardsDirty(); render();
+  _cardDragMoveTo(e.clientX,e.clientY);
+  // Boxes of the cards still in the grid, with the placeholder standing in for
+  // the one being dragged, so indexes line up with cardDefs().
+  const kids=[...s.grid.children].filter(el=>el.classList.contains('pcard')||el===s.ph);
+  const dragIx=kids.indexOf(s.ph);
+  const boxes=kids.map(el=>el.getBoundingClientRect());
+  const ins=_cardDropIndex(e.clientX,e.clientY,boxes,dragIx);
+  if(ins!==s.ins){
+    s.ins=ins;
+    const rest=kids.filter(el=>el!==s.ph);
+    s.grid.insertBefore(s.ph,rest[ins]||null);
+  }
+  // dragover-driven autoscroll doesn't fire for pointer drags, so do it here.
+  const m=70, vh=innerHeight;
+  if(e.clientY<m) scrollBy(0,-Math.ceil((m-e.clientY)/6));
+  else if(e.clientY>vh-m) scrollBy(0,Math.ceil((e.clientY-(vh-m))/6));
+},{passive:false});
+function _cardDragEnd(commit){
+  const s=_cardDrag; if(!s) return;
+  _cardDrag=null;
+  try{ s.hd.releasePointerCapture(s.pid) }catch{}
+  if(!s.live) return;
+  // The lifted card was moved to <body> to escape the grid's stacking context, so
+  // it has to be taken out by hand — render() only clears #app.
+  s.card.remove();
+  s.ph.remove();
+  if(commit&&s.ins>=0){
+    const defs=cardDefs(), from=defs.findIndex(c=>c.id===s.id);
+    if(from>=0&&s.ins!==from){
+      const [moved]=defs.splice(from,1);
+      defs.splice(Math.max(0,Math.min(defs.length,s.ins)),0,moved);
+      _cardsDirty();
+    }
+  }
+  render();
 }
+document.addEventListener('pointerup',()=>_cardDragEnd(true));
+document.addEventListener('pointercancel',()=>_cardDragEnd(false));
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&_cardDrag) _cardDragEnd(false);
+});
 // Height by dragging the bottom edge, the same mousedown/move/up shape the clock
 // blocks use. Committed on mouseup so a drag is one save, not sixty.
 let _cardRz=null;
@@ -1580,34 +1663,9 @@ document.addEventListener('mouseup',()=>{
 });
 
 // ── Carrying forward ──
-// Templates were removed: a new period starts blank, and "Start from …" pulls
-// your own last entry forward on the one morning you want it. Any def.template
-// still in the data is simply ignored, not deleted.
-// The period before this card's own, so "start from" means last week on a weekly
-// card and yesterday on a daily one.
-function prevPeriodDate(def,d){
-  const b=new Date((d||PD).getTime());
-  if(def.cadence==='day') b.setDate(b.getDate()-1);
-  else if(def.cadence==='week') b.setDate(b.getDate()-7);
-  else if(def.cadence==='month') b.setMonth(b.getMonth()-1);
-  else return null;
-  return b;
-}
-function prevPeriodHTML(def){
-  const p=prevPeriodDate(def);
-  if(!p) return '';
-  const bag=(D.cards.data||{})[def.id]||{};
-  const k=cardPeriodKey(def.cadence,p);
-  return (k!==cardPeriodKey(def.cadence,PD)&&bag[k])||'';
-}
-// Never automatic. Carrying yesterday's unfinished work forward on its own is the
-// debt-and-shame mechanism this whole change exists to get away from.
-function cardFromPrev(id){
-  const c=cardDef(id); if(!c) return;
-  const html=prevPeriodHTML(c);
-  if(!html) return;
-  saveCard(id,html); render();
-}
+// Nothing to carry: templates were removed, and now cards don't reset either, so
+// what you wrote is simply still there tomorrow. Both the template strings and
+// the old per-period entries stay in the data, ignored rather than deleted.
 
 // ── Habits card ──
 // Ticking writes the same completions the grid writes, through the same toggle(),
@@ -6352,7 +6410,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); render(); });
+loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); migrateCardsToOneEntry(); render(); });
 </script>
 </body>
 </html>
