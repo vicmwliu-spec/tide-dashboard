@@ -562,12 +562,13 @@ function defaultData(){
 // ─────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────
-let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
+let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(d.cards&&!d.cards.data)d.cards.data={};if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
 let darkMode = localStorage.getItem('tide_dark')==='1';
 if(darkMode) document.documentElement.classList.add('dark');
 const now = new Date();
 let CY = now.getFullYear();
 let CM = now.getMonth();
+let PD = new Date(now.getFullYear(),now.getMonth(),now.getDate()); // plan date — which period the cards show
 let editMode = false;
 let fathomEditMode = false;
 let _lastArchived = null;
@@ -719,6 +720,63 @@ function migrateCardsToGlobal(){
   D.notes=recover('notes');
   D.quote=recover('quote'); // quote was per-month; seed global from current month, else most-recent non-empty
   D._migCardsGlobal=true;
+  localStorage.setItem(SK,JSON.stringify(D));
+}
+
+// ─── Planner cards ───────────────────────────────────────────────
+// The four top-row cards were four global strings, so TODAY was overwritten every
+// day and yesterday's plan was gone. They become one configurable set instead:
+// each card carries the cadence it already had in your head, and its content is
+// stored per period.
+const CARD_CADENCES=['month','week','day','none'];
+const CARD_FMT_KEYS=['month','week','day','dayweek'];
+function defaultCardDefs(){
+  return [
+    {id:'intention',type:'text',label:'THIS MONTH / PERIOD',span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null,template:''},
+    {id:'priority', type:'text',label:'WEEKLY',             span:1,minH:0,cadence:'month',showPeriod:true,periodFormat:null,template:''},
+    {id:'quote',    type:'text',label:'THIS WEEK',          span:1,minH:0,cadence:'week', showPeriod:true,periodFormat:null,template:''},
+    {id:'notes',    type:'text',label:'TODAY',              span:1,minH:0,cadence:'day',  showPeriod:true,periodFormat:null,template:''},
+  ];
+}
+// '2026-08' | '2026-08-W3' | '2026-08-09' | '_'. Week numbering comes from
+// weekOfDay(), so a card's WK n always matches the number the grid shows.
+function cardPeriodKey(cadence,d){
+  const y=d.getFullYear(),m=d.getMonth();
+  if(cadence==='none') return '_';
+  if(cadence==='month') return mk(y,m);
+  if(cadence==='week') return `${mk(y,m)}-W${weekOfDay(y,m,d.getDate())}`;
+  return `${mk(y,m)}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function cardDefs(){ return (D.cards&&D.cards.defs)||[] }
+function cardDef(id){ return cardDefs().find(c=>c.id===id)||null }
+function cardHTML(id,d){
+  const def=cardDef(id); if(!def) return '';
+  const bag=(D.cards.data||{})[id];
+  return (bag&&bag[cardPeriodKey(def.cadence,d||PD)])||'';
+}
+// One save path for every card, replacing saveIntention/savePriority/saveQuote/
+// saveNotes. Empty deletes the key rather than storing '<br>', as saveAAREntry does.
+function saveCard(id,html,d){
+  const def=cardDef(id); if(!def) return;
+  const k=cardPeriodKey(def.cadence,d||PD);
+  const bag=D.cards.data[id]||(D.cards.data[id]={});
+  const v=(html==='<br>')?'':html;
+  if(v) bag[k]=v; else delete bag[k];
+  save();
+}
+
+// One-time migration: move each global card into the period it belongs to. The old
+// globals are left in place, not deleted, so a rollback loses nothing.
+function migrateCardsToPeriods(){
+  if(D.cards&&D.cards.defs) return;
+  const d=new Date();
+  const data={};
+  const put=(id,cadence,html)=>{ if(html) (data[id]||(data[id]={}))[cardPeriodKey(cadence,d)]=html };
+  put('intention','month',D.intention);
+  put('priority','month',D.priority);
+  put('quote','week',D.quote);
+  put('notes','day',D.notes);
+  D.cards={defs:defaultCardDefs(),data};
   localStorage.setItem(SK,JSON.stringify(D));
 }
 
@@ -1198,7 +1256,7 @@ function mkQuote(){
       oninput="saveQuote(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
-  setTimeout(()=>{const qta=document.getElementById('qta');if(qta)qta.innerHTML=D.quote||''},0);
+  setTimeout(()=>{const qta=document.getElementById('qta');if(qta)qta.innerHTML=cardHTML('quote')},0);
   return d;
 }
 function mkIntention(){
@@ -1209,7 +1267,7 @@ function mkIntention(){
       oninput="saveIntention(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
-  setTimeout(()=>{const ita=document.getElementById('ita');if(ita)ita.innerHTML=D.intention||''},0);
+  setTimeout(()=>{const ita=document.getElementById('ita');if(ita)ita.innerHTML=cardHTML('intention')},0);
   return d;
 }
 function mkPriority(){
@@ -1220,7 +1278,7 @@ function mkPriority(){
       oninput="savePriority(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
-  setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=D.priority||''},0);
+  setTimeout(()=>{const pta=document.getElementById('pta');if(pta)pta.innerHTML=cardHTML('priority')},0);
   return d;
 }
 function mkNotes(){
@@ -1231,7 +1289,7 @@ function mkNotes(){
       oninput="saveNotes(rtOnInput(this))"
       onkeydown="richtextKD(event)"
     ></div>`;
-  setTimeout(()=>{const nta=document.getElementById('nta');if(nta)nta.innerHTML=D.notes||''},0);
+  setTimeout(()=>{const nta=document.getElementById('nta');if(nta)nta.innerHTML=cardHTML('notes')},0);
   return d;
 }
 // ─── TIME BLOCK CLOCK ────────────────────────────────────────────
@@ -3075,10 +3133,11 @@ function confirmDeleteHabit(gid,hid){
 function _showArchiveToast(msg='Lever archived'){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
 function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchived=null;clearTimeout(_toastTimer);const t=document.getElementById('arch-toast');if(t)t.style.display='none';if(a.type==='fathom')restoreFathomItem(a.id);else restoreHabit(a.gid,a.hid);}
 
-function saveIntention(v){D.intention=(v==='<br>')?'':v;save()}
-function saveQuote(v){D.quote=(v==='<br>')?'':v;save()}
-function savePriority(v){D.priority=(v==='<br>')?'':v;save()}
-function saveNotes(v){D.notes=(v==='<br>')?'':v;save()}
+// Thin wrappers over saveCard, kept so existing inline handlers stay valid.
+function saveIntention(v){saveCard('intention',v)}
+function saveQuote(v){saveCard('quote',v)}
+function savePriority(v){saveCard('priority',v)}
+function saveNotes(v){saveCard('notes',v)}
 
 function resetMonth(){
   if(!confirm(`Reset ${MON[CM]} ${CY}? All completions for this month will be cleared.`)) return;
@@ -5924,7 +5983,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); render(); });
+loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); render(); });
 </script>
 </body>
 </html>
