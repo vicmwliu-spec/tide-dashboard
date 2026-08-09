@@ -3403,29 +3403,13 @@ function richtextKD(e){
       sel.removeAllRanges();sel.addRange(r2);
       document.execCommand('delete');
     };
-    if(textBefore==='-'){
+    const kind=textBefore==='-'?'bullet'
+      :textBefore==='1.'?'number'
+      :(textBefore==='A.'||textBefore==='a.')?'letter':null;
+    if(kind){
       e.preventDefault();
       selectAndDelete();
-      if(!rtConvertList('UL')) document.execCommand('insertUnorderedList');
-    } else if(textBefore==='1.'){
-      e.preventDefault();
-      selectAndDelete();
-      if(!rtConvertList('OL')) document.execCommand('insertOrderedList');
-    } else if(textBefore==='A.'||textBefore==='a.'){
-      e.preventDefault();
-      selectAndDelete();
-      const ol=rtConvertList('OL');
-      if(ol) ol.style.listStyleType='lower-alpha';
-      else{
-        document.execCommand('insertOrderedList');
-        setTimeout(()=>{
-          const s=window.getSelection();
-          if(!s||!s.rangeCount) return;
-          let n=s.getRangeAt(0).startContainer;
-          while(n&&n.nodeName!=='OL') n=n.parentElement;
-          if(n) n.style.listStyleType='lower-alpha';
-        },0);
-      }
+      rtSetList(kind);
     }
   }
 }
@@ -3442,40 +3426,68 @@ function rtTodoLi(){
   n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return n&&n.closest?n.closest('ul.rt-todo > li'):null;
 }
-// Turn the caret's list item into a UL or an OL. execCommand('insertOrderedList') is a
-// toggle over the whole block: inside an existing <li> it rewrites the surrounding list
-// and lifts the item out of its nesting, so you can't start a numbered list under a
-// bullet. This converts only the item's own parent list, leaving its depth alone.
-// Returns the new list, or null when the caret isn't in a list — callers fall back to
-// execCommand for that case.
-function rtConvertList(tag,todo){
-  todo=!!todo;
+// Four list kinds share two tags — a checklist is a <ul> with a class, a lettered list
+// an <ol> with an inline marker — so a tag alone can't tell them apart.
+const RT_LIST={
+  bullet:{tag:'UL'}, todo:{tag:'UL',cls:'rt-todo'},
+  number:{tag:'OL'}, letter:{tag:'OL',mark:'lower-alpha'}
+};
+function rtListKind(l){
+  if(l.tagName==='UL') return l.classList.contains('rt-todo')?'todo':'bullet';
+  return l.style.listStyleType==='lower-alpha'?'letter':'number';
+}
+// Retag the caret's list item. execCommand('insertOrderedList') is a toggle over the
+// whole block: inside an existing <li> it rewrites the surrounding list and lifts the
+// item out of its nesting, so you can't start a numbered list under a bullet. This
+// converts only the item's own parent list, leaving its depth alone. Returns the new
+// list, or null when the caret isn't in a list — rtSetList falls back for that case.
+function rtConvertList(kind){
+  const spec=RT_LIST[kind];
   const s=window.getSelection();
-  if(!s||!s.rangeCount) return null;
+  if(!spec||!s||!s.rangeCount) return null;
   let n=s.getRangeAt(0).startContainer;
   n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   const li=n&&n.closest?n.closest('li'):null;
   const list=li&&li.parentElement;
   if(!list||(list.tagName!=='UL'&&list.tagName!=='OL')) return null;
-  // A checklist and a bullet list are both <ul> but are different kinds, so matching
-  // the tag alone isn't enough to call this a no-op.
-  if(list.tagName===tag&&list.classList.contains('rt-todo')===todo) return list;
-  // Items below the caret keep the original list's kind, so a checklist stays a
-  // checklist below the item being converted.
+  if(rtListKind(list)===kind) return list;
+  // Items below the caret keep the original list's kind — marker included, or the rest
+  // of a lettered list would quietly turn into numbers.
   if(li.nextSibling){
     const tail=document.createElement(list.tagName);
     tail.className=list.className;
+    tail.style.listStyleType=list.style.listStyleType;
     while(li.nextSibling) tail.appendChild(li.nextSibling);
     list.parentNode.insertBefore(tail,list.nextSibling);
   }
-  const nl=document.createElement(tag);
-  if(todo) nl.className='rt-todo';
+  const nl=document.createElement(spec.tag);
+  if(spec.cls) nl.className=spec.cls;
+  if(spec.mark) nl.style.listStyleType=spec.mark;
   nl.appendChild(li);
-  if(!todo) li.removeAttribute('data-done');
+  if(kind!=='todo') li.removeAttribute('data-done');
   list.parentNode.insertBefore(nl,list.nextSibling);
   if(!list.querySelector('li')) list.remove();
   rtPlaceCaretAtEnd(li); // moving the node dropped the selection
   return nl;
+}
+// Every entry point goes through here: convert in place when the caret is already in a
+// list, otherwise let the browser build one and stamp the kind onto it.
+function rtSetList(kind){
+  const spec=RT_LIST[kind];
+  if(!spec) return null;
+  let list=rtConvertList(kind);
+  if(!list){
+    document.execCommand(spec.tag==='OL'?'insertOrderedList':'insertUnorderedList');
+    const s=window.getSelection();
+    if(!s||!s.rangeCount) return null;
+    let n=s.getRangeAt(0).startContainer;
+    n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+    list=n&&n.closest?n.closest(spec.tag.toLowerCase()):null;
+    if(!list) return null;
+    if(spec.cls) list.classList.add(spec.cls);
+    if(spec.mark) list.style.listStyleType=spec.mark;
+  }
+  return list;
 }
 function rtNormalizeLists(root){
   if(!root) return;
@@ -3501,9 +3513,9 @@ function rtNormalizeLists(root){
       // A checklist and a plain bullet list are different kinds of list, even
       // though both are <ul> — merging them would convert one into the other.
       if(todo(l)!==todo(nx)) return;
-      const a=styleOf(l),b=styleOf(nx);
-      if(a&&b&&a!==b) return;
-      if(!a&&b) l.style.listStyleType=b;
+      // Different markers mean different lists. Propagating one onto the other used to
+      // re-letter a list the moment you converted it to plain numbers next to one.
+      if(styleOf(l)!==styleOf(nx)) return;
       while(nx.firstChild) l.appendChild(nx.firstChild);
       nx.remove(); changed=true;
     });
@@ -4170,25 +4182,12 @@ document.addEventListener('paste',e=>{
 const RT_CMDS=[
   {k:'table',ic:'▦',label:'Table',run:h=>rtInsertTable(h)},
   {k:'divider',ic:'—',label:'Divider',run:()=>document.execCommand('insertHTML',false,'<hr><p><br></p>')},
-  {k:'bulleted',ic:'•',label:'Bulleted list',run:()=>{if(!rtConvertList('UL'))document.execCommand('insertUnorderedList')}},
-  {k:'numbered',ic:'1.',label:'Numbered list',run:()=>{if(!rtConvertList('OL'))document.execCommand('insertOrderedList')}},
-  {k:'todo',ic:'☑',label:'To-do list',run:()=>rtInsertTodo()},
+  {k:'bulleted',ic:'•',label:'Bulleted list',run:()=>rtSetList('bullet')},
+  {k:'numbered',ic:'1.',label:'Numbered list',run:()=>rtSetList('number')},
+  {k:'lettered',ic:'a.',label:'Lettered list',run:()=>rtSetList('letter')},
+  {k:'todo',ic:'☑',label:'To-do list',run:()=>rtSetList('todo')},
   {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>document.execCommand('strikeThrough',false,null)}
 ];
-// Build a checklist out of a normal bullet list, then tag it — the same trick the
-// "A. " auto-list uses to restyle the <ol> execCommand just made.
-function rtInsertTodo(){
-  let ul=rtConvertList('UL',true);
-  if(!ul){
-    document.execCommand('insertUnorderedList');
-    const s=window.getSelection();
-    if(!s||!s.rangeCount) return;
-    let n=s.getRangeAt(0).startContainer;
-    n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
-    ul=n&&n.closest?n.closest('ul'):null;
-  }
-  if(ul) ul.classList.add('rt-todo');
-}
 // Clicking the box toggles; clicking the text just places the caret. The box is drawn
 // in the item's left padding, so a hit is anything left of the content edge.
 document.addEventListener('click',e=>{
