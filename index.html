@@ -3315,12 +3315,17 @@ function richtextKD(e){
     }
   }
   // Enter inside a checklist: the browser clones the <li>'s attributes, so splitting a
-  // ticked item would hand you a pre-ticked one. Let the split happen, then untick it.
+  // ticked item would hand you a pre-ticked one. Let the split happen, then untick
+  // whichever item the caret ended up in — Chrome clones the *first* half into the new
+  // node and leaves the caret in the original, so node identity says nothing about which
+  // half is new. The input event has already banked the pre-fix HTML, hence the rtFire.
   if(e.key==='Enter'&&!e.shiftKey){
     const li=rtTodoLi();
     if(li&&li.hasAttribute('data-done')) setTimeout(()=>{
       const nl=rtTodoLi();
-      if(nl&&nl!==li) nl.removeAttribute('data-done');
+      if(!nl||!nl.hasAttribute('data-done')) return;
+      nl.removeAttribute('data-done');
+      rtFire(nl.closest(RT_HOSTS));
     },0);
   }
   // Tab / Shift+Tab → indent / outdent
