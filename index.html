@@ -87,7 +87,6 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard.editing{border-color:var(--accent)}
 .pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap}
 .pcard-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)}
-.pcard-per{font-size:10px;color:var(--text3);margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums}
 .pcard-bd{padding:8px 16px 14px;min-height:80px;flex:1}
 /* A block at the very top of a card sits at exactly the body's top padding, so
    a table inserted first lines up identically on every card. */
@@ -97,14 +96,6 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard-lnk{background:none;border:none;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px}
 .pcard-lnk:hover{color:var(--accent);background:var(--surface2)}
 .pcard-lnk.on{color:var(--accent);background:var(--today-bg)}
-.pcard-cfg{display:flex;align-items:center;gap:8px;padding:0 16px 7px;flex-wrap:wrap}
-.pcard-cfg select{font-family:var(--font);font-size:11px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 5px;outline:none}
-.pcard-cfg label{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer}
-.pcard-cfg span.cfg-t{font-size:11px;color:var(--text3)}
-.pcard-fmt{padding:0 16px 9px;display:flex;gap:5px;flex-wrap:wrap}
-.pcard-fmt button{font-family:var(--font);font-size:10px;color:var(--text3);background:none;border:1px solid var(--border);border-radius:20px;padding:3px 9px;cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
-.pcard-fmt button:hover{border-color:var(--text3);color:var(--text2)}
-.pcard-fmt button.on{border-color:var(--accent);color:var(--accent);background:var(--today-bg);font-weight:600}
 .pcard-lblin{flex:1;min-width:0;font-family:var(--font);font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 7px;outline:none}
 .pcard-lblin:focus{border-color:var(--accent)}
 .pcard-x{background:none;border:none;color:var(--text3);font-size:17px;line-height:1;cursor:pointer;padding:0 4px;border-radius:4px;font-family:var(--font);flex-shrink:0}
@@ -810,13 +801,12 @@ function migrateCardsToGlobal(){
 // one stays there — so every def is cadence:'none' and reads the '_' key. The
 // cadence plumbing below is kept, unused, because the stored data is keyed by it
 // and older per-period entries are still in there.
-const CARD_FMT_KEYS=['month','week','day'];
 function defaultCardDefs(){
   return [
-    {id:'intention',type:'text',label:'THIS MONTH / PERIOD',span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'month'},
-    {id:'priority', type:'text',label:'WEEKLY',             span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'week'},
-    {id:'quote',    type:'text',label:'THIS WEEK',          span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'week'},
-    {id:'notes',    type:'text',label:'TODAY',              span:1,minH:0,cadence:'none',showPeriod:true,periodFormat:'day'},
+    {id:'intention',type:'text',label:'THIS MONTH / PERIOD',span:1,minH:0,cadence:'none'},
+    {id:'priority', type:'text',label:'WEEKLY',             span:1,minH:0,cadence:'none'},
+    {id:'quote',    type:'text',label:'THIS WEEK',          span:1,minH:0,cadence:'none'},
+    {id:'notes',    type:'text',label:'TODAY',              span:1,minH:0,cadence:'none'},
     clockCardDef(),
   ];
 }
@@ -870,8 +860,6 @@ function migrateCardsToOneEntry(){
   if(!D.cards||!D.cards.defs||D._migOneEntry) return;
   D._migOneEntry=1;
   D.cards.defs.forEach(def=>{
-    // The stamp used to be implied by the cadence; keep showing the same words.
-    if(!def.periodFormat&&CARD_FMT_KEYS.includes(def.cadence)) def.periodFormat=def.cadence;
     def.cadence='none';
     const bag=(D.cards.data||{})[def.id];
     if(!bag||bag['_']) return;
@@ -884,7 +872,7 @@ function migrateCardsToOneEntry(){
 }
 
 function clockCardDef(id){
-  return {id:id||'clock',type:'clock',label:'TODAY’S SHAPE',span:1,minH:0,cadence:'none',showPeriod:false,periodFormat:null};
+  return {id:id||'clock',type:'clock',label:'TODAY’S SHAPE',span:1,minH:0,cadence:'none'};
 }
 // The clock used to sit outside the grid, so anyone with existing card defs has
 // no card for it. Add one once, at the end, rather than letting it disappear.
@@ -1373,21 +1361,10 @@ function mkHeader(){
 // The Today view is this grid and nothing else. Every card carries its own label,
 // width, height, cadence, date stamp and type, so the structure of the page is
 // whatever you make it rather than something the app hands you.
-function _weekRangeLabel(d){
-  const y=d.getFullYear(),m=d.getMonth();
-  const sp=getWeekSpans(y,m).find(s=>d.getDate()>=s.start&&d.getDate()<=s.end)||{start:1,end:1};
-  const mn=MON[m].slice(0,3);
-  return `${mn} ${sp.start}–${sp.end}`;
-}
-const CARD_FORMATS={
-  month:  d=>`${MON[d.getMonth()]} ${d.getFullYear()}`,
-  week:   d=>`Wk ${weekOfDay(d.getFullYear(),d.getMonth(),d.getDate())} · ${_weekRangeLabel(d)}`,
-  day:    d=>`${DOW[d.getDay()]} · ${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`,
-};
-function cardStamp(def,d){
-  const f=CARD_FORMATS[def.periodFormat||def.cadence];
-  return f?f(d||PD):'';
-}
+// Cards carried a date stamp back when they reset each period. They don't reset any
+// more, so a card stamped "Sun · Aug 9" would show the same words a fortnight later —
+// it asserted a period the card no longer has. The header dates the page once.
+// showPeriod and periodFormat are still in the stored defs, ignored, not deleted.
 function _esc(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) }
 function _cardsDirty(){ save() }
 
@@ -1414,9 +1391,6 @@ function mkPlannerCard(def,ix){
   d.style.gridColumn=`span ${Math.min(4,Math.max(1,def.span||1))}`;
   d.draggable=false;
 
-  // A clock always shows the current time, so a date stamp on it says nothing.
-  const dated=def.type!=='clock';
-  const stamp=(dated&&def.showPeriod)?cardStamp(def):'';
   // The header is the drag handle in both modes — see _cardGrabStart.
   const head = editMode
     ? `<div class="pcard-hd pcard-grab" style="align-items:center;gap:6px"
@@ -1424,19 +1398,11 @@ function mkPlannerCard(def,ix){
          <span class="pgrab">⠿</span>
          <input class="pcard-lblin" value="${_esc(def.label)}" oninput="setCardLabel('${def.id}',this.value)"/>
          <button class="pcard-x" title="Remove card" onclick="removePlannerCard('${def.id}')">×</button>
-       </div>
-       ${dated?`<div class="pcard-cfg">
-         <label><input type="checkbox"${def.showPeriod?' checked':''} onchange="setCardFlag('${def.id}','showPeriod',this.checked)"/>date</label>
-       </div>`:''}
-       ${dated&&def.showPeriod?`<div class="pcard-fmt">${
-         CARD_FMT_KEYS.map(k=>`<button class="${def.periodFormat===k?'on':''}"
-           onclick="setCardFormat('${def.id}','${k}')">${_esc(CARD_FORMATS[k](PD))}</button>`).join('')
-       }</div>`:''}`
+       </div>`
     : `<div class="pcard-hd pcard-grab" title="Drag to reorder"
            onpointerdown="_cardGrabStart(event,'${def.id}')">
          <span class="pgrab">⠿</span>
          <span class="pcard-lbl">${_esc(def.label)}</span>
-         ${stamp?`<span class="pcard-per">${_esc(stamp)}</span>`:''}
        </div>`;
 
   const mh=def.minH?`min-height:${def.minH}px`:'';
@@ -1489,14 +1455,13 @@ function mkPlannerCard(def,ix){
 function setCardLabel(id,v){ const c=cardDef(id); if(c){ c.label=v; _cardsDirty(); } }
 function setCardFlag(id,k,v){ const c=cardDef(id); if(c){ c[k]=v; _cardsDirty(); render(); } }
 function setCardSpan(id,v){ const c=cardDef(id); if(c){ c.span=Math.min(4,Math.max(1,Number(v)||1)); _cardsDirty(); render(); } }
-function setCardFormat(id,k){ const c=cardDef(id); if(c){ c.periodFormat=k; _cardsDirty(); render(); } }
 function setCardHeight(id,px){ const c=cardDef(id); if(c){ c.minH=Math.max(0,Math.round(px)); _cardsDirty(); render(); } }
 function addPlannerCard(type){
   const id='c'+Math.random().toString(36).slice(2,9);
   cardDefs().push(
-    type==='habits' ? {id,type:'habits',label:'HABITS',span:2,minH:0,cadence:'none',showPeriod:false,periodFormat:null}
+    type==='habits' ? {id,type:'habits',label:'HABITS',span:2,minH:0,cadence:'none'}
   : type==='clock'  ? clockCardDef(id)
-  : {id,type:'text',label:'NEW CARD',span:1,minH:0,cadence:'day',showPeriod:true,periodFormat:null});
+  : {id,type:'text',label:'NEW CARD',span:1,minH:0,cadence:'none'});
   _cardsDirty(); render();
 }
 // Removal keeps the stored content, so a card taken off the page can come back.
@@ -4178,29 +4143,75 @@ function rtPlaceWrap(host,wrap){
 // leaves nowhere to put the caret beside it — you cannot click above it, type above it,
 // or insert anything above it. Keep an empty paragraph on each side (two adjacent tables
 // need one between them too). Returns true if anything was added.
+// Whether a top-level block is (or contains) a table, and so has no caret position
+// of its own to land in.
+function _rtIsTableBlock(el){
+  return !!el&&el.nodeType===1&&(el.classList.contains('rt-tw')||el.tagName==='TABLE'||!!el.querySelector('table'));
+}
 function rtGuardBlocks(host){
   if(!host) return false;
   let added=false;
   const gap=()=>{ const p=document.createElement('p');p.innerHTML='<br>';added=true;return p; };
-  const isTable=el=>!!el&&el.classList&&el.classList.contains('rt-tw');
-  [...host.querySelectorAll('.rt-tw')].forEach(w=>{
-    if(w.parentElement!==host) return;
-    if(!w.previousElementSibling||isTable(w.previousElementSibling)) host.insertBefore(gap(),w);
-    if(!w.nextElementSibling) host.appendChild(gap());
+  // Walk the host's own children rather than querying for '.rt-tw': a table nested
+  // inside some other block still leaves that block untypeable, and older content
+  // has plenty of those.
+  [...host.children].forEach(el=>{
+    if(!_rtIsTableBlock(el)) return;
+    const prev=el.previousElementSibling;
+    if(!prev||_rtIsTableBlock(prev)) host.insertBefore(gap(),el);
+    if(!el.nextElementSibling) host.appendChild(gap());
   });
   return added;
+}
+// Tables written before the wrapper existed are bare in the card, which is why
+// nothing — guards, resize handles, the row/column controls, copy — recognises
+// them. Wrap them once, in place. Only the wrapper changes; cells are untouched.
+function rtWrapLooseTables(host){
+  if(!host) return false;
+  let done=false;
+  [...host.querySelectorAll('table')].forEach(t=>{
+    if(t.closest('.rt-tw')) return;
+    t.classList.add('rt-table');
+    const wrap=document.createElement('div');
+    wrap.className='rt-tw';
+    wrap.setAttribute('contenteditable','false');
+    t.parentNode.insertBefore(wrap,t);
+    wrap.appendChild(t);
+    done=true;
+  });
+  return done;
 }
 // Tables saved before colgroups existed are still fluid and reflow with the window.
 // Freeze them to px on first render rather than waiting for a hover.
 function rtFreezeTables(){
   document.querySelectorAll(RT_HOSTS).forEach(host=>{
-    let dirty=rtGuardBlocks(host);
+    // Wrap before guarding: a bare table only becomes a recognisable block once
+    // it has its wrapper, and the guard pass reads the result.
+    let dirty=rtWrapLooseTables(host);
+    if(rtGuardBlocks(host)) dirty=true;
     host.querySelectorAll('.rt-table:not(.rt-fixed)').forEach(t=>{
       if(rtColCount(t)){ rtEnsureCols(t); dirty=true; }
     });
     if(dirty) rtFire(host);
   });
 }
+// Last resort for getting a caret above or below a table that owns the top or
+// bottom of a card: click the padding strip. Works whatever shape the stored
+// HTML is in, so deleting a guard paragraph can never strand you again.
+document.addEventListener('mousedown',e=>{
+  const host=e.target.closest&&e.target.closest(RT_HOSTS);
+  if(!host||e.target!==host) return; // only bare clicks on the padding itself
+  const first=host.firstElementChild, last=host.lastElementChild;
+  let ref=null,before=false;
+  if(first&&_rtIsTableBlock(first)&&e.clientY<first.getBoundingClientRect().top){ ref=first; before=true; }
+  else if(last&&_rtIsTableBlock(last)&&e.clientY>last.getBoundingClientRect().bottom){ ref=last; }
+  if(!ref) return;
+  e.preventDefault();
+  const p=document.createElement('p'); p.innerHTML='<br>';
+  host.insertBefore(p,before?ref:ref.nextSibling);
+  rtPlaceCaretAtEnd(p);
+  rtFire(host);
+});
 function rtInsertTable(host){
   if(!host) return;
   const wrap=document.createElement('div');
