@@ -3484,6 +3484,11 @@ function rtNormalizeLists(root){
   // execCommand('indent') builds the nested <ul> without our class, so a sub-item
   // would drop back to a plain bullet. Carry the checklist marker down.
   root.querySelectorAll('ul.rt-todo ul').forEach(l=>l.classList.add('rt-todo'));
+  // An item with nothing in it isn't done. Clearing a ticked item's text used to leave
+  // the flag behind, so whatever you typed next arrived already struck through.
+  root.querySelectorAll('ul.rt-todo > li[data-done]').forEach(li=>{
+    if(!li.textContent.trim()) li.removeAttribute('data-done');
+  });
   let changed=true,guard=0;
   while(changed&&guard++<20){
     changed=false;
