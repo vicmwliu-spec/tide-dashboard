@@ -182,6 +182,18 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol{list-style-type:decimal}
 #aar-editor ol ol,.quote-ta ol ol,.priority-ta ol ol,.notes-ta ol ol,.intention-ta ol ol{list-style-type:lower-alpha}
 #aar-editor ol ol ol,.quote-ta ol ol ol,.priority-ta ol ol ol,.notes-ta ol ol ol,.intention-ta ol ol ol{list-style-type:lower-roman}
+/* Checklists. The checkbox is drawn entirely in CSS from a data attribute — an
+   <input> would be useless here because its checked state is a property and never
+   survives the innerHTML round trip we persist card content through. */
+#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo{list-style:none;padding-left:4px}
+#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
+#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before{
+  content:'';position:absolute;left:0;top:.28em;width:14px;height:14px;box-sizing:border-box;
+  border:1.5px solid var(--border);border-radius:4px;cursor:pointer;text-decoration:none;
+  font-size:10px;line-height:11px;text-align:center;color:#fff;font-weight:700}
+#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before{
+  content:'✓';background:var(--accent);border-color:var(--accent)}
+#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
 /* Rich-text simple table (Notion-style) */
 .rt-tw{overflow-x:auto;margin:10px 0;max-width:100%}
 .rt-table{border-collapse:collapse;width:max-content;min-width:100%;font-size:13px;font-family:var(--font);table-layout:fixed}
@@ -3252,6 +3264,8 @@ function richtextKD(e){
     if(e.key==='b'){e.preventDefault();document.execCommand('bold',false,null)}
     if(e.key==='i'){e.preventDefault();document.execCommand('italic',false,null)}
     if(e.key==='u'){e.preventDefault();document.execCommand('underline',false,null)}
+    // Shift-guarded so plain Ctrl+X (table cut) is untouched.
+    if(e.shiftKey&&(e.key==='x'||e.key==='X')){e.preventDefault();document.execCommand('strikeThrough',false,null)}
   }
   // "--" → em dash
   if(e.key==='-'){
@@ -3299,6 +3313,15 @@ function richtextKD(e){
         }
       }
     }
+  }
+  // Enter inside a checklist: the browser clones the <li>'s attributes, so splitting a
+  // ticked item would hand you a pre-ticked one. Let the split happen, then untick it.
+  if(e.key==='Enter'&&!e.shiftKey){
+    const li=rtTodoLi();
+    if(li&&li.hasAttribute('data-done')) setTimeout(()=>{
+      const nl=rtTodoLi();
+      if(nl&&nl!==li) nl.removeAttribute('data-done');
+    },0);
   }
   // Tab / Shift+Tab → indent / outdent
   if(e.key==='Tab'){
@@ -3402,9 +3425,21 @@ function richtextKD(e){
 // execCommand('outdent'/'indent') splits one <ol> into two siblings, and the
 // second one restarts numbering at 1. Merge them back so numbers stay
 // continuous. Nodes are MOVED (never re-serialized) so the caret survives.
+// The <li> the caret is in, if it belongs to a checklist.
+function rtTodoLi(){
+  const s=window.getSelection();
+  if(!s||!s.rangeCount) return null;
+  let n=s.getRangeAt(0).startContainer;
+  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  return n&&n.closest?n.closest('ul.rt-todo > li'):null;
+}
 function rtNormalizeLists(root){
   if(!root) return;
   const styleOf=el=>el.style.listStyleType||'';
+  const todo=el=>el.classList.contains('rt-todo');
+  // execCommand('indent') builds the nested <ul> without our class, so a sub-item
+  // would drop back to a plain bullet. Carry the checklist marker down.
+  root.querySelectorAll('ul.rt-todo ul').forEach(l=>l.classList.add('rt-todo'));
   let changed=true,guard=0;
   while(changed&&guard++<20){
     changed=false;
@@ -3414,6 +3449,9 @@ function rtNormalizeLists(root){
     root.querySelectorAll('ol,ul').forEach(l=>{
       const nx=l.nextElementSibling;
       if(!nx||nx.tagName!==l.tagName) return;
+      // A checklist and a plain bullet list are different kinds of list, even
+      // though both are <ul> — merging them would convert one into the other.
+      if(todo(l)!==todo(nx)) return;
       const a=styleOf(l),b=styleOf(nx);
       if(a&&b&&a!==b) return;
       if(!a&&b) l.style.listStyleType=b;
@@ -4084,8 +4122,35 @@ const RT_CMDS=[
   {k:'table',ic:'▦',label:'Table',run:h=>rtInsertTable(h)},
   {k:'divider',ic:'—',label:'Divider',run:()=>document.execCommand('insertHTML',false,'<hr><p><br></p>')},
   {k:'bulleted',ic:'•',label:'Bulleted list',run:()=>document.execCommand('insertUnorderedList')},
-  {k:'numbered',ic:'1.',label:'Numbered list',run:()=>document.execCommand('insertOrderedList')}
+  {k:'numbered',ic:'1.',label:'Numbered list',run:()=>document.execCommand('insertOrderedList')},
+  {k:'todo',ic:'☑',label:'To-do list',run:()=>rtInsertTodo()},
+  {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>document.execCommand('strikeThrough',false,null)}
 ];
+// Build a checklist out of a normal bullet list, then tag it — the same trick the
+// "A. " auto-list uses to restyle the <ol> execCommand just made.
+function rtInsertTodo(){
+  document.execCommand('insertUnorderedList');
+  const s=window.getSelection();
+  if(!s||!s.rangeCount) return;
+  let n=s.getRangeAt(0).startContainer;
+  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  const ul=n&&n.closest?n.closest('ul'):null;
+  if(ul) ul.classList.add('rt-todo');
+}
+// Clicking the box toggles; clicking the text just places the caret. The box is drawn
+// in the item's left padding, so a hit is anything left of the content edge.
+document.addEventListener('click',e=>{
+  const li=e.target&&e.target.closest?e.target.closest('ul.rt-todo > li'):null;
+  if(!li) return;
+  const host=li.closest(RT_HOSTS);
+  if(!host) return;
+  const r=li.getBoundingClientRect();
+  if(e.clientX>=r.left+22) return;
+  e.preventDefault();
+  if(li.hasAttribute('data-done')) li.removeAttribute('data-done');
+  else li.setAttribute('data-done','1');
+  rtFire(host);
+});
 let _rtSlash=null;
 function rtSlashClose(){ _rtSlash=null; const el=document.getElementById('rt-slash'); if(el) el.style.display='none'; }
 function rtSlashUpdate(host){
