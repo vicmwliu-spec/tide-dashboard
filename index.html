@@ -91,7 +91,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* ── Planner card grid ──
    There is no fixed section on the Today view — only cards. Width is a per-card
    property (span 1–4); height is a floor set by dragging the bottom edge. */
-.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:stretch;margin-bottom:14px}
+/* Ruled in fine rows rather than one row per band: a row of a CSS grid is as
+   tall as its tallest card, so shortening a card used to leave a hole under it
+   instead of letting the next card rise. Each card claims the rows it actually
+   needs — see packCards — and the 14px gap is carried in the span. */
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);column-gap:14px;row-gap:0;
+  grid-auto-rows:4px;align-items:start;margin-bottom:14px}
 /* Timeline card: the month as a calendar, weeks numbered as the rest of the app
    numbers them. Days are buttons — clicking one moves the page to that day.
    Every marked state reads --tlc, which the card sets from your chosen colour;
@@ -1484,7 +1489,30 @@ function render(){
   setTimeout(()=>{ if(window.scrollY!==_sy) window.scrollTo(0,_sy); },0);
   // Runs after the card editors have filled themselves in (they restore on a 0ms timer).
   setTimeout(rtFreezeTables,0);
+  // Same reason: cards are only their real height once their content has landed.
+  packCards();
+  setTimeout(packCards,0);
 }
+// How many of the grid's fine rows each card needs. Cards are laid out in 4px rows
+// with no row gap, so a card spans ceil((its height + the 14px gap) / 4) of them and
+// the gap comes out of the span. Shorten a card and it claims fewer rows, which is
+// what lets the card below it rise into the space instead of leaving a hole.
+const PGRID_ROW=4, PGRID_GAP=14;
+function packCards(){
+  document.querySelectorAll('.pgrid').forEach(g=>{
+    [...g.children].forEach(c=>{
+      if(!c.classList||!c.classList.contains('pcard')&&!c.classList.contains('paddcard')) return;
+      c.style.gridRowEnd='';
+      // A lifted card is out of the flow, and anything unmeasurable (a hidden view,
+      // or a test environment with no layout) is left alone rather than guessed at.
+      if(c.classList.contains('drag')) return;
+      const h=c.getBoundingClientRect().height;
+      if(!h) return;
+      c.style.gridRowEnd='span '+Math.max(1,Math.ceil((h+PGRID_GAP)/PGRID_ROW));
+    });
+  });
+}
+window.addEventListener('resize',packCards);
 
 // ─────────────────────────────────────────
 //  HEADER
@@ -1663,7 +1691,8 @@ function cvFit(surf){
   let r=0,b=0;
   cvBoxes(surf).forEach(el=>{ const p=cvPos(el); r=Math.max(r,p.x+p.w); b=Math.max(b,p.y+p.h); });
   surf.style.minHeight=(b+40)+'px';
-  surf.style.minWidth=(r+40)+'px';
+  // No minWidth. Boxes are placed within the card's width, so widening the surface
+  // to the rightmost box only ever bought a horizontal scrollbar nothing needed.
 }
 // Selection is a transient class, so it is stripped on the way to storage — what
 // you had selected when you happened to stop typing is not part of the document.
@@ -1693,7 +1722,8 @@ function cvNewBox(surf,x,y,html){
   surf.appendChild(box);
   cvSelect(surf,[box]);
   const bd=box.querySelector('.cv-bd');
-  rtSeedUndo(bd); rtPlaceCaretAtEnd(bd); bd.focus();
+  // preventScroll: focusing a box you just made should not jump the page to it.
+  rtSeedUndo(bd); rtPlaceCaretAtEnd(bd); bd.focus({preventScroll:true});
   cvSave(surf);
   return box;
 }
@@ -1757,12 +1787,40 @@ function cvSnap(x,y,w,h,lines,tol){
 }
 
 // ── The overlay ──
+// The handle strip and the eight resize handles are built once and then only moved.
+// Rebuilding them was what made the canvas flash: nine elements destroyed and
+// recreated on every pointermove and every frame of a drag, each new one starting
+// life without the hover state or the pointer capture the old one had.
+const CV_HANDLES=[['n',0,-1,.5,0,'ns-resize'],['s',0,1,.5,1,'ns-resize'],
+  ['w',-1,0,0,.5,'ew-resize'],['e',1,0,1,.5,'ew-resize'],
+  ['nw',-1,-1,0,0,'nwse-resize'],['ne',1,-1,1,0,'nesw-resize'],
+  ['sw',-1,1,0,1,'nesw-resize'],['se',1,1,1,1,'nwse-resize']];
 function cvCtl(){
   let el=document.getElementById('cv-ctl');
-  if(!el){ el=document.createElement('div'); el.id='cv-ctl'; document.body.appendChild(el); }
+  if(el) return el;
+  el=document.createElement('div'); el.id='cv-ctl';
+  const hd=document.createElement('div');
+  hd.className='cv-hd'; hd.title='Drag to move';
+  // The handles read the hovered box at press time rather than closing over one,
+  // which is what lets them outlive the box they were drawn for.
+  hd.onpointerdown=e=>{ if(_cvHover) cvDragStart(e,_cvHover); };
+  el.appendChild(hd);
+  CV_HANDLES.forEach(([dir,,,,,cur])=>{
+    const h=document.createElement('div');
+    h.className='cv-rz'+(dir.length===2?' cv-c':'');
+    h.dataset.dir=dir; h.style.cursor=cur;
+    h.onpointerdown=e=>{ if(_cvHover) cvRzStart(e,_cvHover,dir); };
+    el.appendChild(h);
+  });
+  document.body.appendChild(el);
   return el;
 }
-function cvHideCtl(){ const el=document.getElementById('cv-ctl'); if(el){ el.innerHTML=''; el.style.display='none'; } _cvHover=null; }
+function cvHideCtl(){
+  const el=document.getElementById('cv-ctl');
+  // Guides and the marquee are transient and do go; the handles stay put, hidden.
+  if(el){ el.style.display='none'; el.querySelectorAll('.cv-guide,.cv-marq').forEach(g=>g.remove()); }
+  _cvHover=null;
+}
 function cvMk(cls,css){
   const el=document.createElement('div'); el.className=cls; el.style.cssText=css||'';
   cvCtl().appendChild(el); return el;
@@ -1772,26 +1830,23 @@ function cvMk(cls,css){
 // a group reads as one thing.
 function cvShowCtl(box){
   const surf=cvSurf(box); if(!surf) return;
-  const ctl=cvCtl(); ctl.innerHTML=''; ctl.style.display='block';
+  const ctl=cvCtl(); ctl.style.display='block';
   ctl.style.setProperty('--cvc',cvAccent(cvCard(box)));
   _cvHover=box;
   const r=box.getBoundingClientRect();
-  const hd=cvMk('cv-hd',`left:${r.left}px;top:${r.top-14}px;width:${r.width}px`);
-  hd.title='Drag to move';
-  if(_cvDrag&&_cvDrag.moved) hd.classList.add('cv-on');
-  hd.onpointerdown=e=>cvDragStart(e,box);
-  // Eight handles: thin strips on the sides, dots on the corners.
-  const H=[['n',0,-1,.5,0,'ns-resize'],['s',0,1,.5,1,'ns-resize'],
-           ['w',-1,0,0,.5,'ew-resize'],['e',1,0,1,.5,'ew-resize'],
-           ['nw',-1,-1,0,0,'nwse-resize'],['ne',1,-1,1,0,'nesw-resize'],
-           ['sw',-1,1,0,1,'nesw-resize'],['se',1,1,1,1,'nwse-resize']];
-  H.forEach(([dir,dx,dy,fx,fy,cur])=>{
+  const hd=ctl.querySelector('.cv-hd');
+  hd.style.left=r.left+'px'; hd.style.top=(r.top-14)+'px'; hd.style.width=r.width+'px';
+  hd.classList.toggle('cv-on',!!(_cvDrag&&_cvDrag.moved));
+  // Eight handles: thin strips on the sides, dots on the corners. Moved, not remade.
+  CV_HANDLES.forEach(([dir,dx,dy,fx,fy])=>{
     const corner=dir.length===2;
     const size=corner?10:8;
     const w=corner?size:(dx?size:r.width),h=corner?size:(dy?size:r.height);
-    const el=cvMk('cv-rz'+(corner?' cv-c':''),
-      `left:${r.left+r.width*fx-w/2}px;top:${r.top+r.height*fy-h/2}px;width:${w}px;height:${h}px;cursor:${cur}`);
-    el.onpointerdown=e=>cvRzStart(e,box,dir);
+    const el=ctl.querySelector('.cv-rz[data-dir="'+dir+'"]');
+    if(!el) return;
+    el.style.left=(r.left+r.width*fx-w/2)+'px';
+    el.style.top=(r.top+r.height*fy-h/2)+'px';
+    el.style.width=w+'px'; el.style.height=h+'px';
   });
 }
 // A canvas borrows the app's accent unless the card has its own colour, the same
@@ -2028,7 +2083,11 @@ function mkPlannerCard(def,ix){
                onkeydown="_cardLblKD(event,this)">${_esc(def.label)}</span>
        </div>`;
 
-  const mh=def.minH?`min-height:${def.minH}px`:'';
+  // A canvas takes its height rather than a floor for it. The surface grows a
+  // minHeight to fit the lowest box, and with a floor that growth pushed the whole
+  // card — and the row it sits in — taller every time a box moved down. Fixed, the
+  // surface scrolls inside the card and the card stays the size you set it to.
+  const mh=def.minH?`${def.type==='canvas'?'height':'min-height'}:${def.minH}px`:'';
   let body,foot;
   if(def.type==='clock'){
     // Same host div mkTimeBlockCard uses, so buildClockSVG finds it by id and
@@ -2263,6 +2322,9 @@ document.addEventListener('mousemove',e=>{
   if(!_cardRz) return;
   _cardRz.px=Math.max(60,Math.round(_cardRz.h+(e.clientY-_cardRz.y)));
   _cardRz.bd.style.minHeight=_cardRz.px+'px';
+  // Repack as you drag, so you can see the card below rise into the space you free
+  // rather than finding out where it went after you let go.
+  packCards();
 });
 document.addEventListener('mouseup',()=>{
   if(!_cardRz) return;
@@ -5807,8 +5869,10 @@ function rtShowCtl(t){
     s.onmousedown=e=>e.preventDefault(); // don't let the click steal focus first
     s.onclick=()=>{ rtOpenLine(rtHost(t),edge,before); rtHideCtl(); };
   });
-  // ⠿ grip: pick the whole table up and put it somewhere else in the card.
-  const gb=mk('rt-btn rt-tgrip',`left:${wr.left-24}px;top:${tb.top-3}px`);
+  // ⠿ grip: pick the whole table up and put it somewhere else in the card. Drawn
+  // just inside the table's own top-left rather than 24px off to the left, where it
+  // sat outside the card's edge, stacked under the ⋯ button, and so was never found.
+  const gb=mk('rt-btn rt-tgrip',`left:${wr.left+2}px;top:${tb.top-22}px`);
   gb.textContent='⠿';gb.title='Drag to move this table';
   gb.onmousedown=e=>rtTwMvStart(e,t,gb);
   // Selection toolbar. It lives here rather than in the ⋯ menu because opening
