@@ -377,9 +377,9 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    tint lays over whatever shade the cell already carries. */
 .rt-table td.rt-sel{box-shadow:inset 0 0 0 999px rgba(59,130,246,.20)}
 /* Floating table controls — rendered on <body>, never saved into card HTML */
-#rt-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
-#rt-ctl .rt-btn,#rt-ctl .rt-grip{position:fixed;pointer-events:auto;cursor:pointer}
-#rt-ctl .rt-btn{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text3);font-size:14px;line-height:1;box-shadow:var(--shadow-md)}
+#rt-ctl,#rt-tog-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
+#rt-ctl .rt-btn,#rt-ctl .rt-grip,#rt-tog-ctl .rt-btn{position:fixed;pointer-events:auto;cursor:pointer}
+#rt-tog-ctl .rt-btn,#rt-ctl .rt-btn{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text3);font-size:14px;line-height:1;box-shadow:var(--shadow-md)}
 /* Invisible padding ring so the button is easy to hit and hard to slip off */
 #rt-ctl .rt-btn::before{content:'';position:absolute;inset:-8px;border-radius:50%}
 #rt-ctl .rt-btn:hover{color:var(--text1);background:var(--surface2)}
@@ -407,9 +407,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    never reshuffles under the pointer. */
 #rt-ctl .rt-menu .rt-item.rt-off{opacity:.35;cursor:default}
 #rt-ctl .rt-menu .rt-item.rt-off:hover{background:none}
-/* Whole-table drag grip */
-#rt-ctl .rt-btn.rt-tgrip{font-size:11px;cursor:grab}
-#rt-ctl .rt-btn.rt-tgrip:active{cursor:grabbing}
+/* Whole-block drag grip. A tall pill, not a circle: it sits right above the round
+   ⋯ button and the two were indistinguishable when they shared a shape. */
+/* Specificity has to match #rt-ctl .rt-btn above, or the round border-radius wins. */
+#rt-ctl .rt-tgrip,#rt-tog-ctl .rt-tgrip{width:20px;height:20px;border-radius:6px;font-size:11px;cursor:grab;letter-spacing:-1px}
+#rt-ctl .rt-tgrip::before,#rt-tog-ctl .rt-tgrip::before{border-radius:6px}
+#rt-ctl .rt-tgrip:hover,#rt-tog-ctl .rt-tgrip:hover{color:var(--text1);background:var(--surface2);border-color:var(--text3)}
+#rt-ctl .rt-tgrip:active,#rt-tog-ctl .rt-tgrip:active,
+#rt-ctl .rt-tgrip.rt-mv,#rt-tog-ctl .rt-tgrip.rt-mv{cursor:grabbing;background:#3B82F6;color:#fff;border-color:#3B82F6}
 /* Cell-selection toolbar: merge/unmerge/even-out, above the table it acts on */
 #rt-ctl .rt-selbar{position:fixed;pointer-events:auto;display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:3px}
 #rt-ctl .rt-selbtn{font-family:var(--font);font-size:11.5px;line-height:1;color:var(--text1);background:none;border:none;border-radius:calc(var(--r2) - 2px);padding:5px 8px;cursor:pointer;white-space:nowrap}
@@ -4448,38 +4453,53 @@ function richtextKD(e){
     const s=n&&n.closest?n.closest('.rt-tog-s'):null;
     if(s&&rtHost(s)){
       const tog=s.closest('.rt-tog');
+      // Enter on the summary reads two ways, depending on whether the toggle is
+      // showing its contents. Open, it means "give me a line in here"; closed, the
+      // contents aren't part of what you're looking at, so it means "another one
+      // of these" — a sibling toggle, not a line hidden inside this one.
       if(e.key==='Enter'){
         e.preventDefault();
-        if(tog.getAttribute('data-open')!=='1') rtTogSet(tog,true);
+        const host=rtHost(s);
+        if(tog.getAttribute('data-open')!=='1'){
+          const next=document.createElement('div');
+          next.className='rt-tog';
+          next.setAttribute('data-open','0');
+          next.innerHTML=rtToggleHTML();
+          tog.parentNode.insertBefore(next,tog.nextSibling);
+          rtGuardBlocks(host);
+          const ns=next.querySelector('.rt-tog-s');
+          if(ns) rtPlaceCaretAtEnd(ns);
+          rtFire(host);
+          return;
+        }
         const b=tog.querySelector('.rt-tog-b');
-        let first=b&&b.firstElementChild;
-        if(!first&&b){ first=document.createElement('p'); first.innerHTML='<br>'; b.appendChild(first); }
-        if(first) rtPlaceCaretAtEnd(first);
+        if(b){
+          // A fresh line at the top of the body, unless the one already there is
+          // empty — then it is the space you asked for and a second is just noise.
+          let first=b.firstElementChild;
+          if(first&&!first.textContent.trim()&&!first.querySelector('table,img,.rt-tog')){
+            rtPlaceCaretAtEnd(first);
+            return;
+          }
+          const p=document.createElement('p'); p.innerHTML='<br>';
+          b.insertBefore(p,b.firstChild);
+          rtPlaceCaretAtEnd(p);
+          rtFire(host);
+        }
         return;
       }
       if(rtCaretAtCellEdge(s,true)){ e.preventDefault(); rtTogUnwrap(tog); return; }
     }
-    // And the body needs a door out. Enter on an empty last block leaves the toggle,
-    // the way Enter on an empty list item leaves the list; Backspace at the very
-    // start folds the first block back into the summary. Without these, every Enter
-    // only makes the body taller and there is no way back up.
+    // Enter inside the body stays inside the body — it used to jump out of the
+    // toggle on an empty last block, which meant a toggle you were still filling in
+    // ejected you the moment you left a blank line. Backspace at the very start
+    // still folds the first block back into the summary, so there is a way back up.
     const b=n&&n.closest?n.closest('.rt-tog-b'):null;
     if(b&&rtHost(b)){
       const host=rtHost(b),tog=b.closest('.rt-tog');
       let blk=n;
       while(blk&&blk.parentElement&&blk.parentElement!==b) blk=blk.parentElement;
       if(!blk||blk.parentElement!==b) blk=null;
-      if(e.key==='Enter'&&blk&&blk===b.lastElementChild
-         &&!blk.textContent.trim()&&!blk.querySelector('table,img,.rt-tog')){
-        e.preventDefault();
-        blk.remove();
-        const p=document.createElement('p');p.innerHTML='<br>';
-        tog.parentNode.insertBefore(p,tog.nextSibling);
-        rtGuardBlocks(host);
-        rtPlaceCaretAtEnd(p);
-        rtFire(host);
-        return;
-      }
       const s2=tog&&tog.querySelector('.rt-tog-s');
       // Measured against the block, not the body: a range spanning from the body's
       // own start encloses the block's opening tag, which the edge probe reads as
@@ -5462,14 +5482,27 @@ function rtMoveTable(t,dir){
   return true;
 }
 // Drop the table at a specific slot among the host's children.
-function rtMoveTableTo(t,ref,before){
-  const w=t.closest('.rt-tw'),host=rtHost(t);
+// Moves any block wrapper — a table's .rt-tw or a whole .rt-tog — to a position in
+// `box`, which may be the card itself or an open toggle's body. Taking the box as
+// an argument is what lets a table be dragged into a toggle: before, the insert
+// always went to the host, so a drop inside a toggle landed beside it instead.
+function rtMoveBlockTo(w,ref,before,box){
+  const host=rtHost(w);
   if(!w||!host) return false;
   if(ref===w) return false;
-  host.insertBefore(w,before?ref:(ref?ref.nextSibling:null));
+  box=box&&host.contains(box)?box:host;
+  // A block cannot be dropped inside itself.
+  if(w.contains(box)) return false;
+  box.insertBefore(w,before?ref:(ref?ref.nextSibling:null));
   rtGuardBlocks(host);
-  rtFire(host); rtShowCtl(t);
+  rtFire(host);
+  const t=w.classList&&w.classList.contains('rt-tw')?w.querySelector('.rt-table'):null;
+  if(t) rtShowCtl(t);
   return true;
+}
+function rtMoveTableTo(t,ref,before,box){
+  const w=t&&t.closest('.rt-tw');
+  return w?rtMoveBlockTo(w,ref,before,box):false;
 }
 // Deletion is span-aware: a merge that only partly overlaps the deleted band
 // shrinks by the overlap and, if its own top-left is going away, is re-homed into
@@ -5705,7 +5738,14 @@ function rtDuplicateTable(t){
   const copy=tmp.firstElementChild;
   if(!copy||!host) return false;
   const after=document.createElement('p');after.innerHTML='<br>';
-  wrap.parentNode.insertBefore(copy,wrap.nextSibling);
+  // A paragraph goes *between* the two, not just after the copy. Wrappers are
+  // inline-blocks and `.rt-tw + .rt-tw` gives an immediately-following table a
+  // 10px left margin — that rule is what "Insert table to the right" relies on, and
+  // it was also catching the duplicate, which then read as indented under the
+  // original instead of sitting squarely beneath it.
+  const gap=document.createElement('p');gap.innerHTML='<br>';
+  wrap.parentNode.insertBefore(gap,wrap.nextSibling);
+  gap.parentNode.insertBefore(copy,gap.nextSibling);
   copy.parentNode.insertBefore(after,copy.nextSibling);
   rtGuardBlocks(host);
   const first=copy.querySelector('td');
@@ -5908,12 +5948,18 @@ function rtShowCtl(t){
     g.onmousedown=e=>rtMvStart(e,t,'row',ri,g);
     g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel([...tr.cells]); };
   });
+  // Both buttons live in the gutter to the table's left, stacked, rather than on the
+  // line above it: over that line they covered the text you were typing, which is
+  // worst inside a toggle where the table sits right under the summary. Clamped to
+  // the host so they can't slip off the card's edge either way.
+  const hostR=(rtHost(t)||t).getBoundingClientRect();
+  const gx=Math.max(hostR.left,wr.left-24);
   // Options (header row / header column)
-  const ob=mk('rt-btn',`left:${wr.left-24}px;top:${tb.top-24}px`);
+  const ob=mk('rt-btn',`left:${gx}px;top:${tb.top+24}px`);
   ob.textContent='⋯';ob.title='Table options';
   ob.onclick=()=>{ _rtMenu=!_rtMenu; rtShowCtl(t); };
   if(_rtMenu){
-    const m=mk('rt-menu',`left:${wr.left-24}px;top:${tb.top}px`);
+    const m=mk('rt-menu',`left:${gx}px;top:${tb.top+46}px`);
     [['rt-hr','Header row'],['rt-hc','Header column']].forEach(([cls,label])=>{
       const row=document.createElement('div');row.className='rt-item';
       const on=t.classList.contains(cls);
@@ -5927,7 +5973,7 @@ function rtShowCtl(t){
       m.appendChild(row);
     });
     const sep=document.createElement('div');sep.className='rt-sep';m.appendChild(sep);
-    [['Match widest column',()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
+    [['Distribute columns evenly',()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
       const row=document.createElement('div');row.className='rt-item';
       row.innerHTML='<span class="rt-ck">↔</span><span></span>';
       row.lastElementChild.textContent=label;
@@ -5980,10 +6026,10 @@ function rtShowCtl(t){
     s.onmousedown=e=>e.preventDefault(); // don't let the click steal focus first
     s.onclick=()=>{ rtOpenLine(rtHost(t),edge,before); rtHideCtl(); };
   });
-  // ⠿ grip: pick the whole table up and put it somewhere else in the card. Drawn
-  // just inside the table's own top-left rather than 24px off to the left, where it
-  // sat outside the card's edge, stacked under the ⋯ button, and so was never found.
-  const gb=mk('rt-btn rt-tgrip',`left:${wr.left+2}px;top:${tb.top-22}px`);
+  // ⠿ grip: pick the whole table up and put it somewhere else in the card. Sits
+  // directly above the ⋯ button in the same gutter, and is a tall pill rather than
+  // a circle — two identical round buttons were impossible to tell apart.
+  const gb=mk('rt-btn rt-tgrip',`left:${gx}px;top:${tb.top}px`);
   gb.textContent='⠿';gb.title='Drag to move this table';
   gb.onmousedown=e=>rtTwMvStart(e,t,gb);
   // Selection toolbar. It lives here rather than in the ⋯ menu because opening
@@ -6173,8 +6219,26 @@ function rtMvEnd(){
 // grid: a 4px threshold, a live insertion caret, Escape cancels.
 function rtTwMvStart(e,t,grip){
   e.preventDefault(); e.stopPropagation();
-  _rtTwMv={t,x0:e.clientX,y0:e.clientY,moved:false,ref:null,before:false,grip};
+  _rtTwMv={t,w:t&&t.closest('.rt-tw'),x0:e.clientX,y0:e.clientY,
+           moved:false,ref:null,before:false,box:null,grip};
   document.body.style.userSelect='none';
+}
+// Dragging a whole toggle, children and all — the same machinery, with the .rt-tog
+// as the block being moved instead of a table's wrapper.
+function rtTogMvStart(e,tog,grip){
+  e.preventDefault(); e.stopPropagation();
+  _rtTwMv={t:null,w:tog,x0:e.clientX,y0:e.clientY,
+           moved:false,ref:null,before:false,box:null,grip};
+  document.body.style.userSelect='none';
+}
+// The innermost container under the pointer that can hold a block: an open toggle
+// body inside this host, or the host itself. Never the block being dragged, or
+// anything inside it — a toggle can't be dropped into its own body.
+function _rtMvBox(x,y,host,w){
+  const el=document.elementFromPoint?document.elementFromPoint(x,y):null;
+  const b=el&&el.closest?el.closest('.rt-tog-b'):null;
+  if(b&&host.contains(b)&&!w.contains(b)&&b.closest('.rt-tog').dataset.open!=='0') return b;
+  return host;
 }
 function _rtTwIns(){
   const el=document.getElementById('rt-ctl'); if(!el) return null;
@@ -6190,23 +6254,27 @@ function rtTwMvMove(e){
     if(m.grip) m.grip.classList.add('rt-mv');
     rtClearSel();
   }
-  const host=rtHost(m.t),w=m.t.closest('.rt-tw');
+  const w=m.w||m.t.closest('.rt-tw'), host=rtHost(w);
   if(!host||!w) return;
-  // Nearest top-level block to the pointer, and which side of it we're on. Beside
-  // another table that reads as left/right; beside prose it reads as above/below.
-  let best=Infinity,ref=null,before=false;
-  [...host.children].forEach(el=>{
+  // Which container the pointer is over: the card, or an open toggle's body. This
+  // is what makes a block droppable *into* a toggle rather than only beside it.
+  const box=_rtMvBox(e.clientX,e.clientY,host,w);
+  // Reading order, not nearest-edge. Nearest-edge measured a tall table from its
+  // whole side, so the insertion bar jumped to a block the pointer was nowhere
+  // near; walking top to bottom and taking the first block the pointer hasn't
+  // passed is the same rule the card drag uses, and it reads as predictable.
+  let ref=null,before=false;
+  const kids=[...box.children].filter(el=>el!==w&&!w.contains(el));
+  for(const el of kids){
     const r=el.getBoundingClientRect();
-    const dx=e.clientX<r.left?r.left-e.clientX:e.clientX>r.right?e.clientX-r.right:0;
-    const dy=e.clientY<r.top?r.top-e.clientY:e.clientY>r.bottom?e.clientY-r.bottom:0;
-    const d=dx+dy;
-    if(d>=best) return;
-    best=d; ref=el;
-    before=_rtIsTableBlock(el)&&e.clientY>=r.top&&e.clientY<=r.bottom
-      ? e.clientX<(r.left+r.right)/2
-      : e.clientY<(r.top+r.bottom)/2;
-  });
-  m.ref=ref; m.before=before;
+    // Beside another table, left/right; beside anything else, above/below.
+    if(_rtIsTableBlock(el)&&e.clientY>=r.top&&e.clientY<=r.bottom){
+      ref=el; before=e.clientX<(r.left+r.right)/2; break;
+    }
+    if(e.clientY<(r.top+r.bottom)/2){ ref=el; before=true; break; }
+    ref=el; before=false;
+  }
+  m.box=box; m.ref=ref; m.before=before;
   const ins=_rtTwIns(); if(!ins||!ref) return;
   const r=ref.getBoundingClientRect();
   if(_rtIsTableBlock(ref)&&e.clientY>=r.top&&e.clientY<=r.bottom){
@@ -6225,8 +6293,10 @@ function rtTwMvEnd(cancel){
   if(!m.moved) return;
   _rtMvJustMoved=true;
   setTimeout(()=>{ _rtMvJustMoved=false; },0);
-  if(!cancel&&m.ref) rtMoveTableTo(m.t,m.ref,m.before);
-  else rtShowCtl(m.t);
+  const w=m.w||(m.t&&m.t.closest('.rt-tw'));
+  if(m.grip) m.grip.classList.remove('rt-mv');
+  if(!cancel&&m.ref&&w) rtMoveBlockTo(w,m.ref,m.before,m.box);
+  else if(m.t) rtShowCtl(m.t);
 }
 function rtReposition(){
   if(_rtRaf) return;
@@ -6236,8 +6306,44 @@ function rtReposition(){
     if(document.contains(_rtCtlTable)) rtShowCtl(_rtCtlTable); else rtHideCtl();
   });
 }
+// ─── Dragging a toggle ───────────────────────────────────────────
+// A toggle gets the same grip a table has, in its own overlay so it is never
+// serialized into the card's HTML. Hovering a toggle's header shows it; dragging
+// it moves the whole toggle, children included.
+let _rtTogHover=null;
+function rtShowTogCtl(tog){
+  const h=tog.querySelector('.rt-tog-h'); if(!h) return;
+  const host=rtHost(tog); if(!host) return;
+  let el=document.getElementById('rt-tog-ctl');
+  if(!el){
+    el=document.createElement('div'); el.id='rt-tog-ctl';
+    const g=document.createElement('div');
+    g.className='rt-btn rt-tgrip'; g.textContent='⠿'; g.title='Drag to move this toggle';
+    g.onmousedown=e=>{ if(_rtTogHover) rtTogMvStart(e,_rtTogHover,g); };
+    el.appendChild(g);
+    document.body.appendChild(el);
+  }
+  _rtTogHover=tog;
+  const hr=h.getBoundingClientRect(), hostR=host.getBoundingClientRect();
+  const g=el.firstElementChild;
+  g.classList.remove('rt-mv');
+  g.style.cssText=`left:${Math.max(hostR.left,hr.left-22)}px;top:${hr.top+1}px`;
+  el.style.display='block';
+}
+function rtHideTogCtl(){
+  const el=document.getElementById('rt-tog-ctl');
+  if(el&&!_rtTwMv) el.style.display='none';
+  if(!_rtTwMv) _rtTogHover=null;
+}
 document.addEventListener('mouseover',e=>{
   if(!e.target.closest) return;
+  if(e.target.closest('#rt-tog-ctl')) return;
+  // The header, not the whole toggle: hovering a nested block shouldn't keep
+  // offering to drag the toggle that happens to contain it.
+  const th=e.target.closest('.rt-tog-h');
+  const tog=th&&rtHost(th)?th.closest('.rt-tog'):null;
+  if(tog){ if(tog!==_rtTogHover) rtShowTogCtl(tog); }
+  else rtHideTogCtl();
   if(e.target.closest('#rt-ctl')){ rtCtlCancelHide(); return; }
   const w=e.target.closest('.rt-tw');
   if(w){
