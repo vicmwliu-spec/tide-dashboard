@@ -27,6 +27,10 @@
      --grade, so edit mode borrows from the palette instead of adding to it. */
   --edit:#4E9B8A;
   --edit-soft:#EAF3F1;
+  /* An open card only needs to read as open, so its outline is the resting border a
+     few shades down rather than a colour. --edit itself stays: the Timeline and the
+     drag placeholder are meant to carry the accent. */
+  --edit-line:#9CA3AF;
   --today-bg:#EFF6FF;
   --today-border:#93C5FD;
   --green:#16A34A;
@@ -123,7 +127,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* Edit cards, under the grid rather than in the header. */
 .pcard-bar{display:flex;justify-content:flex-start;margin-bottom:14px}
 .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
-.pcard.editing{border-color:var(--edit)}
+.pcard.editing{border-color:var(--edit-line)}
 .pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap}
 /* No text-transform: a title reads exactly as it was typed, upper or lower case.
    Labels stored before this (TODAY, THIS WEEK) keep their capitals because that is
@@ -185,14 +189,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* Resize grip — min-height is a floor, never a clip, so nothing written is hidden. */
 .pgrip{position:absolute;left:0;right:0;bottom:-3px;height:9px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2}
 .pgrip::after{content:'';width:40px;height:3px;border-radius:3px;background:var(--border)}
-.pgrip:hover::after,.pcard.rz .pgrip::after{background:var(--edit)}
+.pgrip:hover::after,.pcard.rz .pgrip::after{background:var(--edit-line)}
 .pgrip-x{position:absolute;top:0;bottom:0;right:-3px;width:9px;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:2}
 .pgrip-x::after{content:'';height:40px;width:3px;border-radius:3px;background:var(--border)}
-.pgrip-x:hover::after,.pcard.rzx .pgrip-x::after{background:var(--edit)}
+.pgrip-x:hover::after,.pcard.rzx .pgrip-x::after{background:var(--edit-line)}
 .pcard.rz,.pcard.rzx{user-select:none}
-.pcard.rzx{outline:1px solid var(--edit);outline-offset:-1px}
+.pcard.rzx{outline:1px solid var(--edit-line);outline-offset:-1px}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
-.paddcard:hover{border-color:var(--edit);color:var(--edit)}
+.paddcard:hover{border-color:var(--edit-line);color:var(--edit-line)}
 /* The add picker: one button, and the choice explained where you make it rather
    than guessed from three near-identical labels. */
 .padd-menu{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-md);padding:5px;display:flex;flex-direction:column;gap:2px}
@@ -724,7 +728,7 @@ html.dark{
   --text1:#EDEDEE;--text2:#8E8EA0;--text3:#5C5C70;
   --grade:#6BBDB0;
   --accent:#3B82F6;--today-bg:#0D1B35;--today-border:#1D3461;
-  --edit:#5FAF9E;--edit-soft:#12211F;
+  --edit:#5FAF9E;--edit-soft:#12211F;--edit-line:#4B5563;
   --shadow:0 1px 3px rgba(0,0,0,.5),0 1px 2px rgba(0,0,0,.4);
   --shadow-md:0 4px 8px rgba(0,0,0,.6),0 2px 4px rgba(0,0,0,.5);
 }
@@ -989,7 +993,10 @@ function saveCard(id,html,d){
   const def=cardDef(id); if(!def) return;
   const k=cardPeriodKey(def.cadence,d||PD);
   const bag=D.cards.data[id]||(D.cards.data[id]={});
-  const v=(html==='<br>')?'':html;
+  // An empty card is empty however the editor happens to spell it. The block guard
+  // keeps a paragraph in every container so there is always somewhere to type, so
+  // "nothing written here" now arrives as <p><br></p> as often as as <br>.
+  const v=/^(<br>|<p><br><\/p>|<div><br><\/div>)$/.test(html||'')?'':html;
   if(v) bag[k]=v; else delete bag[k];
   save();
 }
@@ -4279,6 +4286,42 @@ function richtextKD(e){
       }
       if(rtCaretAtCellEdge(s,true)){ e.preventDefault(); rtTogUnwrap(tog); return; }
     }
+    // And the body needs a door out. Enter on an empty last block leaves the toggle,
+    // the way Enter on an empty list item leaves the list; Backspace at the very
+    // start folds the first block back into the summary. Without these, every Enter
+    // only makes the body taller and there is no way back up.
+    const b=n&&n.closest?n.closest('.rt-tog-b'):null;
+    if(b&&rtHost(b)){
+      const host=rtHost(b),tog=b.closest('.rt-tog');
+      let blk=n;
+      while(blk&&blk.parentElement&&blk.parentElement!==b) blk=blk.parentElement;
+      if(!blk||blk.parentElement!==b) blk=null;
+      if(e.key==='Enter'&&blk&&blk===b.lastElementChild
+         &&!blk.textContent.trim()&&!blk.querySelector('table,img,.rt-tog')){
+        e.preventDefault();
+        blk.remove();
+        const p=document.createElement('p');p.innerHTML='<br>';
+        tog.parentNode.insertBefore(p,tog.nextSibling);
+        rtGuardBlocks(host);
+        rtPlaceCaretAtEnd(p);
+        rtFire(host);
+        return;
+      }
+      const s2=tog&&tog.querySelector('.rt-tog-s');
+      // Measured against the block, not the body: a range spanning from the body's
+      // own start encloses the block's opening tag, which the edge probe reads as
+      // content and rejects.
+      if(e.key==='Backspace'&&blk&&s2&&blk===b.firstElementChild&&rtCaretAtCellEdge(blk,true)){
+        e.preventDefault();
+        const txt=blk.innerHTML.replace(/<br>\s*$/,'');
+        if(txt.trim()) s2.innerHTML=(s2.innerHTML==='<br>'?'':s2.innerHTML)+txt;
+        blk.remove();
+        rtGuardBlocks(host);
+        rtPlaceCaretAtEnd(s2);
+        rtFire(host);
+        return;
+      }
+    }
   }
   // Copy / cut / paste of rows, columns and cell blocks
   if(e.ctrlKey||e.metaKey){
@@ -4657,7 +4700,10 @@ function rtPlaceCaretAtStart(el){
   const r=document.createRange();r.selectNodeContents(el);r.collapse(true);
   const s=window.getSelection();s.removeAllRanges();s.addRange(r);
 }
-function rtOnInput(el){ rtNormalizeLists(el); rtSlashUpdate(el); rtPushUndo(el); return el.innerHTML; }
+// Guard first: deleting the last block in a toggle is an input event, and if the
+// container isn't restocked before this returns, the emptied toggle is saved as a
+// dead end and can never be typed into again.
+function rtOnInput(el){ rtGuardBlocks(el); rtNormalizeLists(el); rtSlashUpdate(el); rtPushUndo(el); return el.innerHTML; }
 
 // ─── Undo history ────────────────────────────────────────────────
 // List conversions and table edits move nodes with raw DOM calls, which the browser's
@@ -4858,18 +4904,34 @@ function rtColWidth(c){ return parseFloat(c.style.width)||120; }
 
 // Drop a table wrapper after whatever top-level block the caret sits in, followed by an
 // empty paragraph so there is always somewhere to type below it.
+// The nearest editable container above a node: the body or summary of a toggle when
+// the caret is inside one, otherwise the host. Without this the walk below climbs
+// past the toggle entirely — a table typed inside one lands after it, never in it.
+function rtContainer(n,host){
+  if(!n||!host) return host;
+  const el=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  if(!el||!el.closest) return host;
+  const c=el.closest('.rt-tog-b,.rt-tog-s');
+  return (c&&host.contains(c))?c:host;
+}
 function rtPlaceWrap(host,wrap){
-  let block=null;
+  let block=null,box=host;
   const sel=window.getSelection();
   if(sel&&sel.rangeCount){
     let n=sel.getRangeAt(0).startContainer;
+    box=rtContainer(n,host);
+    // A summary holds one line, so a block goes into the toggle it titles instead.
+    if(box.classList&&box.classList.contains('rt-tog-s')){
+      const tog=box.closest('.rt-tog'),b=tog&&tog.querySelector('.rt-tog-b');
+      if(b) box=b;
+    }
     n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
-    while(n&&n.parentElement&&n.parentElement!==host) n=n.parentElement;
-    if(n&&n.parentElement===host) block=n;
+    while(n&&n.parentElement&&n.parentElement!==box) n=n.parentElement;
+    if(n&&n.parentElement===box) block=n;
   }
   const after=document.createElement('p');after.innerHTML='<br>';
-  if(block){ host.insertBefore(wrap,block.nextSibling); host.insertBefore(after,wrap.nextSibling); }
-  else { host.appendChild(wrap); host.appendChild(after); }
+  if(block){ box.insertBefore(wrap,block.nextSibling); box.insertBefore(after,wrap.nextSibling); }
+  else { box.appendChild(wrap); box.appendChild(after); }
 }
 // The wrapper is contenteditable="false", so a table sitting first or last in a card
 // leaves nowhere to put the caret beside it — you cannot click above it, type above it,
@@ -4888,9 +4950,27 @@ function _rtIsTableBlock(el){
 // row, or a click on the padding — all three of which call rtOpenLine.
 // Kept as a function, and still called, because runs between two tables and any
 // future guard belong here; it just no longer pads the ends.
+// What it does do is keep every editable container stocked with somewhere to type.
+// Delete the last thing inside a toggle and the body is left with no children at
+// all — there is no caret position in it, so the toggle can never be typed into
+// again. Same trap in an emptied card body or toggle summary. Restock only truly
+// empty containers, which is why this can't put a line back beside a table.
 function rtGuardBlocks(host){
   if(!host) return false;
-  return false;
+  let dirty=false;
+  const fill=(el,html)=>{
+    if(!el||el.firstElementChild||el.textContent.trim()) return;
+    el.innerHTML=html;
+    dirty=true;
+  };
+  // The host itself is deliberately left alone. An empty contenteditable still takes
+  // a caret, and cards are filled in a timeout after render — restocking one here
+  // would report a change on every render and save an empty paragraph over content
+  // that has not been written into the DOM yet.
+  host.querySelectorAll('.rt-tog-b').forEach(b=>fill(b,'<p><br></p>'));
+  // A summary is one line, not a block context — a bare <br> is what it ships with.
+  host.querySelectorAll('.rt-tog-s').forEach(s=>fill(s,'<br>'));
+  return dirty;
 }
 // Tables written before the wrapper existed are bare in the card, which is why
 // nothing — guards, resize handles, the row/column controls, copy — recognises
@@ -5091,6 +5171,18 @@ document.addEventListener('mousedown',e=>{
   if(!tog||!rtHost(tog)) return;
   e.preventDefault();
   rtTogSet(tog,tog.getAttribute('data-open')!=='1');
+});
+// The strip of blank space below a body's last block is inside the toggle but inside
+// no block, so a click there lands nowhere and reads as dead space. Send it to the
+// last block, the way clicking under a card's text does.
+document.addEventListener('mousedown',e=>{
+  const t=e.target;
+  if(!t||!t.classList||!t.classList.contains('rt-tog-b')) return;
+  if(!rtHost(t)) return;
+  const last=t.lastElementChild;
+  if(!last) return;
+  e.preventDefault();
+  rtPlaceCaretAtEnd(last);
 });
 function rtAddRow(t,idx){
   const gr=rtGrid(t),tr=document.createElement('tr');
@@ -5425,7 +5517,11 @@ function rtCopyTable(t){
   // and strip the highlight classes so they aren't baked into the copy.
   const snap=wrap.cloneNode(true);
   snap.querySelectorAll('.rt-sel').forEach(td=>td.classList.remove('rt-sel'));
-  _rtClip={kind:'table',html:snap.outerHTML,tsv:''};
+  // The clip is both things at once, and where you paste decides which you get: in a
+  // cell the grid fills cells, outside one the html inserts the table. Without the
+  // grid, copying a whole table could only ever make a second table.
+  _rtClip={kind:'table',html:snap.outerHTML,tsv:'',
+    grid:rtRows(t).map(tr=>[...tr.cells].map(td=>td.innerHTML||'<br>'))};
   _rtClip.tsv=rtClipMirror(rtRows(t).map(tr=>[...tr.cells].map(rtCellText)));
   return true;
 }
@@ -5557,6 +5653,7 @@ function rtPasteClip(){
   if(!t) return false;
   rtEnsureCols(t);
   const at=rtPos(anchor),g=_rtClip.grid;
+  if(!g) return false; // a clip with no cells to fill from is rtPasteTable's job
   if(_rtClip.kind==='rows'){
     g.slice().reverse().forEach(row=>{
       const tr=rtAddRow(t,at.r);
