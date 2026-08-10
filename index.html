@@ -1534,6 +1534,8 @@ function render(){
   // Same reason: cards are only their real height once their content has landed.
   packCards();
   setTimeout(packCards,0);
+  // Re-arm the observer over the cards this render just built.
+  packObserve();
 }
 // How many of the grid's fine rows each card needs. Cards are laid out in 4px rows
 // with no row gap, so a card spans ceil((its height + the 14px gap) / 4) of them and
@@ -1555,6 +1557,25 @@ function packCards(){
   });
 }
 window.addEventListener('resize',packCards);
+// A card can grow long after the render that placed it — you type a line, a table
+// gains a row, a webfont lands late. .pgrid is align-items:start, so a card is sized
+// by its own content and not stretched to its grid area: outgrow the span and the
+// card spills past its box and is painted over by the one below instead of pushing
+// it down. So the spans follow the real heights rather than the heights at render.
+let _packRAF=0;
+function _packSoon(){
+  if(_packRAF) return;
+  _packRAF=requestAnimationFrame(()=>{ _packRAF=0; packCards(); });
+}
+const _packRO=typeof ResizeObserver!=='undefined'?new ResizeObserver(_packSoon):null;
+// Cards are rebuilt on every render, so the old ones are dropped rather than piling
+// up. Observing deliberately does not happen inside packCards: a fresh observe fires
+// a callback immediately, and repacking from that would never settle.
+function packObserve(){
+  if(!_packRO) return;
+  _packRO.disconnect();
+  document.querySelectorAll('.pgrid > .pcard').forEach(c=>_packRO.observe(c));
+}
 
 // ─────────────────────────────────────────
 //  HEADER
