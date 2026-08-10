@@ -202,6 +202,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pgrip-x{position:absolute;top:0;bottom:0;right:-3px;width:9px;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:2}
 .pgrip-x::after{content:'';height:40px;width:3px;border-radius:3px;background:var(--border)}
 .pgrip-x:hover::after,.pcard.rzx .pgrip-x::after{background:var(--edit-line)}
+/* Outside edit mode the grips are there but quiet: they fade in when you hover
+   the card, and stay lit while you are actually dragging one, since the pointer
+   wanders off the card during a resize. */
+.pcard .pgrip-q{opacity:0;transition:opacity .12s}
+.pcard:hover .pgrip-q,.pcard.rz .pgrip,.pcard.rzx .pgrip-x{opacity:1}
 .pcard.rz,.pcard.rzx{user-select:none}
 .pcard.rzx{outline:1px solid var(--edit-line);outline-offset:-1px}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
@@ -2202,10 +2207,15 @@ function mkPlannerCard(def,ix){
     },0);
   }
 
-  d.innerHTML=head+body+foot+(editMode?`<div class="pgrip" title="Drag to set height · double-click to reset"
+  // Resizing is no longer edit-mode only — it is as everyday as dragging a card
+  // to reorder it, which already works outside edit mode. Outside edit mode the
+  // grips are invisible until you hover the card (the pgrip-q class), so a page
+  // you are only reading isn't ringed with handles.
+  const gq=editMode?'':' pgrip-q';
+  d.innerHTML=head+body+foot+`<div class="pgrip${gq}" title="Drag to set height · double-click to reset"
     onmousedown="_cardRzStart(event,'${def.id}')" ondblclick="setCardHeight('${def.id}',0)"></div>
-    <div class="pgrip-x" title="Drag to set width · double-click to reset"
-    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1)"></div>`:'');
+    <div class="pgrip-x${gq}" title="Drag to set width · double-click to reset"
+    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1)"></div>`;
 
   return d;
 }
