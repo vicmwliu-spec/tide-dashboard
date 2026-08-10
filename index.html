@@ -86,13 +86,21 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
 .pcard.editing{border-color:var(--accent)}
 .pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap}
-.pcard-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)}
+/* No text-transform: a title reads exactly as it was typed, upper or lower case.
+   Labels stored before this (TODAY, THIS WEEK) keep their capitals because that is
+   how they are stored — retyping one is all it takes. */
+.pcard-lbl{font-size:10px;font-weight:600;letter-spacing:.07em;color:var(--text3)}
 /* The title is editable in place, but must not look like a field until you are in
    it — at rest it is indistinguishable from the old static label. The transparent
    border reserves the space the focus ring takes, so nothing shifts on click. */
 .pcard-lbled{cursor:text;outline:none;border:1px solid transparent;border-radius:4px;margin:-2px -4px;padding:1px 3px;min-width:1ch;white-space:pre-wrap}
 .pcard:hover .pcard-lbled{border-color:var(--border2)}
 .pcard-lbled:focus{border-color:var(--accent);background:var(--surface2);color:var(--text2);cursor:text}
+/* A blank title is a real choice, so it shows nothing at rest. It still has to be
+   findable, so hovering the card puts a faint prompt in the space it would occupy. */
+.pcard-lbled:empty{min-width:44px;display:inline-block;min-height:12px}
+.pcard:hover .pcard-lbled:empty::before{content:'+ title';opacity:.5;font-size:9px;letter-spacing:.05em}
+.pcard-lbled:empty:focus::before{content:none}
 .pcard-bd{padding:8px 16px 14px;min-height:80px;flex:1}
 /* A block at the very top of a card sits at exactly the body's top padding, so
    a table inserted first lines up identically on every card. */
@@ -102,14 +110,16 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard-lnk{background:none;border:none;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px}
 .pcard-lnk:hover{color:var(--accent);background:var(--surface2)}
 .pcard-lnk.on{color:var(--accent);background:var(--today-bg)}
-.pcard-lblin{flex:1;min-width:0;font-family:var(--font);font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 7px;outline:none}
+.pcard-lblin{flex:1;min-width:0;font-family:var(--font);font-size:10px;font-weight:600;letter-spacing:.07em;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 7px;outline:none}
 .pcard-lblin:focus{border-color:var(--accent)}
 .pcard-x{background:none;border:none;color:var(--text3);font-size:17px;line-height:1;cursor:pointer;padding:0 4px;border-radius:4px;font-family:var(--font);flex-shrink:0}
 .pcard-x:hover{background:var(--border);color:var(--red)}
 /* Clock card: dial + today's schedule. */
 .tb-clockbd{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:center}
-.tb-clockbd>#tb-clock-wrap{flex:0 1 240px}
-.tb-sched{flex:1 1 210px;min-width:0;font-size:11px;color:var(--text2)}
+/* The dial is the card, so it wins the row: it grows to 300px (larger than the
+   Tracker's 280) and the schedule wraps underneath rather than squeezing it. */
+.tb-clockbd>.tb-clock-host{flex:1 1 260px;max-width:300px}
+.tb-sched{flex:1 1 240px;min-width:0;font-size:11px;color:var(--text2)}
 .tb-sched:empty{display:none}
 .tb-row{display:flex;align-items:center;gap:7px;padding:3px 5px;border-radius:5px;cursor:pointer}
 .tb-row:hover{background:var(--surface2)}
@@ -144,6 +154,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard.rzx{outline:1px solid var(--accent);outline-offset:-1px}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
 .paddcard:hover{border-color:var(--accent);color:var(--accent)}
+/* The add picker: one button, and the choice explained where you make it rather
+   than guessed from three near-identical labels. */
+.padd-menu{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-md);padding:5px;display:flex;flex-direction:column;gap:2px}
+.padd-item{display:block;width:100%;text-align:left;background:none;border:none;font-family:var(--font);cursor:pointer;padding:8px 9px;border-radius:var(--r2);color:var(--text1)}
+.padd-item:hover{background:var(--surface2)}
+.padd-item b{display:block;font-size:12px;font-weight:600}
+.padd-item span{display:block;font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.4}
+.padd-note{padding:8px 9px;font-size:10.5px;color:var(--text3);line-height:1.4}
 /* Habits card — pills only. No streak, no count, no grade. */
 .hpills{display:flex;flex-wrap:wrap;gap:7px}
 .hpill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:5px 13px 5px 10px;font-size:12.5px;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all .12s}
@@ -332,6 +350,17 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-ctl .rt-menu .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
 #rt-ctl .rt-menu .rt-item:hover{background:var(--surface2)}
 #rt-ctl .rt-menu .rt-ck{color:#3B82F6;font-size:12px;width:13px;text-align:center}
+/* A direction with nowhere to go stays in place, visibly unavailable, so the menu
+   never reshuffles under the pointer. */
+#rt-ctl .rt-menu .rt-item.rt-off{opacity:.35;cursor:default}
+#rt-ctl .rt-menu .rt-item.rt-off:hover{background:none}
+/* Whole-table drag grip */
+#rt-ctl .rt-btn.rt-tgrip{font-size:11px;cursor:grab}
+#rt-ctl .rt-btn.rt-tgrip:active{cursor:grabbing}
+/* Cell-selection toolbar: merge/unmerge/even-out, above the table it acts on */
+#rt-ctl .rt-selbar{position:fixed;pointer-events:auto;display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:3px}
+#rt-ctl .rt-selbtn{font-family:var(--font);font-size:11.5px;line-height:1;color:var(--text1);background:none;border:none;border-radius:calc(var(--r2) - 2px);padding:5px 8px;cursor:pointer;white-space:nowrap}
+#rt-ctl .rt-selbtn:hover{background:var(--surface2)}
 /* Slash command menu */
 #rt-slash{position:fixed;z-index:1200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:184px;font-family:var(--font);display:none}
 #rt-slash .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
@@ -1393,6 +1422,22 @@ function mkHeader(){
 function _esc(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) }
 function _cardsDirty(){ save() }
 
+// What each card type actually is, in one line, shown at the moment you choose.
+const CARD_TYPES=[
+  {id:'text',  name:'Text',   blurb:'Write anything — lists, checkboxes, tables.'},
+  {id:'habits',name:'Habits', blurb:'Today’s levers as pills you tap. Each card keeps its own set.'},
+  {id:'clock', name:'Clock',  blurb:'Today’s shape: the dial and your blocks with times.'},
+];
+let _paddOpen=false;
+function _paddToggle(){ _paddOpen=!_paddOpen; render(); }
+// Anywhere outside the picker closes it, the same as any other menu on the page.
+document.addEventListener('mousedown',e=>{
+  if(!_paddOpen) return;
+  if(e.target.closest&&e.target.closest('.padd-menu')) return;
+  _paddOpen=false; render();
+});
+document.addEventListener('keydown',e=>{ if(_paddOpen&&e.key==='Escape'){ _paddOpen=false; render(); } });
+
 function mkCardGrid(){
   const wrap=document.createElement('div');
   wrap.className='pgrid';
@@ -1400,10 +1445,16 @@ function mkCardGrid(){
   if(editMode){
     const add=document.createElement('div');
     add.style.cssText='display:flex;flex-direction:column;gap:8px';
-    add.innerHTML=`
-      <button class="paddcard" onclick="addPlannerCard('text')">+ Add a text card</button>
-      <button class="paddcard" onclick="addPlannerCard('habits')">+ Add a habits card</button>
-      <button class="paddcard" onclick="addPlannerCard('clock')">+ Add a clock card</button>`;
+    // One button and a picker that says what each type is. Three buttons named
+    // after the types told you nothing you didn't already have to guess.
+    const hasClock=cardDefs().some(c=>c.type==='clock');
+    add.innerHTML=_paddOpen
+      ? `<div class="padd-menu">
+           ${CARD_TYPES.filter(t=>!(t.id==='clock'&&hasClock)).map(t=>
+             `<button class="padd-item" onclick="addPlannerCard('${t.id}')"><b>${t.name}</b><span>${t.blurb}</span></button>`).join('')}
+           ${hasClock?`<div class="padd-note">The clock is already on the page — one dial per view.</div>`:''}
+         </div>`
+      : `<button class="paddcard" onclick="_paddToggle()">+ Add a card</button>`;
     wrap.appendChild(add);
   }
   return wrap;
@@ -1443,7 +1494,7 @@ function mkPlannerCard(def,ix){
     // up they sit side by side. No setting, no container query — the card's own
     // width decides.
     body=`<div class="pcard-bd tb-clockbd" style="${mh}">
-        <div id="tb-clock-wrap" style="width:100%;max-width:280px;aspect-ratio:1"></div>
+        <div id="tb-clock-wrap" class="tb-clock-host" style="width:100%;aspect-ratio:1"></div>
         <div id="tb-sched" class="tb-sched"></div>
       </div>`;
     foot='';
@@ -1454,12 +1505,12 @@ function mkPlannerCard(def,ix){
       _tbClockTimer=setInterval(buildClockSVG,60000);
     },0);
   }else if(def.type==='habits'){
-    const hEd=def.editing&&editMode;
     body=`<div class="pcard-bd" style="${mh}" id="hcard-${def.id}">${habitCardBody(def)}</div>`;
-    // Editing habits is configuration, so it lives behind the global edit toggle
-    // like the rest of the card's controls. At rest the card is just pills.
-    foot=editMode?`<div class="pcard-ft">
-        <button class="pcard-lnk${hEd?' on':''}" onclick="toggleHabitCardEdit('${def.id}')">${hEd?'Done':'Edit habits'}</button>
+    // Renaming and removing levers is configuration and stays behind the global
+    // edit toggle. Choosing which levers this card shows is not — the chooser
+    // carries its own Done button, so the footer only has to open it.
+    foot=(editMode&&!def.editing)?`<div class="pcard-ft">
+        <button class="pcard-lnk" onclick="toggleHabitCardEdit('${def.id}')">Edit habits</button>
       </div>`:'';
   }else{
     const html=cardHTML(def.id);
@@ -1491,10 +1542,10 @@ function setCardLabel(id,v){ const c=cardDef(id); if(c){ c.label=v; _cardsDirty(
 // It never calls render(): re-rendering mid-edit would take the caret with it.
 function _cardLblFocus(el){ el.dataset.prev=el.textContent; }
 function _cardLblCommit(el,id){
-  // Collapse the newlines a paste can smuggle in, and never commit an empty
-  // header — a card with no title has nothing left to grab or click.
+  // Collapse the newlines a paste can smuggle in. Empty commits: a card with no
+  // title is a real choice, and the CSS keeps an invisible hit area there so it
+  // stays clickable (the ⠿ handle is separate, so drag is unaffected either way).
   const v=el.textContent.replace(/\s+/g,' ').trim();
-  if(!v){ el.textContent=el.dataset.prev||''; return; }
   el.textContent=v;
   setCardLabel(id,v);
 }
@@ -1506,11 +1557,17 @@ function setCardFlag(id,k,v){ const c=cardDef(id); if(c){ c[k]=v; _cardsDirty();
 function setCardSpan(id,v){ const c=cardDef(id); if(c){ c.span=Math.min(4,Math.max(1,Number(v)||1)); _cardsDirty(); render(); } }
 function setCardHeight(id,px){ const c=cardDef(id); if(c){ c.minH=Math.max(0,Math.round(px)); _cardsDirty(); render(); } }
 function addPlannerCard(type){
+  // A second clock cannot render — the dial is looked up by a single id — so it is
+  // not offered, and this guard means it cannot be added by any other route either.
+  if(type==='clock'&&cardDefs().some(c=>c.type==='clock')){ _paddOpen=false; render(); return; }
   const id='c'+Math.random().toString(36).slice(2,9);
   cardDefs().push(
-    type==='habits' ? {id,type:'habits',label:'HABITS',span:2,minH:0,cadence:'none'}
+    // hidden:[] and not undefined — an empty array means "showing everything",
+    // where a missing key means "inherit the old global hideToday flags".
+    type==='habits' ? {id,type:'habits',label:'Habits',span:2,minH:0,cadence:'none',hidden:[]}
   : type==='clock'  ? clockCardDef(id)
-  : {id,type:'text',label:'NEW CARD',span:1,minH:0,cadence:'none'});
+  : {id,type:'text',label:'New card',span:1,minH:0,cadence:'none'});
+  _paddOpen=false;
   _cardsDirty(); render();
 }
 // Removal keeps the stored content, so a card taken off the page can come back.
@@ -1684,32 +1741,50 @@ document.addEventListener('mouseup',()=>{
 // ── Habits card ──
 // Ticking writes the same completions the grid writes, through the same toggle(),
 // so the tracker stays exactly as accurate without any of it being on this page.
+// Which habits this card hides. hideToday used to live on the habit itself, which
+// meant every habits card showed an identical set and hiding a lever on one hid it
+// everywhere. The list belongs to the card. A def with no `hidden` key is one that
+// predates this, so it inherits the old flags once and then owns its own copy.
+function _cardHidden(def){
+  if(!Array.isArray(def.hidden)){
+    def.hidden=allHabits().filter(h=>h.hideToday).map(h=>h.id);
+    _cardsDirty();
+  }
+  return def.hidden;
+}
 function habitCardBody(def){
   const day=PD.getDate();
   const groups=groupsForDay(PD.getFullYear(),PD.getMonth(),day);
   const rows=[];
   groups.forEach(g=>g.habits.forEach(h=>rows.push({h,g})));
-  // Edit rows only while the global edit toggle is on, so leaving edit mode can
-  // never strand the card in a state whose Done button is hidden.
-  if(def.editing&&editMode){
-    return `<div class="hlist">${rows.map(({h,g})=>`
-      <div class="hlist-row">
+  const hid=_cardHidden(def);
+  // The chooser opens from the footer in edit mode and from the empty state at
+  // rest, so a card can never end up with nothing on it and no way back.
+  if(def.editing){
+    return `<div class="hlist">${rows.map(({h,g})=>{
+      const off=hid.includes(h.id);
+      return `<div class="hlist-row">
         <i style="background:${g.color}"></i>
-        <input class="nm" value="${_esc(h.name)}" onchange="renameHabitInline('${h.id}',this.value)"/>
-        <button class="hlist-eye${h.hideToday?'':' on'}" title="${h.hideToday?'Tracked, but hidden here':'Showing here'}"
-          onclick="toggleHabitShowHere('${h.id}')">${h.hideToday?'○':'◉'}</button>
-        <button class="pcard-x" title="Remove lever" onclick="removeHabitInline('${h.id}')">×</button>
-      </div>`).join('')}</div>`;
+        ${editMode
+          ? `<input class="nm" value="${_esc(h.name)}" onchange="renameHabitInline('${h.id}',this.value)"/>`
+          : `<span class="nm" style="padding:3px 0">${_esc(h.name)}</span>`}
+        <button class="hlist-eye${off?'':' on'}" title="${off?'Tracked, but hidden on this card':'Showing on this card'}"
+          onclick="toggleHabitShowHere('${def.id}','${h.id}')">${off?'○':'◉'}</button>
+        ${editMode?`<button class="pcard-x" title="Remove lever" onclick="removeHabitInline('${h.id}')">×</button>`:''}
+      </div>`;}).join('')}
+      <button class="pcard-lnk on" style="margin-top:6px" onclick="toggleHabitCardEdit('${def.id}')">Done</button>
+    </div>`;
   }
-  const shown=rows.filter(({h})=>!h.hideToday);
-  if(!shown.length) return `<span style="font-size:12px;color:var(--text3)">Nothing here — press <b>Edit habits</b> to choose what you want in front of you.</span>`;
+  const shown=rows.filter(({h})=>!hid.includes(h.id));
+  if(!shown.length) return `<button class="paddcard" style="width:100%;padding:12px 10px"
+      onclick="toggleHabitCardEdit('${def.id}')">Choose what goes here</button>`;
   return `<div class="hpills">${shown.map(({h,g})=>{
     const on=isChk(h.id,day);
     return `<button class="hpill${on?' on':''}" onclick="toggleHabitFromCard('${h.id}')">
       <i style="background:${g.color}"></i>${_esc(h.name)}</button>`;
   }).join('')}</div>`;
 }
-function toggleHabitCardEdit(id){ const c=cardDef(id); if(c){ c.editing=!c.editing; render(); } }
+function toggleHabitCardEdit(id){ const c=cardDef(id); if(c){ c.editing=!c.editing; _cardsDirty(); render(); } }
 function toggleHabitFromCard(hid){ toggle(hid,PD.getDate()); }
 // Writes through to the real habit list — a set you compose is a different object
 // from a roster you're handed.
@@ -1720,7 +1795,15 @@ function _findHabitWithGroup(hid){
   return null;
 }
 function renameHabitInline(hid,v){ const f=_findHabitWithGroup(hid); if(f&&v.trim()){ f.h.name=v.trim(); save(); render(); } }
-function toggleHabitShowHere(hid){ const f=_findHabitWithGroup(hid); if(f){ f.h.hideToday=!f.h.hideToday; save(); render(); } }
+// Hiding is per card now, so this takes the card as well as the habit. The
+// habit's own hideToday is left alone: it is what pre-existing cards inherit.
+function toggleHabitShowHere(cid,hid){
+  const c=cardDef(cid); if(!c) return;
+  const hidden=_cardHidden(c);
+  const i=hidden.indexOf(hid);
+  if(i<0) hidden.push(hid); else hidden.splice(i,1);
+  _cardsDirty(); render();
+}
 function removeHabitInline(hid){
   const f=_findHabitWithGroup(hid); if(!f) return;
   if(!confirm(`Remove "${f.h.name}"? Its history is kept.`)) return;
@@ -2196,13 +2279,13 @@ function mkStats(){
   return d;
 }
 
-function _fathomStatLine(id,pct,label,hasData){
+// Done out of possible, not a rate: the two numbers say what happened, where the
+// rate only said how it scored.
+function _fathomStatLine(id,done,poss,label,hasData){
   if(!hasData) return `<div id="${id}"></div>`;
-  const g=fathomGrade(pct);
-  const c=fgColor(g);
   return `<div id="${id}" style="margin-top:7px;padding-top:7px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
     <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">${label}</span>
-    <span style="font-size:11px;font-weight:600;color:${c}">${pct}%</span>
+    <span style="font-size:11px;font-weight:600;color:var(--text2);font-variant-numeric:tabular-nums">${done}<span style="color:var(--text3);font-weight:500">/${poss}</span></span>
   </div>`;
 }
 
@@ -2260,8 +2343,8 @@ function buildStats(){
   const notStarted=isCur&&poss===0&&futPoss>0;
   const startsLabel=notStarted?_earliestUpcomingStart():'';
   const {done:tDone,total:tTotal,groups:tGroups}=todayStats();
-  const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
-  const {pct:ftPct,hasData:ftHas}=fathomTodayStats();
+  const {done:fmDone,poss:fmPoss,hasData:fmHas}=fathomMonthStats();
+  const {done:ftDone,total:ftPoss,hasData:ftHas}=fathomTodayStats();
   const notStartedSub=startsLabel?'Starts '+startsLabel:'Not started yet';
   const monthCard=`<div class="stat"><div class="stat-lbl">${MON[CM]}</div>
       <div style="margin-top:2px">
@@ -2269,7 +2352,7 @@ function buildStats(){
       </div>
       <div class="stat-sub" id="sv-month-sub">${poss?'levers':(notStarted?notStartedSub:'')}</div>
       <div id="sv-month-grps">${_grpRows(monthGroups,'gt',_grpCount)}</div>
-      ${_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas)}</div>`;
+      ${_fathomStatLine('sv-fathom-month',fmDone,fmPoss,'Fathom',fmHas)}</div>`;
   const daysCard=`<div class="stat"><div class="stat-lbl">Days Remaining</div><div class="stat-val">${dLeft}</div><div class="stat-sub">in ${MON[CM]}</div></div>`;
   const todayCard=`<div class="stat"><div class="stat-lbl">Today</div>
       <div style="margin-top:2px">
@@ -2277,7 +2360,7 @@ function buildStats(){
       </div>
       <div class="stat-sub" id="sv-today-sub">${tTotal?'levers':(notStarted?notStartedSub:'No levers set')}</div>
       <div id="sv-today-grps">${_grpRows(tGroups,'total',_grpCount)}</div>
-      ${_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas)}
+      ${_fathomStatLine('sv-fathom-today',ftDone,ftPoss,'Fathom',ftHas)}
     </div>`;
   return [monthCard,daysCard,todayCard];
 }
@@ -2305,10 +2388,10 @@ function updStats(){
   if(todayGrpsEl) todayGrpsEl.innerHTML=_grpRows(tGroups,'total',_grpCount);
   const fmEl=document.getElementById('sv-fathom-month');
   const ftEl=document.getElementById('sv-fathom-today');
-  const {pct:fmPct,hasData:fmHas}=fathomMonthStats();
-  const {pct:ftPct,hasData:ftHas}=fathomTodayStats();
-  if(fmEl) fmEl.outerHTML=_fathomStatLine('sv-fathom-month',fmPct,'Fathom',fmHas);
-  if(ftEl) ftEl.outerHTML=_fathomStatLine('sv-fathom-today',ftPct,'Fathom',ftHas);
+  const {done:fmDone,poss:fmPoss,hasData:fmHas}=fathomMonthStats();
+  const {done:ftDone,total:ftPoss,hasData:ftHas}=fathomTodayStats();
+  if(fmEl) fmEl.outerHTML=_fathomStatLine('sv-fathom-month',fmDone,fmPoss,'Fathom',fmHas);
+  if(ftEl) ftEl.outerHTML=_fathomStatLine('sv-fathom-today',ftDone,ftPoss,'Fathom',ftHas);
 }
 
 // ─────────────────────────────────────────
@@ -2800,38 +2883,11 @@ function partialUpdate(hid,day){
 // ─────────────────────────────────────────
 //  TIDE
 // ─────────────────────────────────────────
-// Grade thresholds are retained for the (still-used) "has a score yet" checks;
-// all letters/names/colors are neutralized to a single calm accent (--grade)
-// per the Hudson / Dr. K reframe — the UI shows only the % now.
-const TIDE_GRADES=[
-  {min:90,letter:'S',name:'Surpassing',color:'var(--grade)'},
-  {min:80,letter:'A',name:'Ascending', color:'var(--grade)'},
-  {min:68,letter:'B',name:'Building',  color:'var(--grade)'},
-  {min:50,letter:'C',name:'Continuing',color:'var(--grade)'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
-];
-// TODAY_GRADES lived here; today is a count now, so nothing grades a single day.
-const QUARTER_GRADES=[
-  {min:88,letter:'S',name:'Surpassing',color:'var(--grade)'},
-  {min:78,letter:'A',name:'Ascending', color:'var(--grade)'},
-  {min:65,letter:'B',name:'Building',  color:'var(--grade)'},
-  {min:48,letter:'C',name:'Continuing',color:'var(--grade)'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
-];
-const ANNUAL_GRADES=[
-  {min:85,letter:'S',name:'Surpassing',color:'var(--grade)'},
-  {min:75,letter:'A',name:'Ascending', color:'var(--grade)'},
-  {min:62,letter:'B',name:'Building',  color:'var(--grade)'},
-  {min:45,letter:'C',name:'Continuing',color:'var(--grade)'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
-];
-const WEEK_GRADES=[
-  {min:95,letter:'S',name:'Surpassing',color:'var(--grade)'},
-  {min:83,letter:'A',name:'Ascending', color:'var(--grade)'},
-  {min:65,letter:'B',name:'Building',  color:'var(--grade)'},
-  {min:45,letter:'C',name:'Continuing',color:'var(--grade)'},
-  {min:0, letter:'D',name:'Drifting',  color:'var(--grade)'},
-];
+// TIDE_GRADES / QUARTER_GRADES / ANNUAL_GRADES / WEEK_GRADES / TODAY_GRADES all
+// lived here. Every readout is a count now, so the only question a grade table was
+// still answering — "has anything started yet?" — is `poss > 0`, asked directly.
+// Nothing reads these any more — Fathom shows counts too. Kept only as the source
+// of FATHOM_COLOR below, which is still the checkbox colour.
 const FATHOM_GRADES=[
   {min:90,label:'Stoic',   color:'#6B7FA8',dcolor:'#6B7FA8'},
   {min:78,label:'Apex',    color:'#6B7FA8',dcolor:'#6B7FA8'},
@@ -2854,7 +2910,7 @@ function allWeeksStats(){
     if(lastD>=s.start) for(let d=s.start;d<=lastD;d++){const{done:dd,total:dt}=dayProg(d);wd+=dd;wt+=dt;}
     const started=s.start<=todayD;
     const pct=wt>0?Math.round(wd/wt*100):0;
-    const grade=wt>0?WEEK_GRADES.find(g=>pct>=g.min):null;
+    const grade=null; // kept on the shape so nothing downstream sees an undefined key
     const groups=activeGroupsForWeek(CY,CM,s.week,lastD).map(g=>{
       const hs=g.habits.filter(hb=>!hb.archived);
       let gd=0,gt=0;
@@ -2996,8 +3052,10 @@ function tideOverallScore(){
   return poss?Math.floor(done/poss*100):0;
 }
 
+// Returns the pair, not just the rate — the cards show counts now, and the pct is
+// still here for anything that needs a proportion.
 function grpQuarterScore(g,qi){
-  if(!g.habits.length) return 0;
+  if(!g.habits.length) return {done:0,poss:0,pct:0};
   const today=new Date();const isCurrentYear=CY===today.getFullYear();
   let done=0,poss=0;
   for(let qm=qi*3;qm<qi*3+3;qm++){
@@ -3016,7 +3074,7 @@ function grpQuarterScore(g,qi){
       });
     }
   }
-  return poss?Math.floor(done/poss*100):0;
+  return {done,poss,pct:poss?Math.floor(done/poss*100):0};
 }
 
 function fathomQuarterStats(qi){
@@ -3038,38 +3096,34 @@ function fathomQuarterStats(qi){
       });
     }
   }
-  return {pct:poss?Math.floor(comp/poss*100):0,hasData:poss>0};
+  return {done:comp,poss,pct:poss?Math.floor(comp/poss*100):0,hasData:poss>0};
 }
 
 function mkTide(){
   const qi=Math.floor(new Date().getMonth()/3);
-  const {pct,comp:qComp,poss:qPoss}=quarterStats(qi);
-  const grade=QUARTER_GRADES.find(g=>pct>=g.min)||QUARTER_GRADES[QUARTER_GRADES.length-1];
-  const nextQGrade=QUARTER_GRADES.slice().reverse().find(g=>g.min>grade.min);
-  const qNeeded=nextQGrade&&qPoss>0?Math.ceil(nextQGrade.min/100*qPoss)-qComp:null;
-  const _tideStarted=qPoss>0; // no habit-days have begun this quarter yet → show a neutral "not started" state instead of D / 0%
+  const {comp:qComp,poss:qPoss}=quarterStats(qi);
+  const _tideStarted=qPoss>0; // no habit-days have begun this quarter yet → show a neutral "not started" state instead of 0 / 0
   const {done:_tqDone,total:_tqTotal}=todayStats();
   const _qInc=(qPoss-_tqTotal)-(qComp-_tqDone);
   const _qIncLine=_qInc>0?`<div style="font-size:9px;font-weight:500;color:var(--text3);opacity:.7;margin-top:2px">${_qInc} incomplete</div>`:'';
   const qHintLine='';
   const grpCards=activeGroups().filter(g=>!g._default).map(g=>{
     const gp=grpQuarterScore(g,qi);
-    return `<div style="flex:1;min-width:90px;border:1px solid var(--border2);border-left:3px solid ${g.color};border-radius:var(--r2);padding:10px 12px;text-align:center">
+    return `<div style="flex:1;min-width:100px;border:1px solid var(--border2);border-left:3px solid ${g.color};border-radius:var(--r2);padding:10px 12px;text-align:center">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${g.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.name)}</div>
-      <div id="tide-gl-${g.id}" style="font-size:26px;font-weight:700;line-height:1.1;margin-top:8px;color:var(--grade)">${_tideStarted?gp+'%':'–'}</div>
+      <div id="tide-gl-${g.id}" style="font-size:22px;font-weight:700;line-height:1.1;margin-top:8px;color:var(--text1);font-variant-numeric:tabular-nums">${_tideStarted?_statCount(gp.done,gp.poss):'–'}</div>
     </div>`;
   }).join('');
-  const {pct:fPct,hasData:fHas}=fathomQuarterStats(qi);
-  const fGrade=fHas?fathomGrade(fPct):null;
-  const fTideLine=fGrade
-    ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:${fgColor(fGrade)};margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em">FATHOM &middot; ${fPct}%</div>`
+  const {done:fDone,poss:fPoss,hasData:fHas}=fathomQuarterStats(qi);
+  const fTideLine=fHas
+    ?`<div id="tide-fathom-line" style="font-size:11px;font-weight:600;color:var(--text2);margin-top:6px;padding:3px 12px;background:var(--surface2);border-radius:20px;letter-spacing:.04em;font-variant-numeric:tabular-nums">FATHOM &middot; ${fDone}/${fPoss}</div>`
     :'<div id="tide-fathom-line" style="display:none"></div>';
   const d=document.createElement('div');
   d.className='notes-card';
   d.innerHTML=`<div class="card-title">TIDE · Q${qi+1} ${CY}</div>
     <div style="display:flex;flex-direction:column;align-items:center;padding:20px 0 16px">
-      <div id="tide-letter" style="font-size:56px;font-weight:700;line-height:1;color:var(--grade);letter-spacing:-.02em">${_tideStarted?pct+'%':'–'}</div>
-      <div id="tide-name" style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-top:8px">${_tideStarted?'Alignment':'Not started'}</div>
+      <div id="tide-letter" style="font-size:44px;font-weight:700;line-height:1;color:var(--text1);letter-spacing:-.02em;font-variant-numeric:tabular-nums">${_tideStarted?_statCount(qComp,qPoss):'–'}</div>
+      <div id="tide-name" style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-top:8px">${_tideStarted?'levers':'Not started'}</div>
       <div id="tide-pct" style="display:none"></div>
       ${qHintLine}
       ${fTideLine}
@@ -3082,23 +3136,18 @@ function mkTide(){
 
 function updTide(){
   const qi=Math.floor(new Date().getMonth()/3);
-  const {pct,poss}=quarterStats(qi);
+  const {comp,poss}=quarterStats(qi);
   const _tideStarted=poss>0;
   const letterEl=document.getElementById('tide-letter');
   const nameEl=document.getElementById('tide-name');
-  const pctEl=document.getElementById('tide-pct');
-  if(letterEl){letterEl.textContent=_tideStarted?pct+'%':'–';letterEl.style.color='var(--grade)';}
-  if(nameEl){nameEl.textContent=_tideStarted?'Alignment':'Not started';nameEl.style.color='var(--text3)';}
+  if(letterEl){letterEl.innerHTML=_tideStarted?_statCount(comp,poss):'–';letterEl.style.color='var(--text1)';}
+  if(nameEl){nameEl.textContent=_tideStarted?'levers':'Not started';nameEl.style.color='var(--text3)';}
   const fEl=document.getElementById('tide-fathom-line');
-  if(fEl){const{pct:fp,hasData:fh}=fathomQuarterStats(qi);const fg=fh?fathomGrade(fp):null;if(fg){fEl.style.display='';fEl.style.color=fgColor(fg);fEl.innerHTML=`FATHOM &middot; ${fp}%`;}else fEl.style.display='none';}
+  if(fEl){const{done:fd,poss:fp,hasData:fh}=fathomQuarterStats(qi);if(fh){fEl.style.display='';fEl.style.color='var(--text2)';fEl.innerHTML=`FATHOM &middot; ${fd}/${fp}`;}else fEl.style.display='none';}
   activeGroups().filter(g=>!g._default).forEach(g=>{
     const gp=grpQuarterScore(g,qi);
     const gl=document.getElementById(`tide-gl-${g.id}`);
-    const gn=document.getElementById(`tide-gn-${g.id}`);
-    const gpp=document.getElementById(`tide-gp-${g.id}`);
-    if(gl){gl.textContent=_tideStarted?gp+'%':'–';gl.style.color='var(--grade)';}
-    if(gn){gn.textContent='';}
-    if(gpp) gpp.textContent=_tideStarted?`${gp}%`:'';
+    if(gl){gl.innerHTML=_tideStarted?_statCount(gp.done,gp.poss):'–';gl.style.color='var(--text1)';}
   });
 }
 
@@ -3211,13 +3260,12 @@ function mkAnnual(){
 
   // ── Annual score ──
   const yr=annualStats();
-  const yGrade=yr.hasData?ANNUAL_GRADES.find(g=>yr.pct>=g.min):null;
 
   // ── Quarterly scores ──
   const QLabels=['Q1 · Jan – Mar','Q2 · Apr – Jun','Q3 · Jul – Sep','Q4 · Oct – Dec'];
   const quarters=[0,1,2,3].map(qi=>{
     const s=quarterStats(qi);
-    let fGrade=null,fc=0,fp=0;
+    let fc=0,fp=0;
     for(let qm=qi*3;qm<qi*3+3;qm++){
       const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&qm<=now.getMonth());
       if(!isPast) continue;
@@ -3228,42 +3276,25 @@ function mkAnnual(){
       const lastD=isCurQMo?now.getDate():dim(CY,qm);
       for(let dd=1;dd<=lastD;dd++){const qdow=new Date(CY,qm,dd).getDay();qFItems.forEach(it=>{if(it.startDate&&new Date(CY,qm,dd)<new Date(it.startDate+'T00:00:00')) return;if(!qmo?.fathomSkips?.[it.id]?.[dd]){fp++;if(qmo?.fathomCompletions?.[it.id]?.[dd])fc++;}});}
     }
-    if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
     const isCurQ=CY===now.getFullYear()&&qi===Math.floor(now.getMonth()/3);
-    let bestPct=null,bestGrade=null,qNeededForNext=null,qNextGrade=null,qIncomplete=0;
-    if(isCurQ&&s.hasData){
-      const remainInMonth=dim(CY,now.getMonth())-now.getDate();
-      let futureDays=remainInMonth;
-      for(let qm=qi*3;qm<qi*3+3;qm++){if(qm>now.getMonth()) futureDays+=dim(CY,qm);}
-      const futPoss=allHabits().length*futureDays;
-      bestPct=(s.poss+futPoss)?Math.floor((s.comp+futPoss)/(s.poss+futPoss)*100):0;
-      bestGrade=QUARTER_GRADES.find(g=>bestPct>=g.min)||null;
-      const curGrade=s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null;
-      qNextGrade=curGrade?QUARTER_GRADES.slice().reverse().find(g=>g.min>curGrade.min):QUARTER_GRADES[QUARTER_GRADES.length-1];
-      if(qNextGrade){const needed=Math.ceil(qNextGrade.min/100*s.poss)-s.comp;if(needed>0)qNeededForNext=needed;}
-      qIncomplete=Math.max(0,(s.poss-_taTotal)-(s.comp-_taDone));
-    } else if(!isCurQ&&s.hasData){
-      qIncomplete=Math.max(0,s.poss-s.comp);
-      const curGrade=QUARTER_GRADES.find(g=>s.pct>=g.min);
-      qNextGrade=curGrade?QUARTER_GRADES.slice().reverse().find(g=>g.min>curGrade.min):QUARTER_GRADES[QUARTER_GRADES.length-1];
-      if(qNextGrade){const needed=Math.ceil(qNextGrade.min/100*s.poss)-s.comp;if(needed>0)qNeededForNext=needed;}
-    }
-    const _curGradeForRows=s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null;
-    const qGradeRows=_curGradeForRows&&s.poss>0?QUARTER_GRADES.filter(g=>g.min>_curGradeForRows.min).map(g=>{const n=Math.ceil(g.min/100*s.poss)-s.comp;return n>0?{letter:g.letter,name:g.name,count:n,color:g.color}:null;}).filter(Boolean):[];
-    return {s,grade:s.hasData?QUARTER_GRADES.find(g=>s.pct>=g.min):null,label:QLabels[qi],fGrade,fc,fp,bestPct,bestGrade,qNeededForNext,qNextGrade,isCurQ,qIncomplete,qGradeRows};
+    // What's left undone so far — today excluded from the current quarter, since
+    // today isn't over. "Best possible" is gone with the grades it was chasing.
+    const qIncomplete=!s.hasData?0
+      :isCurQ?Math.max(0,(s.poss-_taTotal)-(s.comp-_taDone))
+      :Math.max(0,s.poss-s.comp);
+    return {s,started:s.poss>0,label:QLabels[qi],fc,fp,isCurQ,qIncomplete};
   });
 
   const qHtml=quarters.map(q=>`
     <div style="border:1px solid ${q.isCurQ?'var(--grade)':'var(--border2)'};border-radius:var(--r2);padding:12px 14px;background:var(--surface2)">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px">${q.label}</div>
-      ${q.grade?`
-        <div style="font-size:30px;font-weight:800;line-height:1;color:var(--grade);letter-spacing:-.02em">${q.s.pct}%</div>
+      ${q.started?`
+        <div style="font-size:26px;font-weight:800;line-height:1;color:var(--text1);letter-spacing:-.02em;font-variant-numeric:tabular-nums">${_statCount(q.s.comp,q.s.poss)}</div>
       `:`
         <div style="font-size:24px;font-weight:600;color:var(--border);margin-top:2px">—</div>
         <div style="font-size:10px;color:var(--text3);margin-top:5px">Not started</div>
       `}
-      ${q.fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">Fathom · ${Math.floor(q.fc/q.fp*100)}%</div>`:''}
-      ${q.bestPct!==null?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10px;color:var(--text3)">Best possible: <span style="font-weight:600;color:var(--text2)">${q.bestPct}%</span></div>`:''}
+      ${q.fp>0?`<div style="font-size:9px;color:var(--text3);margin-top:5px;font-weight:500;font-style:italic;letter-spacing:.03em">Fathom · ${q.fc}/${q.fp}</div>`:''}
       ${q.qIncomplete>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:9px;color:var(--text3);font-weight:500;opacity:.7">${q.qIncomplete} incomplete</div>`:''}
     </div>`).join('');
 
@@ -3273,9 +3304,9 @@ function mkAnnual(){
         <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Year at a Glance</div>
         <div style="font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--text1)">${CY}</div>
       </div>
-      ${yGrade?`
+      ${yr.poss>0?`
         <div style="display:flex;align-items:baseline;gap:9px">
-          <div style="font-size:44px;font-weight:800;line-height:1;color:var(--grade);letter-spacing:-.03em">${yr.pct}%</div>
+          <div style="font-size:36px;font-weight:800;line-height:1;color:var(--text1);letter-spacing:-.03em;font-variant-numeric:tabular-nums">${_statCount(yr.comp,yr.poss)}</div>
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Full Year</div>
         </div>
       `:''}
@@ -3304,14 +3335,13 @@ function mkAnnual(){
         }
         const rate=poss?Math.floor(comp/poss*100):0;
         const isPastOrCur=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
-        const tideGrade=isPastOrCur&&poss>0?TIDE_GRADES.find(g=>rate>=g.min):null;
-        const barC=tideGrade?tideGrade.color:'var(--border)';
-        let fGrade=null,fc=0,fp=0;
+        // The bar still carries the proportion; it just isn't graded any more.
+        const barC=(isPastOrCur&&poss>0)?'var(--grade)':'var(--border)';
+        let fc=0,fp=0;
         if(moFItems.length){
           const isPast=CY<now.getFullYear()||(CY===now.getFullYear()&&mi<=now.getMonth());
           if(isPast){
             for(let dd=1;dd<=daysToCount;dd++){const dow2=new Date(CY,mi,dd).getDay();moFItems.forEach(it=>{if(it.freq&&it.freq.length<7&&!it.freq.includes(dow2))return;if(!m?.fathomSkips?.[it.id]?.[dd]){fp++;if(m?.fathomCompletions?.[it.id]?.[dd])fc++;}});}
-            if(fp>0) fGrade=fathomGrade(Math.floor(fc/fp*100));
           }
         }
         return `<div class="mo-card${isCur?' cur':''}" onclick="goMonth(${mi})"${isCur?` style="border-color:var(--grade)"`:''}">
@@ -3319,8 +3349,8 @@ function mkAnnual(){
             <div style="font-size:13px;font-weight:600">${name}${isCur?` <span style="font-size:10px;color:var(--grade)">← Now</span>`:''}</div>
           </div>
           <div class="mo-bar"><div class="mo-fill" style="width:${rate}%;background:${barC}"></div></div>
-          <div class="mo-stat">${rate}% · ${comp}/${poss||'—'}</div>
-          ${fGrade?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">Fathom · ${Math.floor(fc/fp*100)}%</div>`:''}
+          <div class="mo-stat">${poss?`${Math.round(comp)}/${poss}`:'—'}</div>
+          ${fp>0?`<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:500;letter-spacing:.03em;font-style:italic">Fathom · ${fc}/${fp}</div>`:''}
         </div>`;
       }).join('')}
     </div>`;
@@ -4110,7 +4140,7 @@ document.addEventListener('focusin',e=>{
 // can never be serialized into the innerHTML we persist to localStorage.
 const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
-let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false;
+let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
@@ -4126,7 +4156,43 @@ function rtMakeCell(){
   return td;
 }
 function rtRows(t){ return t.tBodies[0]?[...t.tBodies[0].rows]:[]; }
-function rtColCount(t){ const r=rtRows(t)[0]; return r?r.cells.length:0; }
+// The standard table grid: a (row, column) matrix of cells, where a merged cell
+// appears at every slot it covers. Everything here used to count columns with
+// td.cellIndex, which is only the grid column while no cell spans — the moment
+// merging exists, that is a lie. Build the map once and read positions from it.
+function rtGrid(t){
+  const rows=rtRows(t),g=[];
+  rows.forEach((tr,r)=>{
+    g[r]=g[r]||[];
+    let c=0;
+    [...tr.cells].forEach(td=>{
+      while(g[r][c]) c++;
+      const cs=td.colSpan||1,rs=td.rowSpan||1;
+      for(let i=0;i<rs;i++){ g[r+i]=g[r+i]||[]; for(let j=0;j<cs;j++) g[r+i][c+j]=td; }
+      c+=cs;
+    });
+  });
+  let nc=0;
+  for(let r=0;r<rows.length;r++) nc=Math.max(nc,(g[r]||[]).length);
+  for(let r=0;r<rows.length;r++){ g[r]=g[r]||[]; for(let c=0;c<nc;c++) if(!g[r][c]) g[r][c]=null; }
+  return {t,g,rows:rows.length,cols:nc};
+}
+function rtColCount(t){ return rtGrid(t).cols; }
+// Where a cell starts in the grid, and how far it reaches.
+function rtGridPos(gr,td){
+  for(let r=0;r<gr.rows;r++) for(let c=0;c<gr.cols;c++)
+    if(gr.g[r][c]===td) return {r,c,rs:td.rowSpan||1,cs:td.colSpan||1};
+  return null;
+}
+// The DOM cell to insert before, so a cell lands at grid column `c` of row `r`.
+function _rtRefAt(gr,r,c){
+  const tr=rtRows(gr.t)[r]; if(!tr) return null;
+  for(const td of [...tr.cells]){
+    const p=rtGridPos(gr,td);
+    if(p&&p.r===r&&p.c>=c) return td;
+  }
+  return null;
+}
 // Materialize a <colgroup> so per-column widths can be set and persisted. Tables saved
 // before this existed upgrade themselves the first time they're hovered.
 function rtEnsureCols(t){
@@ -4134,8 +4200,13 @@ function rtEnsureCols(t){
   const n=rtColCount(t);
   let cg=t.querySelector('colgroup');
   if(!cg){
-    const tr0=rtRows(t)[0];
-    const widths=tr0?[...tr0.cells].map(td=>Math.round(td.getBoundingClientRect().width)||120):[];
+    // Widths come from the grid's top row, and a merged cell's width is split
+    // across the columns it covers — a colspan=2 cell is not a 2× wide column.
+    const gr=rtGrid(t),widths=[];
+    for(let c=0;c<gr.cols;c++){
+      const td=gr.g[0]&&gr.g[0][c];
+      widths.push(td?(Math.round(td.getBoundingClientRect().width/(td.colSpan||1))||120):120);
+    }
     cg=document.createElement('colgroup');
     widths.forEach(w=>{ const c=document.createElement('col'); c.style.width=w+'px'; cg.appendChild(c); });
     t.insertBefore(cg,t.firstChild);
@@ -4259,6 +4330,7 @@ document.addEventListener('mousedown',e=>{
 function rtInsertTable(host,opts){
   if(!host) return;
   const beside=opts&&opts.after;
+  const side=(opts&&opts.side)==='left'?'left':'right';
   const wrap=document.createElement('div');
   wrap.className='rt-tw';
   wrap.setAttribute('contenteditable','false');
@@ -4271,21 +4343,36 @@ function rtInsertTable(host,opts){
     body.appendChild(tr);
   }
   tbl.appendChild(body);wrap.appendChild(tbl);
-  // Measure the room left on the row before inserting: once the wrapper is in the
+  // Measure the room on the row before inserting: once the wrapper is in the
   // document it is part of what it would be measured against.
   let avail=0;
   if(beside){
     const hr=host.getBoundingClientRect(),hs=getComputedStyle(host);
     const inner=hr.width-(parseFloat(hs.paddingLeft)||0)-(parseFloat(hs.paddingRight)||0);
-    avail=inner-beside.getBoundingClientRect().width-10; // 10 = the .rt-tw + .rt-tw gap
+    const gap=10; // the .rt-tw + .rt-tw margin
+    // Make room rather than hope for it. An un-resized table is min-width:100% of
+    // the card, so the leftover beside it is zero — which is exactly why "insert to
+    // the right" used to drop the new table underneath. Shrink the existing table's
+    // columns proportionally into its half, and take the other half.
+    const nbr=beside.getBoundingClientRect().width;
+    const half=Math.max(RT_MINW,(inner-gap)/2);
+    if(nbr>half){
+      const bt=beside.querySelector('.rt-table');
+      if(bt){
+        const bcols=rtEnsureCols(bt);
+        const cur=bcols.reduce((a,c)=>a+rtColWidth(c),0)||nbr;
+        const scale=Math.max(0,(half-(nbr-cur)))/cur; // keep borders/padding out of the scaling
+        if(scale>0&&scale<1) bcols.forEach(c=>{ c.style.width=Math.max(RT_MINW,Math.round(rtColWidth(c)*scale))+'px'; });
+      }
+    }
+    avail=inner-Math.min(nbr,half)-gap;
   }
-  if(beside) beside.parentNode.insertBefore(wrap,beside.nextSibling);
+  if(beside) beside.parentNode.insertBefore(wrap,side==='left'?beside:beside.nextSibling);
   else rtPlaceWrap(host,wrap);
   rtGuardBlocks(host);
   // Size is fixed from the moment of insertion: the columns divide the available
   // width evenly and are written as px, so the table never reflows when the window
-  // does. Beside an existing table that means the gap next to it, not the full card;
-  // if that gap is too narrow to be a table the pair simply wraps onto two lines.
+  // does. Beside an existing table that means its half of the row.
   const cols=rtEnsureCols(tbl);
   if(cols.length){
     const room=beside?Math.max(cols.length*RT_MINW,avail):rtInnerWidth(tbl);
@@ -4297,38 +4384,69 @@ function rtInsertTable(host,opts){
   rtFire(host);
 }
 function rtAddRow(t,idx){
-  const cols=rtColCount(t),tr=document.createElement('tr');
-  for(let i=0;i<cols;i++) tr.appendChild(rtMakeCell());
+  const gr=rtGrid(t),tr=document.createElement('tr');
+  const at=(idx==null||idx>gr.rows)?gr.rows:idx;
+  // A cell merged across the insertion point grows taller instead of being split;
+  // the new row only gets cells for the columns nothing already covers.
+  const grown=new Set();
+  for(let c=0;c<gr.cols;c++){
+    const td=(at>0&&at<gr.rows)?gr.g[at][c]:null;
+    const p=td?rtGridPos(gr,td):null;
+    if(p&&p.r<at&&p.r+p.rs>at){ if(!grown.has(td)){ td.rowSpan=p.rs+1; grown.add(td); } continue; }
+    tr.appendChild(rtMakeCell());
+  }
+  if(!tr.cells.length&&gr.cols) tr.appendChild(rtMakeCell());
   const rows=rtRows(t);
-  if(idx==null||idx>=rows.length) t.tBodies[0].appendChild(tr);
-  else t.tBodies[0].insertBefore(tr,rows[idx]);
+  if(at>=rows.length) t.tBodies[0].appendChild(tr);
+  else t.tBodies[0].insertBefore(tr,rows[at]);
   return tr;
 }
 function rtAddCol(t,idx){
   const cg=t.querySelector('colgroup');
-  rtRows(t).forEach(tr=>{
-    const td=rtMakeCell();
-    if(idx==null||idx>=tr.cells.length) tr.appendChild(td);
-    else tr.insertBefore(td,tr.cells[idx]);
+  const gr=rtGrid(t);
+  const at=(idx==null||idx>gr.cols)?gr.cols:idx;
+  const grown=new Set();
+  rtRows(t).forEach((tr,r)=>{
+    // A merged cell straddling the insertion point widens instead of being split.
+    const cover=(at>0&&at<gr.cols)?gr.g[r][at]:null;
+    const p=cover?rtGridPos(gr,cover):null;
+    if(p&&p.c<at&&p.c+p.cs>at){ if(!grown.has(cover)) { cover.colSpan=p.cs+1; grown.add(cover); } return; }
+    // A rowspan reaching down into this row already fills the slot.
+    if(p&&p.r<r&&p.c===at) return;
+    tr.insertBefore(rtMakeCell(),_rtRefAt(gr,r,at));
   });
   if(cg){
     const c=document.createElement('col'); c.style.width='120px';
-    if(idx==null||idx>=cg.children.length) cg.appendChild(c);
-    else cg.insertBefore(c,cg.children[idx]);
+    if(at>=cg.children.length) cg.appendChild(c);
+    else cg.insertBefore(c,cg.children[at]);
   }
+}
+// A row or column that a merge reaches across cannot be lifted out without tearing
+// the merge in half, so the move is refused outright rather than half-performed.
+function rtCanMove(t,kind,idx){
+  const gr=rtGrid(t);
+  const span=kind==='col'?'cs':'rs';
+  const n=kind==='col'?gr.rows:gr.cols;
+  for(let k=0;k<n;k++){
+    const td=kind==='col'?gr.g[k][idx]:gr.g[idx][k];
+    if(!td) continue;
+    const p=rtGridPos(gr,td);
+    if(p&&p[span]>1) return false;
+  }
+  return true;
 }
 function rtMoveRow(t,from,to){
   const rows=rtRows(t),tr=rows[from];
-  if(!tr||from===to) return;
+  if(!tr||from===to||!rtCanMove(t,'row',from)) return;
   const ref=to>=rows.length?null:rows[to];
   t.tBodies[0].insertBefore(tr,ref===tr?tr.nextSibling:ref);
 }
 function rtMoveCol(t,from,to){
-  if(from===to) return;
-  rtRows(t).forEach(tr=>{
-    const cells=[...tr.cells],td=cells[from];
-    if(!td) return;
-    const ref=to>=cells.length?null:cells[to];
+  if(from===to||!rtCanMove(t,'col',from)) return;
+  const gr=rtGrid(t);
+  rtRows(t).forEach((tr,r)=>{
+    const td=gr.g[r][from]; if(!td) return;
+    const ref=_rtRefAt(gr,r,to);
     tr.insertBefore(td,ref===td?td.nextSibling:ref);
   });
   const cg=t.querySelector('colgroup');
@@ -4342,45 +4460,227 @@ function rtRemoveTable(t){
   rtHideCtl();
   if(w) w.remove();
 }
+// Deleting from the menu, where the removal also has to persist.
+function rtDeleteTable(t){
+  const host=rtHost(t);
+  rtClearSel();
+  rtRemoveTable(t);
+  if(host){ rtGuardBlocks(host); rtFire(host); }
+}
+// ── moving a whole table among the card's blocks ──
+// Left/right only mean something next to another table, since that is the only
+// time two blocks share a line; up/down step past whatever block is there.
+function rtTableNeighbour(t,dir){
+  const w=t.closest('.rt-tw'); if(!w) return null;
+  const sib=(dir==='left'||dir==='up')?w.previousElementSibling:w.nextElementSibling;
+  if(!sib) return null;
+  if((dir==='left'||dir==='right')&&!_rtIsTableBlock(sib)) return null;
+  return sib;
+}
+function rtMoveTable(t,dir){
+  const w=t.closest('.rt-tw'),host=rtHost(t);
+  const sib=rtTableNeighbour(t,dir);
+  if(!w||!host||!sib) return false;
+  if(dir==='left'||dir==='up') host.insertBefore(w,sib);
+  else host.insertBefore(w,sib.nextSibling);
+  rtGuardBlocks(host);
+  rtFire(host); rtShowCtl(t);
+  return true;
+}
+// Drop the table at a specific slot among the host's children.
+function rtMoveTableTo(t,ref,before){
+  const w=t.closest('.rt-tw'),host=rtHost(t);
+  if(!w||!host) return false;
+  if(ref===w) return false;
+  host.insertBefore(w,before?ref:(ref?ref.nextSibling:null));
+  rtGuardBlocks(host);
+  rtFire(host); rtShowCtl(t);
+  return true;
+}
+// Deletion is span-aware: a merge that only partly overlaps the deleted band
+// shrinks by the overlap and, if its own top-left is going away, is re-homed into
+// the first surviving row/column. Nothing is ever orphaned.
 function rtDelRows(t,idxs){
-  const rows=rtRows(t);
-  idxs.slice().sort((a,b)=>b-a).forEach(i=>{ if(rows[i]) rows[i].remove(); });
+  const del=[...new Set(idxs)].sort((a,b)=>b-a);
+  del.forEach(i=>{
+    const gr=rtGrid(t);
+    const rows=rtRows(t);
+    if(!rows[i]) return;
+    const seen=new Set();
+    for(let c=0;c<gr.cols;c++){
+      const td=gr.g[i][c]; if(!td||seen.has(td)) continue;
+      seen.add(td);
+      const p=rtGridPos(gr,td);
+      if(p.rs<=1) continue;
+      td.rowSpan=p.rs-1;
+      if(p.r===i){
+        // Its origin row is going: move it into the next row it still covers.
+        const next=rows[i+1];
+        if(next) next.insertBefore(td,_rtRefAt(gr,i+1,p.c));
+      }
+    }
+    rows[i].remove();
+  });
   if(!rtRows(t).length) rtRemoveTable(t);
 }
 function rtDelCols(t,idxs){
-  const s=idxs.slice().sort((a,b)=>b-a);
+  const del=[...new Set(idxs)].sort((a,b)=>b-a);
   const cg=t.querySelector('colgroup');
-  rtRows(t).forEach(tr=>s.forEach(i=>{ if(tr.cells[i]) tr.cells[i].remove(); }));
-  if(cg) s.forEach(i=>{ if(cg.children[i]) cg.children[i].remove(); });
+  del.forEach(i=>{
+    const gr=rtGrid(t);
+    const seen=new Set();
+    for(let r=0;r<gr.rows;r++){
+      const td=gr.g[r][i]; if(!td||seen.has(td)) continue;
+      seen.add(td);
+      const p=rtGridPos(gr,td);
+      if(p.cs>1) td.colSpan=p.cs-1;
+      else td.remove();
+    }
+    if(cg&&cg.children[i]) cg.children[i].remove();
+  });
   if(!rtColCount(t)) rtRemoveTable(t);
 }
 // ── cell selection ──
-function rtClearSel(){ _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; }
-function rtSetSel(cells){ rtClearSel(); _rtSel=cells.filter(Boolean); _rtSel.forEach(td=>td.classList.add('rt-sel')); }
-function rtPos(td){ return {r:[...td.closest('tbody').rows].indexOf(td.parentElement),c:td.cellIndex}; }
+// Both redraw the overlay through rtReposition (one rAF, no re-entrancy) so the
+// selection toolbar appears and disappears with the selection itself.
+function rtClearSel(){ const had=_rtSel.length; _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; if(had) rtReposition(); }
+function rtSetSel(cells){ rtClearSel(); _rtSel=cells.filter(Boolean); _rtSel.forEach(td=>td.classList.add('rt-sel')); rtReposition(); }
+function rtPos(td){
+  const t=td.closest('table');
+  const p=t?rtGridPos(rtGrid(t),td):null;
+  return p||{r:0,c:0,rs:1,cs:1};
+}
+// The selected rectangle grows until it contains every merged cell it touches
+// whole — a half-covered merge would make merge, unmerge and delete all lie.
+function rtSelRect(gr,a,b){
+  const p1=rtGridPos(gr,a),p2=rtGridPos(gr,b);
+  if(!p1||!p2) return null;
+  let r1=Math.min(p1.r,p2.r),r2=Math.max(p1.r+p1.rs,p2.r+p2.rs)-1;
+  let c1=Math.min(p1.c,p2.c),c2=Math.max(p1.c+p1.cs,p2.c+p2.cs)-1;
+  for(let pass=0;pass<gr.rows*gr.cols+2;pass++){
+    let grew=false;
+    for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){
+      const td=gr.g[r][c]; if(!td) continue;
+      const p=rtGridPos(gr,td);
+      if(p.r<r1){ r1=p.r; grew=true; }
+      if(p.c<c1){ c1=p.c; grew=true; }
+      if(p.r+p.rs-1>r2){ r2=p.r+p.rs-1; grew=true; }
+      if(p.c+p.cs-1>c2){ c2=p.c+p.cs-1; grew=true; }
+    }
+    if(!grew) break;
+  }
+  return {r1,r2,c1,c2};
+}
+function rtCellsInRect(gr,rect){
+  const out=[],seen=new Set();
+  for(let r=rect.r1;r<=rect.r2;r++) for(let c=rect.c1;c<=rect.c2;c++){
+    const td=gr.g[r][c];
+    if(td&&!seen.has(td)){ seen.add(td); out.push(td); }
+  }
+  return out;
+}
 function rtSelectRange(t,a,b){
-  const p1=rtPos(a),p2=rtPos(b);
-  const r1=Math.min(p1.r,p2.r),r2=Math.max(p1.r,p2.r);
-  const c1=Math.min(p1.c,p2.c),c2=Math.max(p1.c,p2.c);
-  const out=[];
-  rtRows(t).forEach((tr,ri)=>{ if(ri<r1||ri>r2) return; [...tr.cells].forEach((td,ci)=>{ if(ci>=c1&&ci<=c2) out.push(td); }); });
-  rtSetSel(out);
+  const gr=rtGrid(t);
+  const rect=rtSelRect(gr,a,b);
+  if(!rect) return;
+  rtSetSel(rtCellsInRect(gr,rect));
 }
 // Backspace/Delete over a cell selection: full rows/cols are removed,
 // anything else just has its contents cleared.
 // Classify the current selection: whole rows, whole columns, or an arbitrary block.
 function rtSelShape(){
   const t=_rtSel[0].closest('table');
-  const nrows=rtRows(t).length,ncols=rtColCount(t);
-  const rc={},cc={};
-  _rtSel.forEach(td=>{ const p=rtPos(td); rc[p.r]=(rc[p.r]||0)+1; cc[p.c]=(cc[p.c]||0)+1; });
+  const gr=rtGrid(t);
+  // Count grid slots, not cells: with merges the two differ, and every "is this a
+  // whole row/column" test below is about slots.
+  const rc={},cc={},sel=new Set(_rtSel);
+  const slots=[];
+  for(let r=0;r<gr.rows;r++) for(let c=0;c<gr.cols;c++){
+    if(!sel.has(gr.g[r][c])) continue;
+    rc[r]=(rc[r]||0)+1; cc[c]=(cc[c]||0)+1; slots.push({r,c});
+  }
   const rows=Object.keys(rc).map(Number).sort((a,b)=>a-b);
   const cols=Object.keys(cc).map(Number).sort((a,b)=>a-b);
-  const fullRows=rows.filter(r=>rc[r]===ncols),fullCols=cols.filter(c=>cc[c]===nrows);
+  const fullRows=rows.filter(r=>rc[r]===gr.cols),fullCols=cols.filter(c=>cc[c]===gr.rows);
   let kind='cells';
-  if(fullRows.length&&fullRows.length*ncols===_rtSel.length) kind='rows';
-  else if(fullCols.length&&fullCols.length*nrows===_rtSel.length) kind='cols';
-  return {t,kind,rows,cols,fullRows,fullCols};
+  if(fullRows.length&&fullRows.length*gr.cols===slots.length) kind='rows';
+  else if(fullCols.length&&fullCols.length*gr.rows===slots.length) kind='cols';
+  // A full rectangle — the precondition for merging.
+  const r1=rows[0],r2=rows[rows.length-1],c1=cols[0],c2=cols[cols.length-1];
+  const rect=rows.length&&cols.length
+    &&rows.length===r2-r1+1&&cols.length===c2-c1+1
+    &&slots.length===rows.length*cols.length
+    ?{r1,r2,c1,c2}:null;
+  const hasSpan=_rtSel.some(td=>(td.colSpan||1)>1||(td.rowSpan||1)>1);
+  return {t,gr,kind,rows,cols,fullRows,fullCols,rect,hasSpan};
+}
+// ── merging ──
+// The top-left cell takes the span and everything else's content, separated by a
+// line break: a merge must never quietly eat what was written in the cells it ate.
+function rtMergeSelection(){
+  if(_rtSel.length<2) return false;
+  const s=rtSelShape();
+  if(!s.rect) return false; // a ragged selection has no single cell to become
+  const {r1,r2,c1,c2}=s.rect;
+  const head=s.gr.g[r1][c1]; if(!head) return false;
+  const parts=[],seen=new Set([head]);
+  for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){
+    const td=s.gr.g[r][c];
+    if(!td||seen.has(td)) continue;
+    seen.add(td);
+    const html=td.innerHTML.replace(/^(\s|<br\s*\/?>)+$/i,'');
+    if(html) parts.push(html);
+    td.remove();
+  }
+  if(parts.length){
+    const own=head.innerHTML.replace(/^(\s|<br\s*\/?>)+$/i,'');
+    head.innerHTML=[own,...parts].filter(Boolean).join('<br>')||'<br>';
+  }
+  head.colSpan=c2-c1+1;
+  head.rowSpan=r2-r1+1;
+  const host=rtHost(s.t);
+  rtSetSel([head]);
+  rtFire(host); rtShowCtl(s.t);
+  return true;
+}
+// Put the covered slots back as empty cells. The merged cell keeps its content.
+function rtUnmergeSelection(){
+  const targets=_rtSel.filter(td=>(td.colSpan||1)>1||(td.rowSpan||1)>1);
+  if(!targets.length) return false;
+  const t=targets[0].closest('table');
+  targets.forEach(td=>{
+    const gr=rtGrid(t),p=rtGridPos(gr,td);
+    if(!p) return;
+    td.colSpan=1; td.rowSpan=1;
+    const rows=rtRows(t);
+    for(let r=p.r;r<p.r+p.rs;r++){
+      const tr=rows[r]; if(!tr) continue;
+      const g2=rtGrid(t);
+      for(let c=p.c;c<p.c+p.cs;c++){
+        if(r===p.r&&c===p.c) continue;
+        tr.insertBefore(rtMakeCell(),_rtRefAt(g2,r,c));
+      }
+    }
+  });
+  rtClearSel();
+  rtFire(rtHost(t)); rtShowCtl(t);
+  return true;
+}
+// Even out only the highlighted columns: they share the width they already have
+// between them, so nothing outside the selection moves and the table's total
+// width is unchanged. The whole-table version stays in the ⋯ menu.
+function rtDistributeSelCols(){
+  if(!_rtSel.length) return false;
+  const s=rtSelShape();
+  if(s.cols.length<2) return false;
+  const cols=rtEnsureCols(s.t);
+  const idxs=s.cols.filter(i=>cols[i]);
+  if(idxs.length<2) return false;
+  const total=idxs.reduce((a,i)=>a+rtColWidth(cols[i]),0);
+  const w=Math.max(RT_MINW,Math.round(total/idxs.length));
+  idxs.forEach(i=>{ cols[i].style.width=w+'px'; });
+  rtFire(rtHost(s.t)); rtShowCtl(s.t);
+  return true;
 }
 function rtDeleteSelection(){
   const s=rtSelShape(),host=rtHost(s.t);
@@ -4602,16 +4902,51 @@ function rtShowCtl(t){
       m.appendChild(row);
     });
     const sep2=document.createElement('div');sep2.className='rt-sep';m.appendChild(sep2);
-    [['⊟','Insert table to the right',()=>{ rtInsertTable(rtHost(t),{after:t.closest('.rt-tw')}); rtHideCtl(); }],
-     ['⧉','Copy table',()=>{ rtCopyTable(t); rtHideCtl(); }],
-     ['⊞','Duplicate table',()=>{ rtDuplicateTable(t); rtHideCtl(); }]].forEach(([ic,label,fn])=>{
-      const row=document.createElement('div');row.className='rt-item';
+    // Moving a table: by drag from the ⠿ grip, or precisely from here when the card
+    // is too tight to drag in. A direction with nowhere to go is shown disabled
+    // rather than hidden, so the set of options doesn't shift under the pointer.
+    const mvItems=[['←','Move left','left'],['→','Move right','right'],['↑','Move up','up'],['↓','Move down','down']]
+      .map(([ic,label,dir])=>[ic,label,()=>rtMoveTable(t,dir),!!rtTableNeighbour(t,dir)]);
+    const acts=[
+      ...mvItems,
+      ['⊣','Insert table to the left',()=>{ rtInsertTable(rtHost(t),{after:t.closest('.rt-tw'),side:'left'}); rtHideCtl(); },true],
+      ['⊢','Insert table to the right',()=>{ rtInsertTable(rtHost(t),{after:t.closest('.rt-tw'),side:'right'}); rtHideCtl(); },true],
+      ['⧉','Copy table',()=>{ rtCopyTable(t); rtHideCtl(); },true],
+      ['⊞','Duplicate table',()=>{ rtDuplicateTable(t); rtHideCtl(); },true],
+      ['✕','Delete table',()=>{ rtDeleteTable(t); },true],
+    ];
+    acts.forEach(([ic,label,fn,on],i)=>{
+      if(i===mvItems.length){ const s=document.createElement('div');s.className='rt-sep';m.appendChild(s); }
+      const row=document.createElement('div');row.className='rt-item'+(on?'':' rt-off');
       row.innerHTML='<span class="rt-ck"></span><span></span>';
       row.firstElementChild.textContent=ic;
       row.lastElementChild.textContent=label;
-      row.onclick=()=>{ _rtMenu=false; fn(); };
+      if(on) row.onclick=()=>{ _rtMenu=false; fn(); };
       m.appendChild(row);
     });
+  }
+  // ⠿ grip: pick the whole table up and put it somewhere else in the card.
+  const gb=mk('rt-btn rt-tgrip',`left:${wr.left-24}px;top:${tb.top-3}px`);
+  gb.textContent='⠿';gb.title='Drag to move this table';
+  gb.onmousedown=e=>rtTwMvStart(e,t,gb);
+  // Selection toolbar. It lives here rather than in the ⋯ menu because opening
+  // that menu is a click, and a click is what clears a cell selection.
+  if(_rtSel.length&&_rtSel[0].closest('table')===t){
+    const s=rtSelShape();
+    const btns=[];
+    if(s.rect&&_rtSel.length>1) btns.push(['Merge',rtMergeSelection]);
+    if(s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
+    if(s.cols.length>1) btns.push(['Distribute evenly',rtDistributeSelCols]);
+    if(btns.length){
+      const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
+      btns.forEach(([label,fn])=>{
+        const b=document.createElement('button');
+        b.className='rt-selbtn';b.textContent=label;
+        b.onmousedown=e=>e.preventDefault(); // keep the selection through the click
+        b.onclick=()=>fn();
+        bar.appendChild(b);
+      });
+    }
   }
   const bcx=Math.min(tb.right+2,wr.right-20);
   const bc=mk('rt-btn',`left:${bcx}px;top:${tb.top+tb.height/2-10}px`);
@@ -4628,7 +4963,7 @@ let _rtHideT=null,_rtRaf=null;
 function rtCtlCancelHide(){ if(_rtHideT){ clearTimeout(_rtHideT); _rtHideT=null; } }
 function rtScheduleHide(){
   // Never pull the controls out from under an in-flight drag or an open menu.
-  if(_rtRz||_rtMv||_rtMenu) return;
+  if(_rtRz||_rtMv||_rtTwMv||_rtMenu) return;
   rtCtlCancelHide(); _rtHideT=setTimeout(()=>{ _rtHideT=null; rtHideCtl(); },250);
 }
 // ── column resize ──
@@ -4773,6 +5108,66 @@ function rtMvEnd(){
   rtFire(rtHost(m.t));
   rtShowCtl(m.t);
 }
+// ── drag a whole table to a new place in the card ──
+// Same shape as the row/column drag above and as the card drag on the planner
+// grid: a 4px threshold, a live insertion caret, Escape cancels.
+function rtTwMvStart(e,t,grip){
+  e.preventDefault(); e.stopPropagation();
+  _rtTwMv={t,x0:e.clientX,y0:e.clientY,moved:false,ref:null,before:false,grip};
+  document.body.style.userSelect='none';
+}
+function _rtTwIns(){
+  const el=document.getElementById('rt-ctl'); if(!el) return null;
+  let ins=el.querySelector('.rt-tins');
+  if(!ins){ ins=document.createElement('div'); ins.className='rt-ins rt-tins'; el.appendChild(ins); }
+  return ins;
+}
+function rtTwMvMove(e){
+  const m=_rtTwMv;
+  if(!m.moved){
+    if(Math.abs(e.clientX-m.x0)<4&&Math.abs(e.clientY-m.y0)<4) return;
+    m.moved=true;
+    if(m.grip) m.grip.classList.add('rt-mv');
+    rtClearSel();
+  }
+  const host=rtHost(m.t),w=m.t.closest('.rt-tw');
+  if(!host||!w) return;
+  // Nearest top-level block to the pointer, and which side of it we're on. Beside
+  // another table that reads as left/right; beside prose it reads as above/below.
+  let best=Infinity,ref=null,before=false;
+  [...host.children].forEach(el=>{
+    const r=el.getBoundingClientRect();
+    const dx=e.clientX<r.left?r.left-e.clientX:e.clientX>r.right?e.clientX-r.right:0;
+    const dy=e.clientY<r.top?r.top-e.clientY:e.clientY>r.bottom?e.clientY-r.bottom:0;
+    const d=dx+dy;
+    if(d>=best) return;
+    best=d; ref=el;
+    before=_rtIsTableBlock(el)&&e.clientY>=r.top&&e.clientY<=r.bottom
+      ? e.clientX<(r.left+r.right)/2
+      : e.clientY<(r.top+r.bottom)/2;
+  });
+  m.ref=ref; m.before=before;
+  const ins=_rtTwIns(); if(!ins||!ref) return;
+  const r=ref.getBoundingClientRect();
+  if(_rtIsTableBlock(ref)&&e.clientY>=r.top&&e.clientY<=r.bottom){
+    const x=before?r.left-5:r.right+5;
+    ins.style.cssText=`left:${x-1}px;top:${r.top}px;width:2px;height:${r.height}px`;
+  }else{
+    const y=before?r.top-2:r.bottom+2;
+    ins.style.cssText=`left:${r.left}px;top:${y-1}px;width:${r.width}px;height:2px`;
+  }
+}
+function rtTwMvEnd(cancel){
+  const m=_rtTwMv; _rtTwMv=null;
+  document.body.style.userSelect='';
+  const el=document.getElementById('rt-ctl');
+  const ins=el&&el.querySelector('.rt-tins'); if(ins) ins.remove();
+  if(!m.moved) return;
+  _rtMvJustMoved=true;
+  setTimeout(()=>{ _rtMvJustMoved=false; },0);
+  if(!cancel&&m.ref) rtMoveTableTo(m.t,m.ref,m.before);
+  else rtShowCtl(m.t);
+}
 function rtReposition(){
   if(_rtRaf) return;
   _rtRaf=requestAnimationFrame(()=>{
@@ -4805,6 +5200,7 @@ document.addEventListener('mousedown',e=>{
 document.addEventListener('mousemove',e=>{
   if(_rtRz){ e.preventDefault(); rtRzMove(e); return; }
   if(_rtMv){ e.preventDefault(); rtMvMove(e); return; }
+  if(_rtTwMv){ e.preventDefault(); rtTwMvMove(e); return; }
   if(!_rtDrag||!e.target.closest) return;
   const td=e.target.closest('.rt-table td');
   if(td&&td.closest('table')===_rtDrag.t&&td!==_rtDrag.start){
@@ -4816,8 +5212,11 @@ document.addEventListener('mousemove',e=>{
 document.addEventListener('mouseup',()=>{
   if(_rtRz) rtRzEnd();
   else if(_rtMv) rtMvEnd();
+  else if(_rtTwMv) rtTwMvEnd(false);
   _rtDrag=null;
 });
+// Escape abandons a table drag where it started, like every other drag here.
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&_rtTwMv){ e.preventDefault(); rtTwMvEnd(true); } },true);
 window.addEventListener('scroll',rtReposition,true);
 window.addEventListener('resize',rtReposition);
 // Whole-table paste is handled on the paste event rather than in keydown so the system
@@ -5901,8 +6300,7 @@ function mkFathomGrid(){
   const todayD=isCurMo?new Date().getDate():-1;
   const isPastMonth=CY<new Date().getFullYear()||(CY===new Date().getFullYear()&&CM<new Date().getMonth());
   const days=dim(CY,CM);
-  const {pct:mPct,hasData:mHas}=fathomMonthStats();
-  const mGrade=mHas?fathomGrade(mPct):null;
+  const {done:mDone,poss:mPoss,hasData:mHas}=fathomMonthStats();
 
   const card=document.createElement('div');
   card.className='grid-card'+(fathomEditMode?' edit-mode':'');
@@ -5916,7 +6314,7 @@ function mkFathomGrid(){
       <span style="font-weight:800;letter-spacing:.14em;color:var(--text1)">FATHOM</span>
     </span>
     <div style="display:flex;align-items:center;gap:8px">
-      <span id="fathom-hdr-grade" style="font-size:11px;font-weight:600;color:${mGrade?fgColor(mGrade):'var(--text3)'}">${mGrade?`${mPct}%`:''}</span>
+      <span id="fathom-hdr-grade" style="font-size:11px;font-weight:600;color:var(--text2);font-variant-numeric:tabular-nums">${mHas?`${mDone}/${mPoss}`:''}</span>
       ${fathomEditMode?`<button class="add-hbt-btn" style="display:inline-flex" onclick="addFathomItem()">+ Add Item</button>`:''}
       <button class="btn ${fathomEditMode?'btn-on':''}" onclick="toggleFathomEdit()">${fathomEditMode?'&#10003; Done':'&#9998; Edit'}</button>
     </div>`;
@@ -6128,10 +6526,9 @@ function doFathomSkipToggle(iid,day){
 
 function updFathomHeader(){
   const el=document.getElementById('fathom-hdr-grade'); if(!el) return;
-  const {pct,hasData}=fathomMonthStats();
-  const g=hasData?fathomGrade(pct):null;
-  el.innerHTML=g?`${pct}%`:'';
-  el.style.color=g?fgColor(g):'var(--text3)';
+  const {done,poss,hasData}=fathomMonthStats();
+  el.innerHTML=hasData?`${done}/${poss}`:'';
+  el.style.color='var(--text2)';
 }
 
 function addFathomItem(){
