@@ -422,6 +422,41 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .rt-tog-s{flex:1;min-width:0;font-weight:600}
 .rt-tog-b{margin-left:22px;padding-left:8px;border-left:1px solid var(--border)}
 .rt-tog[data-open="0"] > .rt-tog-b{display:none}
+
+/* Canvas card. A box's position IS its content, so left/top/width live in the
+   markup and serialize with everything else — no second store, no schema. All the
+   chrome (drag strip, resize handles, guides, marquee) is drawn on #cv-ctl, so
+   nothing here can ever reach what gets saved. */
+.cvcard{position:relative;overflow:auto;padding:0}
+.cv-surface{position:relative;min-height:100%;min-width:100%}
+/* Ruling to position against, off by default and per card. */
+.cv-surface.cv-ruled{
+  background-image:linear-gradient(to right,var(--border) 1px,transparent 1px),
+                   linear-gradient(to bottom,var(--border) 1px,transparent 1px);
+  background-size:24px 24px;opacity:1}
+.cv-surface.cv-ruled::before{content:'';position:absolute;inset:0;pointer-events:none}
+.cv-box{position:absolute;box-sizing:border-box;border:1px solid transparent;border-radius:var(--r2);
+  padding:3px 5px;min-width:60px;min-height:24px}
+.cv-box:hover{border-color:var(--border)}
+.cv-box.cv-sel{border-color:var(--cvc,#3B82F6)}
+.cv-bd{outline:none;min-height:18px;font-size:14px;line-height:1.55;color:var(--text1);word-wrap:break-word}
+.cv-bd:empty::before{content:'Type…';color:var(--text3)}
+/* The overlay. Same discipline as #rt-ctl: fixed, transparent to the pointer
+   except where a control actually is. */
+#cv-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
+#cv-ctl .cv-hd{position:fixed;pointer-events:auto;height:12px;cursor:grab;border-radius:3px;
+  background:var(--cvc,#3B82F6);opacity:.35}
+#cv-ctl .cv-hd:hover{opacity:.8}
+#cv-ctl .cv-hd.cv-on{opacity:.9;cursor:grabbing}
+#cv-ctl .cv-rz{position:fixed;pointer-events:auto;background:transparent}
+#cv-ctl .cv-rz.cv-c{width:10px;height:10px;border-radius:50%;background:var(--surface);
+  border:1px solid var(--cvc,#3B82F6)}
+/* 1px dashed, in the card's own accent, exactly on the edge that matched. */
+#cv-ctl .cv-guide{position:fixed;pointer-events:none}
+#cv-ctl .cv-guide.v{width:0;border-left:1px dashed var(--cvc,#3B82F6)}
+#cv-ctl .cv-guide.h{height:0;border-top:1px dashed var(--cvc,#3B82F6)}
+#cv-ctl .cv-marq{position:fixed;pointer-events:none;border:1px solid var(--cvc,#3B82F6);
+  background:rgba(59,130,246,.10);border-radius:2px}
 /* Slash command menu */
 #rt-slash{position:fixed;z-index:1200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:184px;font-family:var(--font);display:none}
 #rt-slash .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
@@ -1504,6 +1539,7 @@ const CARD_TYPES=[
   {id:'habits',name:'Habits', blurb:'Today’s levers as pills you tap. Each card keeps its own set.'},
   {id:'clock', name:'Clock',  blurb:'Today’s shape: the dial and your blocks with times.'},
   {id:'timeline',name:'Timeline',blurb:'The month as a calendar — where you are in it, and in the quarter.'},
+  {id:'canvas',name:'Canvas',blurb:'Click anywhere and type there. Drag things around; they line up as you go.'},
 ];
 let _paddOpen=false;
 function _paddToggle(){ _paddOpen=!_paddOpen; render(); }
@@ -1587,6 +1623,357 @@ function timelineCardBody(id){
     </div>`;
 }
 
+// ─── CANVAS CARD ─────────────────────────────────────────────────
+// A card you place things on rather than write down. Every box is an ordinary
+// rich-text host — .cv-bd is in RT_HOSTS — so tables, lists, checkboxes, toggles
+// and the slash menu all work inside one on the first day, with no second editor
+// to keep in step with the first.
+//
+// The position IS the content: left/top/width sit in the box's own style attribute,
+// so a canvas serializes as the card's HTML exactly like prose does and saveCard,
+// cardHTML and the Supabase sync need no changes at all. Everything you see while
+// dragging — the handle strip, the resize handles, the guides, the marquee — is
+// drawn on #cv-ctl, a fixed overlay on <body>, so none of it can reach storage.
+const CV_W=300;        // a new box's width
+const CV_DRAG=5;       // px before a press counts as a drag
+const CV_MARQ=4;       // below this a marquee was really a click
+const CV_SNAP=6;       // how near an edge has to be to snap to it
+const CV_MINW=60, CV_MINH=24;
+let _cvDrag=null,_cvRz=null,_cvMarq=null,_cvHover=null;
+
+function cvCard(n){ return n&&n.closest?n.closest('.cvcard'):null; }
+function cvSurf(n){ const c=cvCard(n); return c&&c.querySelector('.cv-surface'); }
+function cvBoxes(surf){ return surf?[...surf.querySelectorAll('.cv-box')]:[]; }
+function cvNum(v){ return parseFloat(v)||0; }
+function cvPos(b){
+  return {x:cvNum(b.style.left),y:cvNum(b.style.top),
+          w:b.offsetWidth||cvNum(b.style.width)||CV_W,h:b.offsetHeight||CV_MINH};
+}
+// Grow the surface to hold whatever is on it, so the card scrolls to reach a box
+// placed past its bottom edge rather than clipping it.
+function cvFit(surf){
+  if(!surf) return;
+  let r=0,b=0;
+  cvBoxes(surf).forEach(el=>{ const p=cvPos(el); r=Math.max(r,p.x+p.w); b=Math.max(b,p.y+p.h); });
+  surf.style.minHeight=(b+40)+'px';
+  surf.style.minWidth=(r+40)+'px';
+}
+// Selection is a transient class, so it is stripped on the way to storage — what
+// you had selected when you happened to stop typing is not part of the document.
+function cvHTML(surf){
+  const c=surf.cloneNode(true);
+  c.querySelectorAll('.cv-sel').forEach(el=>el.classList.remove('cv-sel'));
+  return c.outerHTML;
+}
+function cvSave(n){
+  const card=cvCard(n); if(!card) return;
+  const surf=card.querySelector('.cv-surface'); if(!surf) return;
+  cvFit(surf);
+  saveCard(card.dataset.cardid,cvHTML(surf));
+}
+// Every box body saves the card it sits on, not itself — one card, one slot.
+function cvOnInput(el){ rtOnInput(el); cvSave(el); }
+
+function cvBoxHTML(html,x,y,w){
+  return `<div class="cv-box" style="left:${Math.round(x)}px;top:${Math.round(y)}px;width:${Math.round(w||CV_W)}px">`
+    +`<div class="cv-bd" contenteditable="true" oninput="cvOnInput(this)" onkeydown="richtextKD(event)">`
+    +(html||'<p><br></p>')+`</div></div>`;
+}
+function cvNewBox(surf,x,y,html){
+  const d=document.createElement('div');
+  d.innerHTML=cvBoxHTML(html,x,y,CV_W);
+  const box=d.firstElementChild;
+  surf.appendChild(box);
+  cvSelect(surf,[box]);
+  const bd=box.querySelector('.cv-bd');
+  rtSeedUndo(bd); rtPlaceCaretAtEnd(bd); bd.focus();
+  cvSave(surf);
+  return box;
+}
+// An empty box is a click you thought better of, not a thing you made. It goes
+// when you look away, so a stray click never leaves litter behind.
+function cvPurgeEmpty(surf,except){
+  let gone=false;
+  cvBoxes(surf).forEach(b=>{
+    if(b===except) return;
+    const bd=b.querySelector('.cv-bd');
+    if(bd&&!bd.textContent.trim()&&!bd.querySelector('table,img,.rt-tog')){ b.remove(); gone=true; }
+  });
+  if(gone) cvSave(surf);
+}
+
+// ── Selection ──
+function cvSelected(surf){ return cvBoxes(surf).filter(b=>b.classList.contains('cv-sel')); }
+function cvSelect(surf,boxes,add){
+  if(!add) cvBoxes(surf).forEach(b=>b.classList.remove('cv-sel'));
+  (boxes||[]).forEach(b=>b.classList.add('cv-sel'));
+}
+function cvDeleteSelected(surf){
+  const sel=cvSelected(surf); if(!sel.length) return false;
+  sel.forEach(b=>b.remove());
+  cvSave(surf); cvHideCtl();
+  return true;
+}
+
+// ── Snapping ──
+// Every other box offers three lines on each axis — its two edges and its middle —
+// and so does the surface. The nearest within CV_SNAP wins, X and Y decided
+// independently, so a box can snap to one box's left and another's top at once.
+function cvSnapLines(surf,except){
+  const xs=[],ys=[];
+  const W=surf.clientWidth||surf.offsetWidth,H=surf.clientHeight||surf.offsetHeight;
+  xs.push(0,W/2,W); ys.push(0,H/2,H);
+  cvBoxes(surf).forEach(b=>{
+    if(b===except||b.classList.contains('cv-sel')&&except) return;
+    const p=cvPos(b);
+    xs.push(p.x,p.x+p.w/2,p.x+p.w);
+    ys.push(p.y,p.y+p.h/2,p.y+p.h);
+  });
+  return {xs,ys};
+}
+// Given where the box wants to be, return where it should go and which lines it
+// landed on. Pure — no DOM, no layout — so the rule is testable on its own.
+function cvSnap(x,y,w,h,lines,tol){
+  tol=tol==null?CV_SNAP:tol;
+  const fit=(v,size,cands)=>{
+    let best=null;
+    [[0,'start'],[size/2,'mid'],[size,'end']].forEach(([off])=>{
+      cands.forEach(c=>{
+        const d=Math.abs(v+off-c);
+        if(d<=tol&&(!best||d<best.d)) best={d,at:c-off,line:c};
+      });
+    });
+    return best;
+  };
+  const fx=fit(x,w,lines.xs),fy=fit(y,h,lines.ys);
+  return {x:fx?fx.at:x,y:fy?fy.at:y,gx:fx?fx.line:null,gy:fy?fy.line:null};
+}
+
+// ── The overlay ──
+function cvCtl(){
+  let el=document.getElementById('cv-ctl');
+  if(!el){ el=document.createElement('div'); el.id='cv-ctl'; document.body.appendChild(el); }
+  return el;
+}
+function cvHideCtl(){ const el=document.getElementById('cv-ctl'); if(el){ el.innerHTML=''; el.style.display='none'; } _cvHover=null; }
+function cvMk(cls,css){
+  const el=document.createElement('div'); el.className=cls; el.style.cssText=css||'';
+  cvCtl().appendChild(el); return el;
+}
+// The handle strip above the box, and the eight handles around it. Drawn for
+// whichever box the pointer is over, and for every box in a multiple selection so
+// a group reads as one thing.
+function cvShowCtl(box){
+  const surf=cvSurf(box); if(!surf) return;
+  const ctl=cvCtl(); ctl.innerHTML=''; ctl.style.display='block';
+  ctl.style.setProperty('--cvc',cvAccent(cvCard(box)));
+  _cvHover=box;
+  const r=box.getBoundingClientRect();
+  const hd=cvMk('cv-hd',`left:${r.left}px;top:${r.top-14}px;width:${r.width}px`);
+  hd.title='Drag to move';
+  if(_cvDrag&&_cvDrag.moved) hd.classList.add('cv-on');
+  hd.onpointerdown=e=>cvDragStart(e,box);
+  // Eight handles: thin strips on the sides, dots on the corners.
+  const H=[['n',0,-1,.5,0,'ns-resize'],['s',0,1,.5,1,'ns-resize'],
+           ['w',-1,0,0,.5,'ew-resize'],['e',1,0,1,.5,'ew-resize'],
+           ['nw',-1,-1,0,0,'nwse-resize'],['ne',1,-1,1,0,'nesw-resize'],
+           ['sw',-1,1,0,1,'nesw-resize'],['se',1,1,1,1,'nwse-resize']];
+  H.forEach(([dir,dx,dy,fx,fy,cur])=>{
+    const corner=dir.length===2;
+    const size=corner?10:8;
+    const w=corner?size:(dx?size:r.width),h=corner?size:(dy?size:r.height);
+    const el=cvMk('cv-rz'+(corner?' cv-c':''),
+      `left:${r.left+r.width*fx-w/2}px;top:${r.top+r.height*fy-h/2}px;width:${w}px;height:${h}px;cursor:${cur}`);
+    el.onpointerdown=e=>cvRzStart(e,box,dir);
+  });
+}
+// A canvas borrows the app's accent unless the card has its own colour, the same
+// key scheme the Timeline uses — so the guides match the card they are drawn on.
+function cvAccent(card){
+  const id=card&&card.dataset.cardid;
+  return (id&&D.chartColors&&D.chartColors['tl_'+id])||gradeAccent();
+}
+
+// ── Dragging ──
+function cvDragStart(e,box){
+  const surf=cvSurf(box); if(!surf) return;
+  e.preventDefault();
+  // Dragging any member of a selection drags the whole selection.
+  const sel=cvSelected(surf);
+  const group=(sel.length>1&&sel.includes(box))?sel:[box];
+  if(group.length===1) cvSelect(surf,[box]);
+  _cvDrag={surf,box,group,sx:e.clientX,sy:e.clientY,moved:false,
+    start:group.map(b=>cvPos(b)),alt:e.altKey};
+  // Grabbing raises: stacking is DOM order, so the thing you took hold of comes up.
+  surf.appendChild(box);
+}
+function cvGuides(surf,gx,gy){
+  cvCtl().querySelectorAll('.cv-guide').forEach(el=>el.remove());
+  const r=surf.getBoundingClientRect();
+  if(gx!=null) cvMk('cv-guide v',`left:${r.left+gx}px;top:${r.top}px;height:${r.height}px`);
+  if(gy!=null) cvMk('cv-guide h',`left:${r.left}px;top:${r.top+gy}px;width:${r.width}px`);
+}
+function cvDragMove(e){
+  const d=_cvDrag; if(!d) return;
+  const dx=e.clientX-d.sx,dy=e.clientY-d.sy;
+  if(!d.moved&&Math.hypot(dx,dy)<CV_DRAG) return; // a press is not a drag
+  d.moved=true;
+  const p0=d.start[0];
+  let nx=p0.x+dx,ny=p0.y+dy,gx=null,gy=null;
+  // Alt is the escape hatch: hold it and the box goes exactly where you put it.
+  if(!e.altKey){
+    const s=cvSnap(nx,ny,p0.w,p0.h,cvSnapLines(d.surf,d.box));
+    nx=s.x; ny=s.y; gx=s.gx; gy=s.gy;
+  }
+  const ox=nx-p0.x,oy=ny-p0.y;
+  d.group.forEach((b,i)=>{
+    b.style.left=Math.max(0,Math.round(d.start[i].x+ox))+'px';
+    b.style.top =Math.max(0,Math.round(d.start[i].y+oy))+'px';
+  });
+  cvShowCtl(d.box);
+  cvGuides(d.surf,gx,gy);
+}
+function cvDragEnd(){
+  const d=_cvDrag; _cvDrag=null; if(!d) return;
+  cvCtl().querySelectorAll('.cv-guide').forEach(el=>el.remove());
+  if(d.moved) cvSave(d.surf);
+}
+
+// ── Resizing ──
+function cvRzStart(e,box,dir){
+  e.preventDefault(); e.stopPropagation();
+  const p=cvPos(box);
+  _cvRz={surf:cvSurf(box),box,dir,sx:e.clientX,sy:e.clientY,p};
+}
+function cvRzMove(e){
+  const z=_cvRz; if(!z) return;
+  const dx=e.clientX-z.sx,dy=e.clientY-z.sy,p=z.p,d=z.dir;
+  let x=p.x,y=p.y,w=p.w,h=p.h;
+  if(d.includes('e')) w=p.w+dx;
+  if(d.includes('w')){ w=p.w-dx; x=p.x+dx; }
+  if(d.includes('s')) h=p.h+dy;
+  if(d.includes('n')){ h=p.h-dy; y=p.y+dy; }
+  // Clamp before committing, and keep the far edge still when dragging the near one
+  // — otherwise hitting the minimum walks the box across the surface.
+  if(w<CV_MINW){ if(d.includes('w')) x=p.x+p.w-CV_MINW; w=CV_MINW; }
+  if(h<CV_MINH){ if(d.includes('n')) y=p.y+p.h-CV_MINH; h=CV_MINH; }
+  z.box.style.left=Math.max(0,Math.round(x))+'px';
+  z.box.style.top =Math.max(0,Math.round(y))+'px';
+  z.box.style.width=Math.round(w)+'px';
+  // Height stays automatic unless you actually pull on it, so a box grows with what
+  // you type until the day you decide otherwise.
+  if(d.includes('n')||d.includes('s')) z.box.style.height=Math.round(h)+'px';
+  cvShowCtl(z.box);
+}
+function cvRzEnd(){ const z=_cvRz; _cvRz=null; if(z) cvSave(z.surf); }
+
+// ── Click, and marquee ──
+// A press on empty surface is either a new box or a marquee, and which one it was
+// is not knowable until you let go — so decide at the end, on the distance moved.
+document.addEventListener('pointerdown',e=>{
+  const surf=e.target&&e.target.classList&&e.target.classList.contains('cv-surface')?e.target:null;
+  if(!surf) return;
+  const r=surf.getBoundingClientRect();
+  _cvMarq={surf,sx:e.clientX,sy:e.clientY,ox:e.clientX-r.left,oy:e.clientY-r.top,
+    add:e.shiftKey,moved:false};
+});
+function cvMarqMove(e){
+  const m=_cvMarq; if(!m) return;
+  if(!m.moved&&Math.hypot(e.clientX-m.sx,e.clientY-m.sy)<CV_MARQ) return;
+  m.moved=true;
+  const x=Math.min(m.sx,e.clientX),y=Math.min(m.sy,e.clientY);
+  const w=Math.abs(e.clientX-m.sx),h=Math.abs(e.clientY-m.sy);
+  cvCtl().style.display='block';
+  cvCtl().style.setProperty('--cvc',cvAccent(cvCard(m.surf)));
+  let box=cvCtl().querySelector('.cv-marq');
+  if(!box) box=cvMk('cv-marq','');
+  box.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+  // Anything the rectangle touches, not only what it swallows whole.
+  const hit=cvBoxes(m.surf).filter(b=>{
+    const r=b.getBoundingClientRect();
+    return r.left<x+w&&r.right>x&&r.top<y+h&&r.bottom>y;
+  });
+  cvSelect(m.surf,hit,m.add);
+}
+function cvMarqEnd(e){
+  const m=_cvMarq; _cvMarq=null; if(!m) return;
+  const marq=cvCtl().querySelector('.cv-marq'); if(marq) marq.remove();
+  if(m.moved) return;                    // it was a marquee; the selection stands
+  cvPurgeEmpty(m.surf);
+  if(!m.add){ cvSelect(m.surf,[]); }
+  // y-12 puts the caret under the cursor rather than below it, so the box appears
+  // where you were pointing instead of a line down from it.
+  cvNewBox(m.surf,Math.max(0,m.ox),Math.max(0,m.oy-12));
+}
+
+document.addEventListener('pointermove',e=>{
+  if(_cvDrag) return cvDragMove(e);
+  if(_cvRz) return cvRzMove(e);
+  if(_cvMarq) return cvMarqMove(e);
+  // Idle: show the chrome for whatever box is under the pointer.
+  const box=e.target&&e.target.closest?e.target.closest('.cv-box'):null;
+  if(box){ if(box!==_cvHover) cvShowCtl(box); return; }
+  if(_cvHover&&!(e.target.closest&&e.target.closest('#cv-ctl'))) cvHideCtl();
+});
+document.addEventListener('pointerup',e=>{
+  if(_cvDrag) return cvDragEnd(e);
+  if(_cvRz) return cvRzEnd(e);
+  if(_cvMarq) return cvMarqEnd(e);
+});
+// Click on a box selects it; Shift adds to what is already selected.
+document.addEventListener('mousedown',e=>{
+  const box=e.target&&e.target.closest?e.target.closest('.cv-box'):null;
+  if(!box) return;
+  const surf=cvSurf(box); if(!surf) return;
+  if(e.shiftKey){ e.preventDefault(); box.classList.toggle('cv-sel'); return; }
+  if(!box.classList.contains('cv-sel')) cvSelect(surf,[box]);
+});
+document.addEventListener('keydown',e=>{
+  const inBody=e.target&&e.target.closest&&e.target.closest('.cv-bd');
+  const surf=cvSurf(e.target)||(_cvHover&&cvSurf(_cvHover));
+  if(!surf) return;
+  if((e.ctrlKey||e.metaKey)&&/^a$/i.test(e.key)&&!inBody){
+    e.preventDefault(); cvSelect(surf,cvBoxes(surf)); return;
+  }
+  // Delete only removes boxes when you are not inside one — inside, it is a key
+  // that deletes a character, and nothing else.
+  if((e.key==='Delete'||e.key==='Backspace')&&!inBody){
+    if(cvDeleteSelected(surf)) e.preventDefault();
+  }
+});
+// Leaving a box takes any empty one with it, the way an unfinished note is not a note.
+document.addEventListener('focusout',e=>{
+  const bd=e.target&&e.target.closest?e.target.closest('.cv-bd'):null;
+  if(!bd) return;
+  const surf=cvSurf(bd); if(!surf) return;
+  setTimeout(()=>{ if(document.contains(surf)) cvPurgeEmpty(surf,document.activeElement&&document.activeElement.closest('.cv-box')); },0);
+});
+
+// ── Conversion ──
+// The way an existing card becomes a canvas without retyping it, and back again if
+// it turns out not to suit. Nothing is thrown away in either direction.
+function convertCardTo(id,type){
+  const def=cardDef(id); if(!def||def.type===type) return;
+  const html=cardHTML(id)||'';
+  if(type==='canvas'){
+    const d=document.createElement('div');
+    d.innerHTML=cvBoxHTML(html||'<p><br></p>',16,16,CV_W);
+    saveCard(id,`<div class="cv-surface">${d.innerHTML}</div>`);
+  }else{
+    // Reading order, not stacking order: down the page, then across it.
+    const d=document.createElement('div'); d.innerHTML=html;
+    const boxes=[...d.querySelectorAll('.cv-box')]
+      .sort((a,b)=>(cvNum(a.style.top)-cvNum(b.style.top))||(cvNum(a.style.left)-cvNum(b.style.left)));
+    saveCard(id,boxes.map(b=>{ const bd=b.querySelector('.cv-bd'); return bd?bd.innerHTML:''; }).join('')||'');
+  }
+  def.type=type;
+  _cardsDirty(); render();
+}
+function toggleCanvasGrid(id){
+  const def=cardDef(id); if(!def) return;
+  def.cvGrid=!def.cvGrid; _cardsDirty(); render();
+}
+
 // Edit lives under the grid, not in the header: it is about the cards, and the two
 // things you reach for together — Done and + Add a card — are now in one place
 // instead of at opposite ends of the page.
@@ -1610,10 +1997,19 @@ function mkPlannerCard(def,ix){
            onpointerdown="_cardGrabStart(event,'${def.id}')">
          <span class="pgrab">⠿</span>
          <input class="pcard-lblin" value="${_esc(def.label)}" oninput="setCardLabel('${def.id}',this.value)"/>
-         ${def.type==='timeline'?`<span class="chart-color-dot" title="Timeline colour"
+         ${(def.type==='timeline'||def.type==='canvas')?`<span class="chart-color-dot"
+             title="${def.type==='canvas'?'Canvas colour':'Timeline colour'}"
              style="background:${timelineAccent(def.id)}"
              onpointerdown="event.stopPropagation()"
              onclick="openChartColorPop(event,'tl_${def.id}')"></span>`:''}
+         ${def.type==='canvas'?`<button class="pcard-lnk" title="Show a grid to line things up against"
+             onpointerdown="event.stopPropagation()"
+             onclick="toggleCanvasGrid('${def.id}')">${def.cvGrid?'▦ Grid on':'▤ Grid off'}</button>`:''}
+         ${(def.type==='text'||def.type==='canvas')?`<button class="pcard-lnk"
+             title="${def.type==='canvas'?'Stack the boxes back into one column':'Move what is here into a box you can place'}"
+             onpointerdown="event.stopPropagation()"
+             onclick="convertCardTo('${def.id}','${def.type==='canvas'?'text':'canvas'}')"
+             >${def.type==='canvas'?'Convert to text':'Convert to canvas'}</button>`:''}
          <button class="pcard-x" title="Remove card" onclick="removePlannerCard('${def.id}')">×</button>
        </div>`
     : `<div class="pcard-hd pcard-grab" title="Drag to reorder"
@@ -1650,6 +2046,24 @@ function mkPlannerCard(def,ix){
     // it up from one place instead of each button carrying its own inline style.
     body=`<div class="pcard-bd tlcard" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
     foot='';
+  }else if(def.type==='canvas'){
+    // The surface is restored from the card's own slot like any other content — the
+    // positions came back with it, because they never left it.
+    body=`<div class="pcard-bd cvcard" style="${mh};--cvc:${cvAccent({dataset:{cardid:def.id}})}"
+        id="card-${def.id}" data-cardid="${def.id}"></div>`;
+    foot='';
+    setTimeout(()=>{
+      const el=document.getElementById('card-'+def.id);
+      if(!el) return;
+      const stored=cardHTML(def.id);
+      el.innerHTML=/cv-surface/.test(stored||'')?stored:'<div class="cv-surface"></div>';
+      const surf=el.querySelector('.cv-surface');
+      if(surf){
+        surf.classList.toggle('cv-ruled',!!def.cvGrid);
+        cvFit(surf);
+        surf.querySelectorAll('.cv-bd').forEach(bd=>rtSeedUndo(bd));
+      }
+    },0);
   }else if(def.type==='habits'){
     body=`<div class="pcard-bd" style="${mh}" id="hcard-${def.id}">${habitCardBody(def)}</div>`;
     // Renaming and removing levers is configuration and stays behind the global
@@ -1713,6 +2127,7 @@ function addPlannerCard(type){
     type==='habits' ? {id,type:'habits',label:'Habits',span:2,minH:0,cadence:'none',hidden:[]}
   : type==='clock'  ? clockCardDef(id)
   : type==='timeline' ? {id,type:'timeline',label:'TIMELINE',span:1,minH:0,cadence:'none'}
+  : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2,minH:320,cadence:'none'}
   : {id,type:'text',label:'New card',span:1,minH:0,cadence:'none'});
   _paddOpen=false;
   _cardsDirty(); render();
@@ -4357,7 +4772,10 @@ document.addEventListener('keydown',e=>{
 // ─── Simple tables (Notion-style) ────────────────────────────────
 // Control UI lives in a fixed layer on <body>, never inside the card, so it
 // can never be serialized into the innerHTML we persist to localStorage.
-const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor';
+// .cv-bd is a canvas box's body. Listing it here is the whole of what makes tables,
+// lists, checkboxes, toggles and the slash menu work inside a box — one editor,
+// used in a second place, rather than a second editor to keep in step.
+const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
 let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 
