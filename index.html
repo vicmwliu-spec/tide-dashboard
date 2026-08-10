@@ -97,7 +97,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    instead of letting the next card rise. Each card claims the rows it actually
    needs — see packCards — and the 14px gap is carried in the span. */
 .pgrid{display:grid;grid-template-columns:repeat(4,1fr);column-gap:14px;row-gap:0;
-  grid-auto-rows:4px;align-items:start;margin-bottom:14px}
+  grid-auto-rows:4px;align-items:start;margin-bottom:14px;
+  /* A card's grid-column-start is written inline by mkCard, so a start of 3 or 4
+     inside a narrowed 2-column grid used to conjure implicit columns and crush the
+     row. The narrow breakpoints below reset every start to auto, and this makes a
+     stray one harmless rather than silently costing a column of width. */
+  grid-auto-columns:0}
 /* Timeline card: the month as a calendar, weeks numbered as the rest of the app
    numbers them. Days are buttons — clicking one moves the page to that day.
    Every marked state reads --tlc, which the card sets from your chosen colour;
@@ -132,7 +137,10 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tl-qm.on{color:var(--tlc,var(--edit));font-weight:700}
 /* Edit cards, under the grid rather than in the header. */
 .pcard-bar{display:flex;justify-content:flex-start;margin-bottom:14px}
-.pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
+/* min-width:0 because a grid item's automatic minimum is its content: a card
+   holding a table wider than its column would otherwise refuse to shrink and push
+   the whole grid sideways, instead of letting the table scroll inside .rt-tw. */
+.pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative;min-width:0}
 .pcard.editing{border-color:var(--edit-line)}
 .pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap}
 /* No text-transform: a title reads exactly as it was typed, upper or lower case.
@@ -234,13 +242,26 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .hlist-eye{background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:2px 5px;border-radius:4px;font-family:var(--font);flex-shrink:0}
 .hlist-eye.on{color:var(--accent)}
 .hlist-eye:hover{background:var(--border)}
+/* Fewer columns as the window narrows, so a card never gets too thin to read —
+   4 above 1500px, then 3, then 2, then 1. Every rule below writes the whole
+   grid-column shorthand, which is what resets the start mkCard set inline; a rule
+   that only overrode the span left the start behind, and the card was placed in an
+   implicit column past the edge of the grid. Nothing here touches the stored col or
+   span, so widening the window restores the layout exactly as it was. */
+@media (max-width:1500px){
+  .pgrid{grid-template-columns:repeat(3,1fr)}
+  .pcard{grid-column:auto / span 1 !important}
+  .pcard[data-span="2"]{grid-column:auto / span 2 !important}
+  .pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 3 !important}
+}
 @media (max-width:1180px){
   .pgrid{grid-template-columns:repeat(2,1fr)}
-  .pcard[data-span="3"],.pcard[data-span="4"]{grid-column:span 2 !important}
+  .pcard{grid-column:auto / span 1 !important}
+  .pcard[data-span="2"],.pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 2 !important}
 }
 @media (max-width:680px){
   .pgrid{grid-template-columns:1fr;gap:8px}
-  .pcard{grid-column:span 1 !important}
+  .pcard,.pcard[data-span="2"],.pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 1 !important}
 }
 .top-left-col{width:35%;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
 
@@ -377,7 +398,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .rt-table.rt-hr tr:first-child td,.rt-table.rt-hc tr td:first-child{background:var(--surface2);font-weight:600}
 .rt-table:not(.rt-hopt) tr:first-child td{background:var(--surface2);font-weight:600}
 /* Explicit per-column widths (colgroup) take over once a table has been sized */
-.rt-table.rt-fixed{width:auto;min-width:0;table-layout:fixed}
+/* max-content, not auto: with table-layout:fixed an auto width shrinks to the
+   container and scales the stored colgroup widths down with it, so in a narrow
+   window a resized table squeezed itself to a character per line. max-content makes
+   the table the sum of the widths you set and lets the overflow go to
+   .rt-tw{overflow-x:auto}, which is what a never-resized table already does. */
+.rt-table.rt-fixed{width:max-content;min-width:0;table-layout:fixed}
 .rt-table.rt-fixed td{min-width:0;max-width:none}
 /* Selected cells tint with an inset shadow rather than a background. The header
    rules above set `background` at a higher specificity, so a header cell simply
