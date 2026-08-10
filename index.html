@@ -174,6 +174,9 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tb-row:hover{background:var(--surface2)}
 .tb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .tb-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The in-place rename input, sized to sit inside the row without moving it. */
+.tb-nmin{width:100%;box-sizing:border-box;font:inherit;color:var(--text1);
+  background:var(--surface);border:1px solid var(--edit);border-radius:4px;padding:0 3px;outline:none}
 /* Times and durations are columns of digits, so they get tabular figures and a
    fixed width — otherwise every row starts in a slightly different place. */
 .tb-rg{font-variant-numeric:tabular-nums;color:var(--text3);flex-shrink:0}
@@ -333,27 +336,27 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .wk-arc-btn:hover{background:var(--border2);color:var(--text1)}
 .wk-arc-btn.wk-arc-on{color:var(--accent)}
 .wk-arc-btn svg{width:12px;height:12px;display:block}
-#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
-#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol{padding-left:22px;margin:4px 0}
-#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li{margin:2px 0}
-#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul{list-style-type:disc}
-#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul{list-style-type:circle}
-#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul{list-style-type:square}
-#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol{list-style-type:decimal}
+#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr,.cv-bd hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
+#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol,.cv-bd ul,.cv-bd ol{padding-left:22px;margin:4px 0}
+#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li,.cv-bd li{margin:2px 0}
+#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul,.cv-bd ul{list-style-type:disc}
+#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul,.cv-bd ul ul{list-style-type:circle}
+#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul,.cv-bd ul ul ul{list-style-type:square}
+#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol,.cv-bd ol{list-style-type:decimal}
 /* Numbered lists stay numbered at every depth. A lettered list is something you ask
    for with the "A. " shortcut, which sets list-style-type inline and so still wins. */
 /* Checklists. The checkbox is drawn entirely in CSS from a data attribute — an
    <input> would be useless here because its checked state is a property and never
    survives the innerHTML round trip we persist card content through. */
-#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo{list-style:none;padding-left:4px}
-#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
-#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before{
+#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo,.cv-bd ul.rt-todo{list-style:none;padding-left:4px}
+#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li,.cv-bd ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
+#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before,.cv-bd ul.rt-todo li::before{
   content:'';position:absolute;left:0;top:.28em;width:14px;height:14px;box-sizing:border-box;
   border:1.5px solid var(--border);border-radius:4px;cursor:pointer;text-decoration:none;
   font-size:10px;line-height:11px;text-align:center;color:#fff;font-weight:700}
-#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before{
+#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before{
   content:'✓';background:var(--text2);border-color:var(--text2)}
-#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
 /* Rich-text simple table (Notion-style) */
 /* Shrink-wrap the table rather than claiming the whole row. The wrapper is
    contenteditable="false", so any width it takes and does not use is dead space you
@@ -444,12 +447,6 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    nothing here can ever reach what gets saved. */
 .cvcard{position:relative;overflow:auto;padding:0}
 .cv-surface{position:relative;min-height:100%;min-width:100%}
-/* Ruling to position against, off by default and per card. */
-.cv-surface.cv-ruled{
-  background-image:linear-gradient(to right,var(--border) 1px,transparent 1px),
-                   linear-gradient(to bottom,var(--border) 1px,transparent 1px);
-  background-size:24px 24px;opacity:1}
-.cv-surface.cv-ruled::before{content:'';position:absolute;inset:0;pointer-events:none}
 .cv-box{position:absolute;box-sizing:border-box;border:1px solid transparent;border-radius:var(--r2);
   padding:3px 5px;min-width:60px;min-height:24px}
 .cv-box:hover{border-color:var(--border)}
@@ -1750,9 +1747,12 @@ function cvSave(n){
 // Every box body saves the card it sits on, not itself — one card, one slot.
 function cvOnInput(el){ rtOnInput(el); cvSave(el); }
 
+// The uid is saved with the box and is what its undo history is filed under, so a
+// render that rebuilds the box doesn't lose what you'd typed into it.
+function cvUid(){ return 'b'+Math.random().toString(36).slice(2,9) }
 function cvBoxHTML(html,x,y,w){
   return `<div class="cv-box" style="left:${Math.round(x)}px;top:${Math.round(y)}px;width:${Math.round(w||CV_W)}px">`
-    +`<div class="cv-bd" contenteditable="true" oninput="cvOnInput(this)" onkeydown="richtextKD(event)">`
+    +`<div class="cv-bd" data-uid="${cvUid()}" contenteditable="true" oninput="cvOnInput(this)" onkeydown="richtextKD(event)">`
     +(html||'<p><br></p>')+`</div></div>`;
 }
 function cvNewBox(surf,x,y,html){
@@ -2071,10 +2071,6 @@ function convertCardTo(id,type){
   def.type=type;
   _cardsDirty(); render();
 }
-function toggleCanvasGrid(id){
-  const def=cardDef(id); if(!def) return;
-  def.cvGrid=!def.cvGrid; _cardsDirty(); render();
-}
 
 // Edit lives under the grid, not in the header: it is about the cards, and the two
 // things you reach for together — Done and + Add a card — are now in one place
@@ -2104,9 +2100,6 @@ function mkPlannerCard(def,ix){
              style="background:${timelineAccent(def.id)}"
              onpointerdown="event.stopPropagation()"
              onclick="openChartColorPop(event,'tl_${def.id}')"></span>`:''}
-         ${def.type==='canvas'?`<button class="pcard-lnk" title="Show a grid to line things up against"
-             onpointerdown="event.stopPropagation()"
-             onclick="toggleCanvasGrid('${def.id}')">${def.cvGrid?'▦ Grid on':'▤ Grid off'}</button>`:''}
          ${(def.type==='text'||def.type==='canvas')?`<button class="pcard-lnk"
              title="${def.type==='canvas'?'Stack the boxes back into one column':'Move what is here into a box you can place'}"
              onpointerdown="event.stopPropagation()"
@@ -2165,9 +2158,14 @@ function mkPlannerCard(def,ix){
       el.innerHTML=/cv-surface/.test(stored||'')?stored:'<div class="cv-surface"></div>';
       const surf=el.querySelector('.cv-surface');
       if(surf){
-        surf.classList.toggle('cv-ruled',!!def.cvGrid);
         cvFit(surf);
-        surf.querySelectorAll('.cv-bd').forEach(bd=>rtSeedUndo(bd));
+        // Boxes saved before uids existed get one now; it persists from the next
+        // save on. rtSeedUndo only clears a history that disagrees with what's on
+        // screen, so restoring the same content a box already had leaves it alone.
+        surf.querySelectorAll('.cv-bd').forEach(bd=>{
+          if(!bd.dataset.uid) bd.dataset.uid=cvUid();
+          rtSeedUndo(bd);
+        });
       }
     },0);
   }else if(def.type==='habits'){
@@ -2881,11 +2879,42 @@ function buildTbSchedule(){
   }).join('');
   el.innerHTML=rows+`<div class="tb-tot"><span>Scheduled</span><span>${durStr(total)}</span></div>`;
   el.querySelectorAll('.tb-row').forEach(r=>{
-    r.onclick=()=>{
+    r.onclick=e=>{
       const b=(D.timeBlocks||[]).find(x=>x.id===r.dataset.tbid);
-      if(b) openTimeBlockModal(b);
+      if(!b) return;
+      // The name is the one thing you rename constantly, so it edits in place.
+      // Everything else on the row still opens the full modal.
+      const nm=e.target.closest?e.target.closest('.tb-nm'):null;
+      if(nm&&r.contains(nm)) tbEditName(nm,b);
+      else openTimeBlockModal(b);
     };
   });
+}
+// Swap the name for an input seeded with it. Enter or blur commits through
+// saveTimeBlock, the same path the modal uses; Escape puts the name back.
+function tbEditName(span,block){
+  if(span.querySelector('input')) return;
+  const inp=document.createElement('input');
+  inp.className='tb-nmin';
+  inp.value=block.name||'';
+  inp.oninput=()=>tbNameInput(inp);
+  span.textContent='';
+  span.appendChild(inp);
+  inp.focus(); inp.select();
+  let done=false;
+  const finish=commit=>{
+    if(done) return; done=true;
+    const v=tbArrows((inp.value||'').trim());
+    if(commit&&v&&v!==block.name){ saveTimeBlock({...block,name:v}); }
+    buildTbSchedule();
+  };
+  inp.onblur=()=>finish(true);
+  inp.onclick=e=>e.stopPropagation();
+  inp.onkeydown=e=>{
+    e.stopPropagation();
+    if(e.key==='Enter'){ e.preventDefault(); finish(true); }
+    else if(e.key==='Escape'){ e.preventDefault(); finish(false); }
+  };
 }
 function tbSelectGroup(name,color,gid){
   const inp=document.getElementById('tb-name');if(inp)inp.value=name;
@@ -4905,8 +4934,21 @@ function rtOnInput(el){ rtGuardBlocks(el); rtNormalizeLists(el); rtSlashUpdate(e
 // covers tables and checkboxes for free. Ctrl+Z is intercepted unconditionally; letting
 // native undo also run would leave the two stacks disagreeing about the document.
 const _rtU=new WeakMap();
+// Canvas boxes are thrown away and rebuilt from stored HTML on every render, so an
+// element-keyed history is gone by construction — which is why undo did nothing in
+// a canvas box. A box carries a uid that survives being serialized, and its history
+// is filed under that instead of under the element that happens to hold it now.
+const _rtUById=new Map();
 let _rtRestoring=false;
-function _rtUState(h){ let st=_rtU.get(h); if(!st){ st={s:[],i:-1,t:0}; _rtU.set(h,st); } return st; }
+function _rtUState(h){
+  const uid=h&&h.dataset&&h.dataset.uid;
+  if(uid){
+    let st=_rtUById.get(uid);
+    if(!st){ st={s:[],i:-1,t:0}; _rtUById.set(uid,st); }
+    return st;
+  }
+  let st=_rtU.get(h); if(!st){ st={s:[],i:-1,t:0}; _rtU.set(h,st); } return st;
+}
 // The caret as a path of child indices from the host, so a restore doesn't dump you at
 // the end of the card.
 function _rtPath(h){
@@ -4962,8 +5004,8 @@ function rtSeedUndo(h){
   if(st.i<0||st.s[st.i].h!==h.innerHTML){ clearTimeout(st.t); st.s=[{h:h.innerHTML,c:null}]; st.i=0; }
 }
 function rtUndo(h,redo){
-  const st=_rtU.get(h);
-  if(!st) return false;
+  const st=_rtUState(h);
+  if(!st||!st.s.length) return false;
   clearTimeout(st.t);
   // A typing burst may still be pending, so the first Ctrl+Z would otherwise step back
   // over a state identical to what's on screen and appear to do nothing.
@@ -5528,7 +5570,11 @@ function rtDelRows(t,idxs){
     }
     rows[i].remove();
   });
-  if(!rtRows(t).length) rtRemoveTable(t);
+  // Deleting rows never deletes the table. It used to, and inside a canvas box that
+  // emptied the box's body, which the canvas then serialized as an empty box — so
+  // clearing a table's rows looked like it had deleted everything. One empty row is
+  // kept instead; removing the table is an explicit menu action.
+  if(!rtRows(t).length) rtAddRow(t);
 }
 function rtDelCols(t,idxs){
   const del=[...new Set(idxs)].sort((a,b)=>b-a);
