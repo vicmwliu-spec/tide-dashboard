@@ -2068,6 +2068,10 @@ function convertCardTo(id,type){
       .sort((a,b)=>(cvNum(a.style.top)-cvNum(b.style.top))||(cvNum(a.style.left)-cvNum(b.style.left)));
     saveCard(id,boxes.map(b=>{ const bd=b.querySelector('.cv-bd'); return bd?bd.innerHTML:''; }).join('')||'');
   }
+  // A canvas is a fixed box, so it needs a height to be one. Converting never set
+  // it, which left a converted canvas at the 80px floor with its boxes scrolling
+  // inside it — the same size a brand new canvas starts at instead.
+  if(type==='canvas'&&!def.minH) def.minH=320;
   def.type=type;
   _cardsDirty(); render();
 }
@@ -2120,7 +2124,14 @@ function mkPlannerCard(def,ix){
   // minHeight to fit the lowest box, and with a floor that growth pushed the whole
   // card — and the row it sits in — taller every time a box moved down. Fixed, the
   // surface scrolls inside the card and the card stays the size you set it to.
-  const mh=def.minH?`${def.type==='canvas'?'height':'min-height'}:${def.minH}px`:'';
+  // flex:none matters as much as the height does. .pcard-bd is flex:1 — that is
+  // flex-basis:0% — and a flex item takes its base size from flex-basis, not from
+  // `height`, so a bare `height:Npx` here did nothing at all and the body dropped
+  // to the .pcard-bd{min-height:80px} floor the moment the card re-rendered. That
+  // is why a canvas you had just dragged taller snapped small on leaving edit mode.
+  const mh=def.minH
+    ? (def.type==='canvas'?`flex:none;height:${def.minH}px`:`min-height:${def.minH}px`)
+    : '';
   let body,foot;
   if(def.type==='clock'){
     // Same host div mkTimeBlockCard uses, so buildClockSVG finds it by id and
@@ -2393,7 +2404,8 @@ let _cardRz=null;
 function _cardRzStart(e,id){
   e.preventDefault();
   const card=e.target.closest('.pcard'), bd=card.querySelector('.pcard-bd');
-  _cardRz={id,bd,card,y:e.clientY,h:bd.getBoundingClientRect().height,px:0};
+  _cardRz={id,bd,card,y:e.clientY,h:bd.getBoundingClientRect().height,px:0,
+           cv:(cardDef(id)||{}).type==='canvas'};
   card.classList.add('rz');
 }
 // Lining a card up with its neighbours by eye is guesswork at 4px row granularity,
@@ -2407,6 +2419,12 @@ function _cardGuide(){
 function _cardGuideHide(){ const g=document.getElementById('pcard-guide'); if(g) g.style.display='none'; }
 // The nearest other card's bottom within tolerance, or null. Pure apart from the
 // rects handed in, so the arithmetic is testable without layout.
+// One place decides how a height is applied, so the live drag and the render that
+// follows it can't disagree about which property is actually holding the card open.
+function _cardApplyH(bd,px,isCv){
+  if(isCv){ bd.style.flex='none'; bd.style.height=px+'px'; bd.style.minHeight=''; }
+  else bd.style.minHeight=px+'px';
+}
 function _cardSnapBottom(bottom,others,tol){
   let best=null,d=(tol==null?CV_SNAP:tol)+1;
   others.forEach(r=>{
@@ -2419,7 +2437,7 @@ document.addEventListener('mousemove',e=>{
   if(!_cardRz) return;
   const s=_cardRz;
   s.px=Math.max(60,Math.round(s.h+(e.clientY-s.y)));
-  s.bd.style.minHeight=s.px+'px';
+  _cardApplyH(s.bd,s.px,s.cv);
   const grid=s.card.closest('.pgrid');
   const others=grid?[...grid.children]
     .filter(el=>el!==s.card&&el.classList&&el.classList.contains('pcard'))
@@ -2428,7 +2446,7 @@ document.addEventListener('mousemove',e=>{
   const snap=mine.height?_cardSnapBottom(mine.bottom,others):null;
   if(snap!=null){
     s.px=Math.max(60,s.px+Math.round(snap-mine.bottom));
-    s.bd.style.minHeight=s.px+'px';
+    _cardApplyH(s.bd,s.px,s.cv);
     const gr=grid.getBoundingClientRect(), g=_cardGuide();
     g.style.cssText=`position:fixed;pointer-events:none;z-index:60;height:0;`
       +`border-top:1px dashed var(--edit);left:${gr.left}px;width:${gr.width}px;top:${snap}px;display:block`;
