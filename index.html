@@ -1753,7 +1753,13 @@ function cvFit(surf){
   if(!surf) return;
   let r=0,b=0;
   cvBoxes(surf).forEach(el=>{ const p=cvPos(el); r=Math.max(r,p.x+p.w); b=Math.max(b,p.y+p.h); });
-  surf.style.minHeight=(b+40)+'px';
+  // ...and never smaller than the card. The surface is what a click has to land on
+  // to make a box, and an inline min-height beats .cv-surface{min-height:100%}, so
+  // the fill has to be written here rather than left to the stylesheet. Without it
+  // everything below the lowest box is bare .cvcard, and clicking there does nothing
+  // — which is what a canvas looked like once the card became a fixed-height box.
+  const card=surf.parentElement;
+  surf.style.minHeight=Math.max(b+40,card?card.clientHeight:0)+'px';
   // No minWidth. Boxes are placed within the card's width, so widening the surface
   // to the rightmost box only ever bought a horizontal scrollbar nothing needed.
 }
@@ -2453,7 +2459,12 @@ function _cardGuideHide(){ const g=document.getElementById('pcard-guide'); if(g)
 // One place decides how a height is applied, so the live drag and the render that
 // follows it can't disagree about which property is actually holding the card open.
 function _cardApplyH(bd,px,isCv){
-  if(isCv){ bd.style.flex='none'; bd.style.height=px+'px'; bd.style.minHeight=''; }
+  if(isCv){
+    bd.style.flex='none'; bd.style.height=px+'px'; bd.style.minHeight='';
+    // Grow the surface with the card, or the space you just dragged open is dead to
+    // clicks until the next render.
+    cvFit(bd.querySelector('.cv-surface'));
+  }
   else bd.style.minHeight=px+'px';
 }
 function _cardSnapBottom(bottom,others,tol){
