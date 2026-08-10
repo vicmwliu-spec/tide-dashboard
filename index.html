@@ -43,7 +43,8 @@
   --font:'Inter',system-ui,sans-serif;
 }
 html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-#app{max-width:min(2000px,96vw);margin:0 auto;padding:20px}
+/* Extra room at the foot so the lowest card isn't flush against the window edge. */
+#app{max-width:min(2000px,96vw);margin:0 auto;padding:20px 20px 64px}
 
 /* ── Header ── */
 .hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
@@ -626,7 +627,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 @media(max-width:768px){
   .mob-hide{display:none}.mob-show{display:inline}
 
-  #app{padding:12px 10px 10px;padding-bottom:max(10px,env(safe-area-inset-bottom,10px))}
+  #app{padding:12px 10px 40px;padding-bottom:max(40px,env(safe-area-inset-bottom,40px))}
 
   /* Header */
   .hdr{flex-direction:column;align-items:stretch;gap:6px;margin-bottom:12px}
@@ -702,7 +703,7 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
 
 /* ── Small phones (≤480px) ── */
 @media(max-width:480px){
-  #app{padding:8px 6px}
+  #app{padding:8px 6px 36px}
   .hdr-r{gap:4px}
   .month-lbl{font-size:12px}
   .stats-row{grid-template-columns:1fr 1fr;gap:6px}
@@ -987,6 +988,40 @@ function cardPeriodKey(cadence,d){
 }
 function cardDefs(){ return (D.cards&&D.cards.defs)||[] }
 function cardDef(id){ return cardDefs().find(c=>c.id===id)||null }
+// ─── Card columns ───────────────────────────────────────────────
+// A card's column is stored, not inferred from its position in the list. Before,
+// the list was flowed across four columns, so moving one card renumbered every
+// card after it and the flow backfilled the hole by pulling a later card up and
+// to the left. With an explicit grid-column-start, the list only decides vertical
+// order within a column; nothing ever slides sideways to fill a gap.
+const PGRID_COLS=4;
+function cardSpan(def){ return Math.min(PGRID_COLS,Math.max(1,Number(def&&def.span)||1)) }
+// Clamped so a card can never start where its span would run off the right edge.
+function cardCol(def){
+  const sp=cardSpan(def);
+  const c=Math.round(Number(def&&def.col)||0);
+  return Math.min(PGRID_COLS-sp+1,Math.max(1,c||1));
+}
+// Where each def sits today under plain left-to-right flow. Used once, to give
+// existing cards the column they already appear in, so nothing moves on upgrade.
+function flowedCols(defs){
+  const out=[]; let cur=1;
+  defs.forEach(d=>{
+    const sp=cardSpan(d);
+    if(cur+sp-1>PGRID_COLS) cur=1;
+    out.push(cur);
+    cur+=sp;
+    if(cur>PGRID_COLS) cur=1;
+  });
+  return out;
+}
+function migrateCardCols(){
+  const defs=cardDefs();
+  if(!defs.length||defs.every(d=>d.col)) return;
+  const cols=flowedCols(defs);
+  defs.forEach((d,i)=>{ if(!d.col) d.col=cols[i] });
+  _cardsDirty();
+}
 function cardHTML(id,d){
   const def=cardDef(id); if(!def) return '';
   const bag=(D.cards.data||{})[id];
@@ -1505,7 +1540,7 @@ function packCards(){
       c.style.gridRowEnd='';
       // A lifted card is out of the flow, and anything unmeasurable (a hidden view,
       // or a test environment with no layout) is left alone rather than guessed at.
-      if(c.classList.contains('drag')) return;
+      if(c.classList.contains('pdrag')) return;
       const h=c.getBoundingClientRect().height;
       if(!h) return;
       c.style.gridRowEnd='span '+Math.max(1,Math.ceil((h+PGRID_GAP)/PGRID_ROW));
@@ -2050,7 +2085,7 @@ function mkPlannerCard(def,ix){
   const d=document.createElement('div');
   d.className='pcard'+(editMode?' editing':'');
   d.dataset.span=def.span||1;
-  d.style.gridColumn=`span ${Math.min(4,Math.max(1,def.span||1))}`;
+  d.style.gridColumn=`${cardCol(def)} / span ${cardSpan(def)}`;
   d.draggable=false;
 
   // The header is the drag handle in both modes — see _cardGrabStart.
@@ -2187,14 +2222,25 @@ function addPlannerCard(type){
   // not offered, and this guard means it cannot be added by any other route either.
   if(type==='clock'&&cardDefs().some(c=>c.type==='clock')){ _paddOpen=false; render(); return; }
   const id='c'+Math.random().toString(36).slice(2,9);
-  cardDefs().push(
+  const defs=cardDefs();
+  // A new card starts in the column after the last one, wrapping to the left when
+  // it won't fit — where plain flow would have put it, which is where you expect
+  // a card you just added to appear.
+  const last=defs[defs.length-1];
+  const nextCol=(def,sp)=>{
+    if(!def) return 1;
+    const c=cardCol(def)+cardSpan(def);
+    return c+sp-1>PGRID_COLS?1:c;
+  };
+  const withCol=d=>Object.assign(d,{col:nextCol(last,cardSpan(d))});
+  defs.push(withCol(
     // hidden:[] and not undefined — an empty array means "showing everything",
     // where a missing key means "inherit the old global hideToday flags".
     type==='habits' ? {id,type:'habits',label:'Habits',span:2,minH:0,cadence:'none',hidden:[]}
   : type==='clock'  ? clockCardDef(id)
   : type==='timeline' ? {id,type:'timeline',label:'TIMELINE',span:1,minH:0,cadence:'none'}
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2,minH:320,cadence:'none'}
-  : {id,type:'text',label:'New card',span:1,minH:0,cadence:'none'});
+  : {id,type:'text',label:'New card',span:1,minH:0,cadence:'none'}));
   _paddOpen=false;
   _cardsDirty(); render();
 }
@@ -2212,6 +2258,16 @@ function removePlannerCard(id){
 // a placeholder sits where the card will land, so what you see is what you get.
 // Pointer events also give touch for free.
 
+// Which column the pointer is over, from the grid's own box. Separate from the
+// index below because a drop now answers two questions — which column the card
+// belongs to, and where in that list it sits — and only the second one moves
+// other cards.
+function _cardDropCol(x,gridRect,span){
+  if(!gridRect||!gridRect.width) return 1;
+  const track=gridRect.width/PGRID_COLS;
+  const c=Math.floor((x-gridRect.left)/track)+1;
+  return Math.min(PGRID_COLS-span+1,Math.max(1,c));
+}
 // Where the card would land, given the pointer and the other cards' boxes. Pure,
 // so it can be tested without layout — jsdom has none. Reading order: insert
 // before the first card the pointer hasn't reached yet.
@@ -2249,6 +2305,13 @@ function _cardDragLift(){
   ph.className='pcard-ph';
   ph.style.gridColumn=s.card.style.gridColumn;
   ph.style.height=r.height+'px';
+  // The grid is 4px rows, so a placeholder with no row span collapses to 4px and
+  // every card below it jumps — which is what made a drag look like it scrambled
+  // the order. It claims exactly the rows the card it stands in for claimed.
+  ph.style.gridRowEnd=s.card.style.gridRowEnd
+    ||'span '+Math.max(1,Math.ceil((r.height+PGRID_GAP)/PGRID_ROW));
+  s.span=cardSpan(cardDef(s.id)||{});
+  s.col=cardCol(cardDef(s.id)||{});
   s.ph=ph;
   s.grid.insertBefore(ph,s.card);
   s.card.classList.add('pdrag');
@@ -2275,6 +2338,11 @@ document.addEventListener('pointermove',e=>{
   const dragIx=kids.indexOf(s.ph);
   const boxes=kids.map(el=>el.getBoundingClientRect());
   const ins=_cardDropIndex(e.clientX,e.clientY,boxes,dragIx);
+  const col=_cardDropCol(e.clientX,s.grid.getBoundingClientRect(),s.span);
+  if(col!==s.col){
+    s.col=col;
+    s.ph.style.gridColumn=`${col} / span ${s.span}`;
+  }
   if(ins!==s.ins){
     s.ins=ins;
     const rest=kids.filter(el=>el!==s.ph);
@@ -2296,10 +2364,17 @@ function _cardDragEnd(commit){
   s.ph.remove();
   if(commit&&s.ins>=0){
     const defs=cardDefs(), from=defs.findIndex(c=>c.id===s.id);
-    if(from>=0&&s.ins!==from){
-      const [moved]=defs.splice(from,1);
-      defs.splice(Math.max(0,Math.min(defs.length,s.ins)),0,moved);
-      _cardsDirty();
+    if(from>=0){
+      const def=defs[from];
+      let dirty=false;
+      // The column is the card's own property — changing it moves nothing else.
+      if(s.col&&def.col!==s.col){ def.col=s.col; dirty=true; }
+      if(s.ins!==from){
+        const [moved]=defs.splice(from,1);
+        defs.splice(Math.max(0,Math.min(defs.length,s.ins)),0,moved);
+        dirty=true;
+      }
+      if(dirty) _cardsDirty();
     }
   }
   render();
@@ -2318,10 +2393,43 @@ function _cardRzStart(e,id){
   _cardRz={id,bd,card,y:e.clientY,h:bd.getBoundingClientRect().height,px:0};
   card.classList.add('rz');
 }
+// Lining a card up with its neighbours by eye is guesswork at 4px row granularity,
+// so the drag snaps to the other cards' bottom edges — the same CV_SNAP tolerance
+// and dashed line the canvas uses for box edges, applied to whole cards.
+function _cardGuide(){
+  let g=document.getElementById('pcard-guide');
+  if(!g){ g=document.createElement('div'); g.id='pcard-guide'; document.body.appendChild(g); }
+  return g;
+}
+function _cardGuideHide(){ const g=document.getElementById('pcard-guide'); if(g) g.style.display='none'; }
+// The nearest other card's bottom within tolerance, or null. Pure apart from the
+// rects handed in, so the arithmetic is testable without layout.
+function _cardSnapBottom(bottom,others,tol){
+  let best=null,d=(tol==null?CV_SNAP:tol)+1;
+  others.forEach(r=>{
+    const gap=Math.abs(r.bottom-bottom);
+    if(gap<d){ d=gap; best=r.bottom; }
+  });
+  return best;
+}
 document.addEventListener('mousemove',e=>{
   if(!_cardRz) return;
-  _cardRz.px=Math.max(60,Math.round(_cardRz.h+(e.clientY-_cardRz.y)));
-  _cardRz.bd.style.minHeight=_cardRz.px+'px';
+  const s=_cardRz;
+  s.px=Math.max(60,Math.round(s.h+(e.clientY-s.y)));
+  s.bd.style.minHeight=s.px+'px';
+  const grid=s.card.closest('.pgrid');
+  const others=grid?[...grid.children]
+    .filter(el=>el!==s.card&&el.classList&&el.classList.contains('pcard'))
+    .map(el=>el.getBoundingClientRect()).filter(r=>r.height):[];
+  const mine=s.card.getBoundingClientRect();
+  const snap=mine.height?_cardSnapBottom(mine.bottom,others):null;
+  if(snap!=null){
+    s.px=Math.max(60,s.px+Math.round(snap-mine.bottom));
+    s.bd.style.minHeight=s.px+'px';
+    const gr=grid.getBoundingClientRect(), g=_cardGuide();
+    g.style.cssText=`position:fixed;pointer-events:none;z-index:60;height:0;`
+      +`border-top:1px dashed var(--edit);left:${gr.left}px;width:${gr.width}px;top:${snap}px;display:block`;
+  } else _cardGuideHide();
   // Repack as you drag, so you can see the card below rise into the space you free
   // rather than finding out where it went after you let go.
   packCards();
@@ -2330,6 +2438,7 @@ document.addEventListener('mouseup',()=>{
   if(!_cardRz) return;
   const {id,px,card}=_cardRz;
   card.classList.remove('rz'); _cardRz=null;
+  _cardGuideHide();
   const c=cardDef(id); if(c){ c.minH=px; _cardsDirty(); }
 });
 
@@ -2344,16 +2453,18 @@ function _cardRzxStart(e,id){
   _cardRzx={id,card,colW:(gw-gap*(PGRID_COLS-1))/PGRID_COLS,gap,left:card.getBoundingClientRect().left,span:def_span(id)};
   card.classList.add('rzx');
 }
-const PGRID_COLS=4;
-function def_span(id){ const c=cardDef(id); return Math.min(PGRID_COLS,Math.max(1,(c&&c.span)||1)) }
+// PGRID_COLS is declared once, up with the column helpers.
+function def_span(id){ return cardSpan(cardDef(id)||{}) }
 document.addEventListener('mousemove',e=>{
   if(!_cardRzx) return;
   const {colW,gap,left,card}=_cardRzx;
   const want=Math.round((e.clientX-left+gap)/(colW+gap));
-  const span=Math.min(PGRID_COLS,Math.max(1,want||1));
+  const col=cardCol(cardDef(_cardRzx.id)||{});
+  // A card can't grow past the right edge from where it starts.
+  const span=Math.min(PGRID_COLS-col+1,Math.max(1,want||1));
   if(span!==_cardRzx.span){
     _cardRzx.span=span;
-    card.style.gridColumn=`span ${span}`;
+    card.style.gridColumn=`${col} / span ${span}`;
     card.dataset.span=span;
   }
 });
@@ -7794,7 +7905,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); migrateCardsToOneEntry(); render(); });
+loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); migrateCardsToOneEntry(); migrateCardCols(); render(); });
 </script>
 </body>
 </html>
