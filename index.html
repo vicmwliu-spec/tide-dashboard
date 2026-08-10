@@ -88,24 +88,10 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    There is no fixed section on the Today view — only cards. Width is a per-card
    property (span 1–4); height is a floor set by dragging the bottom edge. */
 .pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:stretch;margin-bottom:14px}
-/* Month ribbon: where you are in the month, at a glance, above the cards. */
-.mrib{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:0 2px}
-.mrib-ticks{display:flex;align-items:flex-end;gap:11px;flex-wrap:wrap}
-.mrib-w{display:flex;align-items:flex-end;gap:3px}
-.mrib-t{background:none;border:none;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:var(--font)}
-.mrib-t i{display:block;width:9px;height:14px;border-radius:2px;border:1px solid var(--border);background:none;transition:background .12s,border-color .12s}
-.mrib-t span{font-size:8px;line-height:1;color:transparent;font-variant-numeric:tabular-nums}
-.mrib-t:hover i{border-color:var(--edit)}
-.mrib-t:hover span{color:var(--text3)}
-.mrib-t.past i{background:var(--border);border-color:var(--border)}
-.mrib-t.now i{background:var(--edit);border-color:var(--edit)}
-.mrib-t.sel i{box-shadow:0 0 0 1.5px var(--surface),0 0 0 3px var(--edit)}
-.mrib-t.sel span,.mrib-t.now span{color:var(--text2)}
-.mrib-rd{font-size:11px;color:var(--text3);white-space:nowrap;font-variant-numeric:tabular-nums}
-.mrib-rd b{color:var(--text2);font-weight:600}
-.mrib-rd span{color:var(--text3);opacity:.8}
 /* Timeline card: the month as a calendar, weeks numbered as the rest of the app
-   numbers them. Days are buttons — clicking one moves the page to that day. */
+   numbers them. Days are buttons — clicking one moves the page to that day.
+   Every marked state reads --tlc, which the card sets from your chosen colour;
+   the fallback is only there so the rules stand up on their own. */
 .tlcard{display:flex;flex-direction:column;gap:8px;padding:4px 16px 14px}
 .tl-grid{display:flex;flex-direction:column;gap:3px}
 .tl-hd,.tl-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;flex:1}
@@ -116,19 +102,24 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tl-d{height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;
   border:1px solid var(--border);background:transparent;font-family:var(--font);font-size:11px;
   color:var(--text2);cursor:pointer;font-variant-numeric:tabular-nums;padding:0}
-.tl-d:hover{border-color:var(--edit);color:var(--text1)}
+.tl-d:hover{border-color:var(--tlc,var(--edit));color:var(--text1)}
 .tl-d.past{color:var(--text3);border-color:transparent;background:var(--surface2)}
-.tl-d.sel{background:var(--edit);border-color:var(--edit);color:#fff;font-weight:600}
-.tl-d.now{box-shadow:inset 0 0 0 2px var(--edit);border-color:transparent;color:var(--text1);font-weight:600}
+.tl-d.sel{background:var(--tlc,var(--edit));border-color:var(--tlc,var(--edit));color:#fff;font-weight:600}
+.tl-d.now{box-shadow:inset 0 0 0 2px var(--tlc,var(--edit));border-color:transparent;color:var(--text1);font-weight:600}
 .tl-d.now.sel{color:#fff}
 .tl-pad{border-color:transparent;background:transparent;cursor:default}
-.tl-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;
+.tl-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;
   font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums}
-.tl-q{display:flex;align-items:center;gap:5px}
-.tl-q b{color:var(--text2);font-weight:600}
-.tl-q i{width:14px;height:3px;border-radius:2px;background:var(--border)}
-.tl-q i.done{background:var(--text3)}
-.tl-q i.on{background:var(--edit)}
+/* Where you are, on two lines: the position, then what is left of the month. */
+.tl-pos{display:flex;flex-direction:column;gap:2px;line-height:1.35}
+.tl-pos b{color:var(--text1);font-weight:600;font-size:12px}
+.tl-pos span{color:var(--text3)}
+/* The quarter's three months, named. No bar, so nothing appears to lead anywhere. */
+.tl-q{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.tl-q em{font-style:normal;font-weight:700;font-size:9px;letter-spacing:.08em;color:var(--text3);margin-right:2px}
+.tl-q i{font-style:normal;color:var(--border)}
+.tl-qm{color:var(--text3)}
+.tl-qm.on{color:var(--tlc,var(--edit));font-weight:700}
 /* Edit cards, under the grid rather than in the header. */
 .pcard-bar{display:flex;justify-content:flex-start;margin-bottom:14px}
 .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
@@ -370,7 +361,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* Explicit per-column widths (colgroup) take over once a table has been sized */
 .rt-table.rt-fixed{width:auto;min-width:0;table-layout:fixed}
 .rt-table.rt-fixed td{min-width:0;max-width:none}
-.rt-table td.rt-sel{background:rgba(59,130,246,.20)}
+/* Selected cells tint with an inset shadow rather than a background. The header
+   rules above set `background` at a higher specificity, so a header cell simply
+   never showed it was selected; a different property cannot be outranked, and the
+   tint lays over whatever shade the cell already carries. */
+.rt-table td.rt-sel{box-shadow:inset 0 0 0 999px rgba(59,130,246,.20)}
 /* Floating table controls — rendered on <body>, never saved into card HTML */
 #rt-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
 #rt-ctl .rt-btn,#rt-ctl .rt-grip{position:fixed;pointer-events:auto;cursor:pointer}
@@ -1406,7 +1401,6 @@ function render(){
   if(view==='today'){
     // The card grid is the whole page. The clock is a card in it like anything
     // else, so there is nothing on this view that sits outside the grid.
-    app.appendChild(mkMonthRibbon());
     app.appendChild(mkCardGrid());
     app.appendChild(mkCardBar());
   } else if(view==='year'){
@@ -1543,49 +1537,20 @@ function mkCardGrid(){
   return wrap;
 }
 
-// ─── MONTH RIBBON ────────────────────────────────────────────────
-// What the habit tracker was quietly doing besides tracking: showing you the shape
-// of the month, so you knew where in it you were standing. That is worth keeping on
-// its own, without the grid. One tick per day, grouped into the same weeks the rest
-// of the app uses (getWeekSpans), today filled, the day you're looking at ringed.
-// Deliberately not a countdown — "21 days remain" is a fact about the month, where
-// "only 3 weeks left!" would be the app hurrying you.
-function mkMonthRibbon(){
-  const d=document.createElement('div');
-  d.className='mrib';
-  const y=PD.getFullYear(),m=PD.getMonth(),days=dim(y,m);
-  const sel=PD.getDate();
-  const isThisMonth=y===now.getFullYear()&&m===now.getMonth();
-  const today=isThisMonth?now.getDate():0;
-  const weeks=getWeekSpans(y,m).map(sp=>{
-    const ticks=[];
-    for(let n=sp.start;n<=sp.end;n++){
-      const cls=['mrib-t'];
-      if(today&&n<today) cls.push('past');
-      if(n===today) cls.push('now');
-      if(n===sel) cls.push('sel');
-      ticks.push(`<button class="${cls.join(' ')}" title="${DOW[new Date(y,m,n).getDay()]} ${n}"
-        onclick="goDay(${n})"><i></i><span>${n}</span></button>`);
-    }
-    return `<div class="mrib-w" title="Week ${sp.week}">${ticks.join('')}</div>`;
-  }).join('');
-  // The remainder is only meaningful while you're in the month you're actually in.
-  const remain=isThisMonth?days-today:0;
-  d.innerHTML=`<div class="mrib-ticks">${weeks}</div>
-    <div class="mrib-rd"><b>${MON[m]}</b> &middot; Day ${sel} of ${days}${
-      isThisMonth?` <span>&middot; ${remain} day${remain===1?'':'s'} remain</span>`:''}</div>`;
-  return d;
-}
 // Jump to a day in the month on screen. stepDay already carries the sync + render.
 function goDay(n){ stepDay(n-PD.getDate()); }
 
 // ─── TIMELINE CARD ───────────────────────────────────────────────
-// The ribbon tells you where you are at a glance; this is for when you want to
-// actually look at the month. Weeks are rows, numbered the way the rest of the app
-// numbers them, so a week here and a WK n anywhere else are the same week. Today is
-// ringed, the day the page is showing is filled, and the quarter line underneath
-// says where the month itself sits — position, not time running out.
-function timelineCardBody(){
+// The one place the month lives, now the ribbon under the header has gone. Weeks
+// are rows, numbered the way the rest of the app numbers them, so a week here and
+// a WK n anywhere else are the same week. Today is ringed, the day the page is
+// showing is filled, and the quarter underneath names all three of its months so
+// nothing points anywhere — it says where August sits, not what it is building to.
+// The card's colour is yours: D.chartColors.tl_<id> if you have set one, and the
+// app's own accent if you haven't.
+function timelineAccent(id){ return (id&&D.chartColors&&D.chartColors['tl_'+id])||gradeAccent(); }
+function timelineCardBody(id){
+  const ac=timelineAccent(id);
   const y=PD.getFullYear(),m=PD.getMonth(),days=dim(y,m),sel=PD.getDate();
   const isThisMonth=y===now.getFullYear()&&m===now.getMonth();
   const today=isThisMonth?now.getDate():0;
@@ -1606,11 +1571,20 @@ function timelineCardBody(){
     return `<div class="tl-wk"><span class="tl-wn">W${sp.week}</span><div class="tl-days">${cells.join('')}</div></div>`;
   }).join('');
   const q=Math.floor(m/3);
-  const qm=m-q*3; // 0,1,2 — which month of the quarter this is
-  const qpips=[0,1,2].map(i=>`<i class="${i<qm?'done':i===qm?'on':''}"></i>`).join('');
+  // All three months named, current one marked. Bars followed by a month name read
+  // as a progress meter arriving at that month; three peers cannot.
+  const qmon=[0,1,2].map(i=>{
+    const mi=q*3+i;
+    return `<span class="tl-qm${mi===m?' on':''}">${MON[mi].slice(0,3)}</span>`;
+  }).join('<i>·</i>');
+  // The remainder is only a fact about the month you are actually in.
+  const remain=isThisMonth?days-today:0;
   return `<div class="tl-grid"><div class="tl-hd">${hd}</div>${rows}</div>
-    <div class="tl-foot"><span>Day ${sel} of ${days}</span>
-      <span class="tl-q">Q${q+1} ${qpips} <b>${MON[m].slice(0,3)}</b></span></div>`;
+    <div class="tl-foot">
+      <div class="tl-pos"><b>Day ${sel} of ${days}</b>${
+        isThisMonth?`<span>${remain} Day${remain===1?'':'s'} Remaining</span>`:''}</div>
+      <div class="tl-q"><em>Q${q+1}</em>${qmon}</div>
+    </div>`;
 }
 
 // Edit lives under the grid, not in the header: it is about the cards, and the two
@@ -1636,6 +1610,10 @@ function mkPlannerCard(def,ix){
            onpointerdown="_cardGrabStart(event,'${def.id}')">
          <span class="pgrab">⠿</span>
          <input class="pcard-lblin" value="${_esc(def.label)}" oninput="setCardLabel('${def.id}',this.value)"/>
+         ${def.type==='timeline'?`<span class="chart-color-dot" title="Timeline colour"
+             style="background:${timelineAccent(def.id)}"
+             onpointerdown="event.stopPropagation()"
+             onclick="openChartColorPop(event,'tl_${def.id}')"></span>`:''}
          <button class="pcard-x" title="Remove card" onclick="removePlannerCard('${def.id}')">×</button>
        </div>`
     : `<div class="pcard-hd pcard-grab" title="Drag to reorder"
@@ -1668,7 +1646,9 @@ function mkPlannerCard(def,ix){
       _tbClockTimer=setInterval(buildClockSVG,60000);
     },0);
   }else if(def.type==='timeline'){
-    body=`<div class="pcard-bd tlcard" style="${mh}">${timelineCardBody()}</div>`;
+    // The colour rides in as a custom property, so every marked state inside picks
+    // it up from one place instead of each button carrying its own inline style.
+    body=`<div class="pcard-bd tlcard" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
     foot='';
   }else if(def.type==='habits'){
     body=`<div class="pcard-bd" style="${mh}" id="hcard-${def.id}">${habitCardBody(def)}</div>`;
@@ -3600,7 +3580,11 @@ function openChartColorPop(e,key){
   customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
   const curForInput=(D.chartColors&&D.chartColors[key]);
   if(curForInput&&!PAL.includes(curForInput)){customIn.value=curForInput;customSw.classList.add('csw-active');}
-  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;if(key==='sePath')applyGradeAccent();buildSlightEdgeChart('se-all-time');});
+  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;if(key==='sePath')applyGradeAccent();
+    // A timeline card is styled off one custom property, so it can follow the
+    // picker live without a re-render — which would close the popup mid-drag.
+    if(key.startsWith('tl_')){document.querySelectorAll('.tlcard').forEach(el=>el.style.setProperty('--tlc',ev.target.value));return;}
+    buildSlightEdgeChart('se-all-time');});
   customIn.addEventListener('change',ev=>{ev.stopPropagation();save();render();pop.remove();chartColorPopKey=null;});
   customSw.appendChild(customIn);customSw.onclick=ev=>ev.stopPropagation();
   pop.appendChild(customSw);
@@ -4343,7 +4327,31 @@ function rtUndo(h,redo){
 }
 document.addEventListener('focusin',e=>{
   const h=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
-  if(h) rtSeedUndo(h);
+  if(h){ rtSeedUndo(h); _rtLastHost=h; }
+});
+// Which card was last edited. Every table operation runs from a button on #rt-ctl,
+// which lives on <body> — and deleting a table takes the caret with it — so after
+// one, focus is outside every host and the card's own onkeydown never sees Ctrl+Z.
+// The stack was there the whole time; nothing could reach it.
+let _rtLastHost=null;
+function rtActiveHost(){
+  const a=document.activeElement;
+  const h=a&&a.closest?a.closest(RT_HOSTS):null;
+  if(h) return h;
+  // A host that has been re-rendered away is not somewhere to put content back.
+  if(_rtLastHost&&document.contains(_rtLastHost)) return _rtLastHost;
+  _rtLastHost=null;
+  return null;
+}
+document.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||!/^[zy]$/i.test(e.key)) return;
+  // Inside a host the card's own handler already has it; this is only the gap.
+  if(e.target&&e.target.closest&&e.target.closest(RT_HOSTS)) return;
+  const h=rtActiveHost();
+  if(!h) return;
+  e.preventDefault();
+  rtHideCtl();
+  rtUndo(h,/^y$/i.test(e.key)||e.shiftKey);
 });
 
 // ─── Simple tables (Notion-style) ────────────────────────────────
@@ -4355,7 +4363,7 @@ let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
-function rtFire(el){ if(el){ el.dispatchEvent(new Event('input',{bubbles:true})); rtPushUndo(el,true); } }
+function rtFire(el){ if(el){ _rtLastHost=el; el.dispatchEvent(new Event('input',{bubbles:true})); rtPushUndo(el,true); } }
 function rtHost(n){
   const el=n&&n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return el&&el.closest?el.closest(RT_HOSTS):null;
@@ -4959,8 +4967,10 @@ function rtDistributeSelCols(){
   const cols=rtEnsureCols(s.t);
   const idxs=s.cols.filter(i=>cols[i]);
   if(idxs.length<2) return false;
-  const total=idxs.reduce((a,i)=>a+rtColWidth(cols[i]),0);
-  const w=Math.max(RT_MINW,Math.round(total/idxs.length));
+  // Match the widest, not the average. Averaging shrinks the wide column, so
+  // evening up against a narrow one truncated whatever was in it. Growing the
+  // table instead means nothing that fitted before stops fitting.
+  const w=Math.max(RT_MINW,...idxs.map(i=>Math.round(rtColWidth(cols[i]))));
   idxs.forEach(i=>{ cols[i].style.width=w+'px'; });
   rtFire(rtHost(s.t)); rtShowCtl(s.t);
   return true;
@@ -5229,7 +5239,7 @@ function rtShowCtl(t){
       m.appendChild(row);
     });
     const sep=document.createElement('div');sep.className='rt-sep';m.appendChild(sep);
-    [['Distribute columns evenly',()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
+    [['Match widest column',()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
       const row=document.createElement('div');row.className='rt-item';
       row.innerHTML='<span class="rt-ck">↔</span><span></span>';
       row.lastElementChild.textContent=label;
@@ -5259,6 +5269,14 @@ function rtShowCtl(t){
       if(on) row.onclick=()=>{ _rtMenu=false; fn(); };
       m.appendChild(row);
     });
+    // Keep it on screen. Thirteen rows is taller than the room under a table near
+    // the bottom of the page, and nothing clamped it, so Delete sat below the fold.
+    // Measure now it is in the DOM: shift it up to fit, and if it is taller than the
+    // window itself, scroll inside it rather than off the end of it.
+    const mh2=m.getBoundingClientRect().height;
+    const room=window.innerHeight-16;
+    if(mh2>room){ m.style.maxHeight=room+'px'; m.style.overflowY='auto'; m.style.top='8px'; }
+    else if(tb.top+mh2>window.innerHeight-8) m.style.top=Math.max(8,window.innerHeight-8-mh2)+'px';
   }
   // "+ line" strips. A table flush against the top or bottom of the card has no
   // prose beside it to click into, and nothing is auto-inserted any more, so the
@@ -5285,7 +5303,7 @@ function rtShowCtl(t){
     const btns=[];
     if(s.rect&&_rtSel.length>1) btns.push(['Merge',rtMergeSelection]);
     if(s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
-    if(s.cols.length>1) btns.push(['Distribute evenly',rtDistributeSelCols]);
+    if(s.cols.length>1) btns.push(['Match widest',rtDistributeSelCols]);
     if(btns.length){
       const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
       btns.forEach(([label,fn])=>{
@@ -5392,7 +5410,10 @@ function rtRzMove(e){
 function rtDistributeCols(t){
   const cols=rtEnsureCols(t);
   if(!cols.length) return;
-  const w=Math.max(RT_MINW,Math.round(rtInnerWidth(t)/cols.length));
+  // The widest column sets the width for all of them, the same rule the selection
+  // bar uses. Dividing the card's width instead made this a "shrink to fit" that
+  // squeezed the one column that actually needed the room.
+  const w=Math.max(RT_MINW,...cols.map(c=>Math.round(rtColWidth(c))));
   cols.forEach(c=>{ c.style.width=w+'px'; });
   rtFire(rtHost(t)); rtShowCtl(t);
 }
