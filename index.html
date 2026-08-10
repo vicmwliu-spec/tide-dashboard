@@ -453,6 +453,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-ctl .rt-selbar{position:fixed;pointer-events:auto;display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:3px}
 #rt-ctl .rt-selbtn{font-family:var(--font);font-size:11.5px;line-height:1;color:var(--text1);background:none;border:none;border-radius:calc(var(--r2) - 2px);padding:5px 8px;cursor:pointer;white-space:nowrap}
 #rt-ctl .rt-selbtn:hover{background:var(--surface2)}
+/* "Split into how many" popover. Borrows the ⋯ menu's shell so it looks like the rest
+   of the table chrome, and only has to add the two number fields and the button. */
+#rt-ctl .rt-splitpop{min-width:0;padding:7px}
+#rt-ctl .rt-splitrow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--text2);padding:3px 2px}
+#rt-ctl .rt-splitrow input{width:52px;font-family:var(--font);font-size:12px;color:var(--text1);background:var(--surface2);border:1px solid var(--border);border-radius:calc(var(--r2) - 2px);padding:3px 5px;outline:none}
+#rt-ctl .rt-splitrow input:focus{border-color:#3B82F6}
+#rt-ctl .rt-splitgo{width:100%;margin-top:5px;background:#3B82F6;color:#fff;padding:5px 8px}
+#rt-ctl .rt-splitgo:hover{background:#2f76e0}
 /* "+ line" strip: the way to get a caret past a table that sits flush against the
    top or bottom of a card. Drawn on the overlay so it takes up no layout space. */
 #rt-ctl .rt-openln{position:fixed;pointer-events:auto;height:14px;display:flex;align-items:center;justify-content:center;
@@ -5145,6 +5153,9 @@ document.addEventListener('keydown',e=>{
 const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
 let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
+// Whether the "split into how many" popover is open. Like _rtMenu, it is state rather
+// than a live node because rtShowCtl rebuilds the whole overlay on every redraw.
+let _rtSplit=false;
 
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
@@ -5682,7 +5693,8 @@ function rtDelCols(t,idxs){
 // ── cell selection ──
 // Both redraw the overlay through rtReposition (one rAF, no re-entrancy) so the
 // selection toolbar appears and disappears with the selection itself.
-function rtClearSel(){ const had=_rtSel.length; _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; if(had) rtReposition(); }
+// The split popover belongs to the selection it was opened over, so it goes with it.
+function rtClearSel(){ const had=_rtSel.length; _rtSplit=false; _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; if(had) rtReposition(); }
 function rtSetSel(cells){ rtClearSel(); _rtSel=cells.filter(Boolean); _rtSel.forEach(td=>td.classList.add('rt-sel')); rtReposition(); }
 function rtPos(td){
   const t=td.closest('table');
@@ -5802,6 +5814,96 @@ function rtUnmergeSelection(){
     }
   });
   rtClearSel();
+  rtFire(rtHost(t)); rtShowCtl(t);
+  return true;
+}
+// ── splitting ──
+// Divide n grid slots between k pieces, biggest first, adding up to exactly n.
+function _rtShares(n,k){
+  const out=[]; let rem=n;
+  for(let i=0;i<k;i++){ const s=Math.ceil(rem/(k-i)); out.push(s); rem-=s; }
+  return out;
+}
+// Give one cell k more grid slots than it has, by inserting k grid columns (or rows)
+// just after it and handing them to that cell alone. Every other row absorbs the new
+// slots into the cell it already has covering that boundary, so the grid stays
+// rectangular and nothing else changes shape. It is the cell to the *left* of the
+// boundary that grows, not only the ones reaching across it: a row whose cells happen
+// to break exactly on the boundary straddles nothing, and skipping it would leave that
+// row k slots short of every other one.
+function _rtGrowSpan(t,td,k,dir){
+  if(k<=0) return;
+  const gr=rtGrid(t),p=rtGridPos(gr,td); if(!p) return;
+  const done=new Set();
+  if(dir==='col'){
+    const X=p.c+p.cs;
+    for(let r=0;r<gr.rows;r++){
+      if(r>=p.r&&r<p.r+p.rs) continue;
+      const cov=gr.g[r][X-1];
+      if(cov&&cov!==td&&!done.has(cov)){ cov.colSpan=(cov.colSpan||1)+k; done.add(cov); }
+    }
+    td.colSpan=p.cs+k;
+    // The new columns are carved out of this cell's own width rather than added to
+    // the table's, so no column outside the cell moves — the same rule the selection
+    // bar's "Match widest" follows.
+    const cg=t.querySelector('colgroup');
+    if(cg){
+      const W=[...cg.children].slice(p.c,X).reduce((a,c)=>a+rtColWidth(c),0)||RT_MINW*p.cs;
+      for(let i=0;i<k;i++){
+        const c=document.createElement('col');
+        if(X>=cg.children.length) cg.appendChild(c); else cg.insertBefore(c,cg.children[X]);
+      }
+      const w=Math.max(RT_MINW,Math.round(W/(p.cs+k)));
+      for(let i=p.c;i<X+k;i++) if(cg.children[i]) cg.children[i].style.width=w+'px';
+    }
+  }else{
+    const Y=p.r+p.rs;
+    for(let c=0;c<gr.cols;c++){
+      if(c>=p.c&&c<p.c+p.cs) continue;
+      const cov=gr.g[Y-1][c];
+      if(cov&&cov!==td&&!done.has(cov)){ cov.rowSpan=(cov.rowSpan||1)+k; done.add(cov); }
+    }
+    td.rowSpan=p.rs+k;
+    // The new rows carry no cells of their own: every slot in them is already covered
+    // by a rowspan reaching down, this cell's or a widened neighbour's.
+    const rows=rtRows(t);
+    for(let i=0;i<k;i++) t.tBodies[0].insertBefore(document.createElement('tr'),rows[Y]||null);
+  }
+}
+// Split one cell into an nc × nr block. The content stays in the first piece and the
+// rest come up empty. A cell that already spans is divided within the span it has and
+// costs the table nothing; a plain cell needs grid slots that do not exist yet, which
+// is what _rtGrowSpan manufactures.
+function rtSplitCell(td,nc,nr){
+  nc=Math.max(1,Math.min(20,Math.round(Number(nc))||1));
+  nr=Math.max(1,Math.min(20,Math.round(Number(nr))||1));
+  if(nc===1&&nr===1) return false;
+  const t=td&&td.closest&&td.closest('table'); if(!t) return false;
+  let p=rtGridPos(rtGrid(t),td); if(!p) return false;
+  _rtGrowSpan(t,td,nc-p.cs,'col');
+  p=rtGridPos(rtGrid(t),td); if(!p) return false;
+  _rtGrowSpan(t,td,nr-p.rs,'row');
+
+  const gr=rtGrid(t); p=rtGridPos(gr,td); if(!p) return false;
+  const cw=_rtShares(p.cs,nc),rh=_rtShares(p.rs,nr);
+  const co=[],ro=[];
+  let x=p.c; cw.forEach(s=>{ co.push(x); x+=s; });
+  let y=p.r; rh.forEach(s=>{ ro.push(y); y+=s; });
+  // Where each new row's cells go, read while the cell still covers those rows. Once
+  // it has given the span up they are full of holes, and rtGrid fills a hole with the
+  // next DOM cell it meets — a position read back then is a guess.
+  const refs=ro.map((r,i)=>i===0?td.nextSibling:_rtRefAt(gr,r,p.c));
+  td.colSpan=cw[0]; td.rowSpan=rh[0];
+  for(let i=0;i<nr;i++){
+    const tr=rtRows(t)[ro[i]]; if(!tr) continue;
+    // Inserting each piece before the same reference keeps them in order.
+    for(let j=(i===0?1:0);j<nc;j++){
+      const cell=rtMakeCell();
+      cell.colSpan=cw[j]; cell.rowSpan=rh[i];
+      tr.insertBefore(cell,refs[i]);
+    }
+  }
+  rtSetSel([td]);
   rtFire(rtHost(t)); rtShowCtl(t);
   return true;
 }
@@ -6043,7 +6145,15 @@ function rtShowCtl(t){
   const w=t.closest('.rt-tw');
   const wr=w?w.getBoundingClientRect():tb;
   const mk=(cls,css)=>{ const d=document.createElement('div'); d.className=cls; d.style.cssText=css; el.appendChild(d); return d; };
-  [...tr0.cells].forEach((td,ci)=>{
+  // One grip and one boundary per cell of the top row — which is also what hides the
+  // seam a split leaves behind, since a split elsewhere in the table gives the top
+  // row's cell an extra grid column rather than a cell of its own. That only works if
+  // the handle then acts on the whole band the cell covers, so the band is what gets
+  // passed around below; cellIndex is not the grid column the moment anything spans.
+  const gr0=rtGrid(t);
+  [...tr0.cells].forEach(td=>{
+    const bp=rtGridPos(gr0,td)||{c:0,cs:1};
+    const ci=bp.c,cn=bp.cs;
     const r=td.getBoundingClientRect();
     if(r.right<wr.left+2||r.left>wr.right-2) return; // scrolled out of view
     const left=Math.max(r.left+2,wr.left);
@@ -6053,14 +6163,14 @@ function rtShowCtl(t){
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='col'&&_rtMv.from===ci) g.classList.add('rt-mv');
     if(_rtRz&&_rtRz.t===t&&_rtRz.matches&&_rtRz.matches.indexOf(ci)>=0) g.classList.add('rt-eq');
     g.onmousedown=e=>rtMvStart(e,t,'col',ci,g);
-    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtRows(t).map(tr=>tr.cells[ci])); };
+    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtBandCells(t,ci,cn)); };
     // Resize handle on this column's right boundary.
     const bx=Math.min(r.right,wr.right);
     if(bx>=wr.left&&bx<=wr.right+1){
       const rz=mk('rt-rz',`left:${bx-3}px;top:${tb.top}px;height:${tb.height}px`);
       rz.title='Drag to resize · double-click to distribute evenly';
       if(_rtRz&&_rtRz.ci===ci) rz.classList.add('rt-rz-on');
-      rz.onmousedown=e=>rtRzStart(e,t,ci,rz);
+      rz.onmousedown=e=>rtRzStart(e,t,ci,rz,cn);
       rz.ondblclick=e=>{ e.preventDefault(); e.stopPropagation(); _rtRz=null; document.body.style.userSelect=''; rtDistributeCols(t); };
       // Alignment guide + width badge for the column currently being dragged.
       if(_rtRz&&_rtRz.t===t&&_rtRz.ci===ci){
@@ -6171,6 +6281,9 @@ function rtShowCtl(t){
     const btns=[];
     if(s.rect&&_rtSel.length>1) btns.push(['Merge',rtMergeSelection]);
     if(s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
+    // Unmerge takes a merged cell back to 1×1. Split divides one cell however you
+    // ask, and will manufacture the grid slots if the cell hasn't any spare.
+    if(_rtSel.length===1) btns.push(['Split…',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
     if(s.cols.length>1) btns.push(['Match widest',rtDistributeSelCols]);
     if(btns.length){
       const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
@@ -6181,6 +6294,40 @@ function rtShowCtl(t){
         b.onclick=()=>fn();
         bar.appendChild(b);
       });
+    }
+    // The "how many pieces" popover, drawn on the overlay like the ⋯ menu so it takes
+    // no layout and dies with the controls. Every part of it has to preventDefault on
+    // mousedown: a click that moves focus clears the very selection it acts on.
+    if(_rtSplit&&_rtSel.length===1){
+      const cell=_rtSel[0];
+      const m=mk('rt-menu rt-splitpop',`left:${Math.max(4,wr.left)}px;top:${tb.top+4}px`);
+      m.onmousedown=e=>e.preventDefault();
+      const num=(label,val)=>{
+        const row=document.createElement('label');row.className='rt-splitrow';
+        const sp=document.createElement('span');sp.textContent=label;
+        const inp=document.createElement('input');
+        inp.type='number';inp.min='1';inp.max='20';inp.value=String(val);
+        row.appendChild(sp);row.appendChild(inp);m.appendChild(row);
+        return inp;
+      };
+      const ic=num('Columns',2),ir=num('Rows',1);
+      const go=()=>{
+        _rtSplit=false;
+        if(!rtSplitCell(cell,ic.value,ir.value)) rtShowCtl(t);
+      };
+      [ic,ir].forEach(i=>{
+        i.onmousedown=e=>e.stopPropagation(); // ...but the inputs still need a caret
+        i.onkeydown=e=>{
+          if(e.key==='Enter'){ e.preventDefault(); go(); }
+          else if(e.key==='Escape'){ e.preventDefault(); _rtSplit=false; rtShowCtl(t); }
+        };
+      });
+      const b=document.createElement('button');
+      b.className='rt-selbtn rt-splitgo';b.textContent='Split';
+      b.onmousedown=e=>e.preventDefault();
+      b.onclick=go;
+      m.appendChild(b);
+      setTimeout(()=>{ ic.focus(); ic.select(); },0);
     }
   }
   const bcx=Math.min(tb.right+2,wr.right-20);
@@ -6198,7 +6345,7 @@ let _rtHideT=null,_rtRaf=null;
 function rtCtlCancelHide(){ if(_rtHideT){ clearTimeout(_rtHideT); _rtHideT=null; } }
 function rtScheduleHide(){
   // Never pull the controls out from under an in-flight drag or an open menu.
-  if(_rtRz||_rtMv||_rtTwMv||_rtMenu) return;
+  if(_rtRz||_rtMv||_rtTwMv||_rtMenu||_rtSplit) return;
   rtCtlCancelHide(); _rtHideT=setTimeout(()=>{ _rtHideT=null; rtHideCtl(); },250);
 }
 // ── column resize ──
@@ -6229,11 +6376,47 @@ function rtContentWidths(t){
   return out;
 }
 const RT_FRAC=['','','½','⅓','¼','⅕','⅙'];
+// The columns as you actually see them: one band per cell of the top row, which may
+// cover more than one grid column once a cell somewhere below has been split.
+function rtBands(t){
+  const gr=rtGrid(t),tr0=rtRows(t)[0];
+  if(!tr0) return [];
+  const cols=rtEnsureCols(t);
+  return [...tr0.cells].map(td=>{
+    const p=rtGridPos(gr,td)||{c:0,cs:1};
+    let w=0; for(let i=p.c;i<p.c+p.cs;i++) if(cols[i]) w+=rtColWidth(cols[i]);
+    return {c:p.c,cs:p.cs,w};
+  });
+}
+// Every cell the band touches, for click-to-select-a-column.
+function rtBandCells(t,c0,cn){
+  const gr=rtGrid(t),out=[],seen=new Set();
+  for(let r=0;r<gr.rows;r++) for(let c=c0;c<c0+cn;c++){
+    const td=gr.g[r]&&gr.g[r][c];
+    if(td&&!seen.has(td)){ seen.add(td); out.push(td); }
+  }
+  return out;
+}
+// Spread a band's total width over the grid columns inside it, in the proportions it
+// already had, so splitting a cell and then resizing its column keeps the split even.
+function rtSetBandWidth(t,c0,cn,w){
+  const cols=rtEnsureCols(t);
+  const cur=[];
+  for(let i=0;i<cn;i++) cur.push(cols[c0+i]?rtColWidth(cols[c0+i]):RT_MINW);
+  const tot=cur.reduce((a,b)=>a+b,0)||cn;
+  let left=w;
+  for(let i=0;i<cn;i++){
+    if(!cols[c0+i]) continue;
+    const px=i===cn-1?left:Math.max(RT_MINW,Math.round(w*cur[i]/tot));
+    cols[c0+i].style.width=Math.max(RT_MINW,px)+'px';
+    left-=px;
+  }
+}
 // Pure: resolve a raw dragged width to the nearest meaningful width.
 function rtRzSnap(t,ci,raw,fitW){
-  const cols=rtEnsureCols(t),n=cols.length;
+  const bands=rtBands(t),n=bands.length;
   const cand=[];
-  cols.forEach((c,i)=>{ if(i!==ci) cand.push({w:rtColWidth(c),label:'Equal',col:i}); });
+  bands.forEach(b=>{ if(b.c!==ci) cand.push({w:b.w,label:'Equal',col:b.c}); });
   const inner=rtInnerWidth(t);
   for(let k=1;k<=Math.max(n,4);k++) cand.push({w:inner/k,label:k===1?'Full width':(RT_FRAC[k]||('1/'+k))});
   if(fitW) cand.push({w:fitW,label:'Fit content'});
@@ -6246,7 +6429,7 @@ function rtRzSnap(t,ci,raw,fitW){
     const w=Math.round(best.o.w);
     // Every other column landing on the same width gets highlighted too.
     const matches=[];
-    cols.forEach((c,i)=>{ if(i!==ci&&Math.abs(rtColWidth(c)-w)<=1) matches.push(i); });
+    bands.forEach(b=>{ if(b.c!==ci&&Math.abs(b.w-w)<=1) matches.push(b.c); });
     let label=best.o.label;
     if(label==='Equal') label=matches.length>1?'Equal to '+matches.length+' cols':'Equal width';
     return {w,label,matches};
@@ -6255,39 +6438,52 @@ function rtRzSnap(t,ci,raw,fitW){
   if(Math.abs(grid-raw)<=3) return {w:grid,label:'',matches:[]};
   return {w:Math.round(raw),label:'',matches:[]};
 }
-function rtRzStart(e,t,ci,handle){
+// ci is the band's first grid column and cn how many it covers — the drag sizes the
+// column you can see, not the first hidden slice of it.
+function rtRzStart(e,t,ci,handle,cn){
   e.preventDefault(); e.stopPropagation();
   const cols=rtEnsureCols(t);
   if(!cols[ci]) return;
-  _rtRz={t,ci,x0:e.clientX,w0:rtColWidth(cols[ci]),w:rtColWidth(cols[ci]),label:'',matches:[],fit:rtContentWidths(t)[ci]};
+  cn=Math.max(1,cn||1);
+  let w0=0; for(let i=ci;i<ci+cn;i++) if(cols[i]) w0+=rtColWidth(cols[i]);
+  const fit=rtContentWidths(t);
+  let f=0; for(let i=ci;i<ci+cn;i++) f+=fit[i]||0;
+  _rtRz={t,ci,cn,x0:e.clientX,w0,w:w0,label:'',matches:[],fit:f};
   handle.classList.add('rt-rz-on');
   document.body.style.userSelect='none';
 }
 function rtRzMove(e){
   const cols=rtEnsureCols(_rtRz.t);
-  const c=cols[_rtRz.ci]; if(!c) return;
-  const raw=Math.max(RT_MINW,Math.min(RT_MAXW,_rtRz.w0+(e.clientX-_rtRz.x0)));
+  if(!cols[_rtRz.ci]) return;
+  const cn=_rtRz.cn||1;
+  const lo=RT_MINW*cn,hi=RT_MAXW*cn;
+  const raw=Math.max(lo,Math.min(hi,_rtRz.w0+(e.clientX-_rtRz.x0)));
   // Alt bypasses snapping for a freehand width.
   const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}:rtRzSnap(_rtRz.t,_rtRz.ci,raw,_rtRz.fit);
-  _rtRz.w=Math.max(RT_MINW,Math.min(RT_MAXW,s.w));
+  _rtRz.w=Math.max(lo,Math.min(hi,s.w));
   _rtRz.label=s.label; _rtRz.matches=s.matches;
-  c.style.width=_rtRz.w+'px';
+  rtSetBandWidth(_rtRz.t,_rtRz.ci,cn,_rtRz.w);
   rtReposition();
 }
 // ── whole-table sizing commands ──
 function rtDistributeCols(t){
-  const cols=rtEnsureCols(t);
-  if(!cols.length) return;
+  // Bands, not grid columns: "even" has to mean even to the eye, and a column holding
+  // a split cell covers more than one grid column while still being one column.
+  const bands=rtBands(t);
+  if(!bands.length) return;
   // The widest column sets the width for all of them, the same rule the selection
   // bar uses. Dividing the card's width instead made this a "shrink to fit" that
   // squeezed the one column that actually needed the room.
-  const w=Math.max(RT_MINW,...cols.map(c=>Math.round(rtColWidth(c))));
-  cols.forEach(c=>{ c.style.width=w+'px'; });
+  const w=Math.max(RT_MINW,...bands.map(b=>Math.round(b.w)));
+  bands.forEach(b=>rtSetBandWidth(t,b.c,b.cs,w));
   rtFire(rtHost(t)); rtShowCtl(t);
 }
 function rtFitCols(t){
-  const cols=rtEnsureCols(t),fit=rtContentWidths(t);
-  cols.forEach((c,i)=>{ c.style.width=Math.max(RT_MINW,Math.min(RT_MAXW,fit[i]||RT_MINW))+'px'; });
+  const fit=rtContentWidths(t),bands=rtBands(t);
+  bands.forEach(b=>{
+    let f=0; for(let i=b.c;i<b.c+b.cs;i++) f+=fit[i]||0;
+    rtSetBandWidth(t,b.c,b.cs,Math.max(RT_MINW*b.cs,Math.min(RT_MAXW*b.cs,f||RT_MINW*b.cs)));
+  });
   rtFire(rtHost(t)); rtShowCtl(t);
 }
 function rtRzEnd(){
@@ -6489,7 +6685,7 @@ document.addEventListener('mouseover',e=>{
 document.addEventListener('mousedown',e=>{
   if(!e.target.closest) return;
   if(e.target.closest('#rt-slash')) return;
-  if(!e.target.closest('#rt-ctl')){ rtSlashClose(); if(_rtMenu){ _rtMenu=false; if(_rtCtlTable) rtShowCtl(_rtCtlTable); } }
+  if(!e.target.closest('#rt-ctl')){ rtSlashClose(); if(_rtMenu||_rtSplit){ _rtMenu=false; _rtSplit=false; if(_rtCtlTable) rtShowCtl(_rtCtlTable); } }
   const td=e.target.closest('.rt-table td');
   if(td){ _rtDrag={t:td.closest('table'),start:td}; rtClearSel(); return; }
   _rtDrag=null;
