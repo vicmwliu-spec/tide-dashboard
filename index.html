@@ -361,6 +361,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-ctl .rt-selbar{position:fixed;pointer-events:auto;display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:3px}
 #rt-ctl .rt-selbtn{font-family:var(--font);font-size:11.5px;line-height:1;color:var(--text1);background:none;border:none;border-radius:calc(var(--r2) - 2px);padding:5px 8px;cursor:pointer;white-space:nowrap}
 #rt-ctl .rt-selbtn:hover{background:var(--surface2)}
+/* "+ line" strip: the way to get a caret past a table that sits flush against the
+   top or bottom of a card. Drawn on the overlay so it takes up no layout space. */
+#rt-ctl .rt-openln{position:fixed;pointer-events:auto;height:14px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font);font-size:9px;font-weight:600;letter-spacing:.06em;color:var(--text3);
+  border-top:1px dashed var(--border);cursor:text;opacity:.65}
+#rt-ctl .rt-openln:hover{opacity:1;color:var(--text2);border-top-color:var(--text3)}
 /* Slash command menu */
 #rt-slash{position:fixed;z-index:1200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:184px;font-family:var(--font);display:none}
 #rt-slash .rt-item{padding:7px 10px;border-radius:calc(var(--r2) - 2px);font-size:13px;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px}
@@ -3673,10 +3679,26 @@ function richtextKD(e){
     rtDeleteSelection();
     return;
   }
+  // ↑ from the top row of a table that starts the card (↓ from the bottom row of
+  // one that ends it) opens a line there. Without it a flush table has no keyboard
+  // way out, since there is no block on that side to arrow into.
+  if((e.key==='ArrowUp'||e.key==='ArrowDown')&&!e.shiftKey&&!_rtSel.length){
+    const up=e.key==='ArrowUp';
+    const td=rtAnchorCell();
+    if(td&&rtCaretAtCellEdge(td,up)){
+      const t=td.closest('table'),gr=rtGrid(t),p=rtGridPos(gr,td);
+      // Only from the edge row, and only when there is genuinely nothing beyond it.
+      const atEdge=p&&(up?p.r===0:p.r+p.rs>=gr.rows);
+      const edge=atEdge?rtRunEdge(t,up):null;
+      if(edge){ e.preventDefault(); rtOpenLine(rtHost(t),edge,up); rtHideCtl(); return; }
+    }
+  }
   // Copy / cut / paste of rows, columns and cell blocks
   if(e.ctrlKey||e.metaKey){
     const k=e.key.toLowerCase();
-    if((k==='c'||k==='x')&&_rtSel.length){
+    // Shift excluded on x: Ctrl+Shift+X is strikethrough, and with cells selected
+    // it would otherwise be swallowed here as a cut.
+    if((k==='c'||(k==='x'&&!e.shiftKey))&&_rtSel.length){
       e.preventDefault();
       rtClipRead();
       if(k==='x') rtDeleteSelection();
@@ -3774,13 +3796,14 @@ function richtextKD(e){
       return;
     }
   }
-  // Ctrl/Cmd inline formatting shortcuts
+  // Ctrl/Cmd inline formatting shortcuts. With cells highlighted these apply to
+  // every selected cell's whole contents; with no cell selection, unchanged.
   if(e.ctrlKey||e.metaKey){
-    if(e.key==='b'){e.preventDefault();document.execCommand('bold',false,null)}
-    if(e.key==='i'){e.preventDefault();document.execCommand('italic',false,null)}
-    if(e.key==='u'){e.preventDefault();document.execCommand('underline',false,null)}
+    const fmt={b:'bold',i:'italic',u:'underline'}[e.key];
+    const run=c=>{ e.preventDefault(); if(!(_rtSel.length&&rtFormatSel(c))) document.execCommand(c,false,null); };
+    if(fmt) run(fmt);
     // Shift-guarded so plain Ctrl+X (table cut) is untouched.
-    if(e.shiftKey&&(e.key==='x'||e.key==='X')){e.preventDefault();document.execCommand('strikeThrough',false,null)}
+    if(e.shiftKey&&(e.key==='x'||e.key==='X')) run('strikeThrough');
   }
   // "--" → em dash
   if(e.key==='-'){
@@ -4243,23 +4266,17 @@ function rtPlaceWrap(host,wrap){
 function _rtIsTableBlock(el){
   return !!el&&el.nodeType===1&&(el.classList.contains('rt-tw')||el.tagName==='TABLE'||!!el.querySelector('table'));
 }
+// It used to force an empty paragraph before a leading table and after a trailing
+// one. That line is real content: it pushes the table off the card's top border,
+// and it came back on the next table op or the next load, so a table could never
+// be made to sit flush. A table at an edge now stays at the edge, and getting a
+// caret past it is the hover strip in rtShowCtl, ArrowUp/ArrowDown from an edge
+// row, or a click on the padding — all three of which call rtOpenLine.
+// Kept as a function, and still called, because runs between two tables and any
+// future guard belong here; it just no longer pads the ends.
 function rtGuardBlocks(host){
   if(!host) return false;
-  let added=false;
-  const gap=()=>{ const p=document.createElement('p');p.innerHTML='<br>';added=true;return p; };
-  // Walk the host's own children rather than querying for '.rt-tw': a table nested
-  // inside some other block still leaves that block untypeable, and older content
-  // has plenty of those.
-  // Guard the *run*, not each table: adjacent tables are meant to sit side by side,
-  // so a paragraph forced between them would break every pair onto its own line.
-  // A run needs a line before it only when it starts the card, and after it only
-  // when it ends the card — everywhere else there is already prose to land in.
-  [...host.children].forEach(el=>{
-    if(!_rtIsTableBlock(el)) return;
-    if(!el.previousElementSibling) host.insertBefore(gap(),el);
-    if(!el.nextElementSibling) host.appendChild(gap());
-  });
-  return added;
+  return false;
 }
 // Tables written before the wrapper existed are bare in the card, which is why
 // nothing — guards, resize handles, the row/column controls, copy — recognises
@@ -4317,14 +4334,42 @@ document.addEventListener('mousedown',e=>{
   });
   if(!ref) return;
   e.preventDefault();
+  rtOpenLine(host,ref,before);
+});
+// Put a caret on the empty line beside a table block, making the line first if it
+// isn't there. The three ways to ask for one — clicking the padding, the hover
+// strip, and arrowing out of an edge row — are the same act, so they share this.
+function rtOpenLine(host,ref,before){
+  if(!host||!ref) return null;
   const sib=before?ref.previousElementSibling:ref.nextElementSibling;
   // Reuse an empty paragraph that is already there instead of stacking blank lines.
-  if(sib&&!_rtIsTableBlock(sib)&&!sib.textContent.trim()){ rtPlaceCaretAtEnd(sib); return; }
+  if(sib&&!_rtIsTableBlock(sib)&&!sib.textContent.trim()){ rtPlaceCaretAtEnd(sib); return sib; }
   const p=document.createElement('p'); p.innerHTML='<br>';
   host.insertBefore(p,before?ref:ref.nextSibling);
   rtPlaceCaretAtEnd(p);
   rtFire(host);
-});
+  return p;
+}
+// The top-level block a table sits in, which is what the host's children are and
+// so what "is there anything above this?" has to be asked about.
+function rtTopBlock(t){
+  const host=rtHost(t); if(!host) return null;
+  let el=t.closest('.rt-tw')||t;
+  while(el&&el.parentElement!==host) el=el.parentElement;
+  return el&&el.parentElement===host?el:null;
+}
+// Is this table's run flush against the start (or end) of the card, with no prose
+// to put a caret in? Adjacent tables are one run — they share a line on purpose —
+// so the question is asked of the run, not of each wrapper.
+function rtRunEdge(t,before){
+  const el=rtTopBlock(t); if(!el) return null;
+  let end=el;
+  for(;;){
+    const nx=before?end.previousElementSibling:end.nextElementSibling;
+    if(!nx||!_rtIsTableBlock(nx)) return nx?null:end;
+    end=nx;
+  }
+}
 // opts.after — an existing wrapper to sit beside rather than below. Both entry
 // points share the building code so a side-by-side table is the same table.
 function rtInsertTable(host,opts){
@@ -4786,6 +4831,58 @@ function rtAnchorCell(){
   n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return n&&n.closest?n.closest('.rt-table td'):null;
 }
+// Is the caret at the very start (or end) of this cell's text? A cell can hold
+// several lines, and inside one of those ↑ still means "up a line" — leaving the
+// table is only the right answer once there is nothing above the caret to go to.
+function rtCaretAtCellEdge(td,start){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount||!sel.isCollapsed) return false;
+  const r=sel.getRangeAt(0).cloneRange();
+  const probe=document.createRange();
+  probe.selectNodeContents(td);
+  if(start) probe.setEnd(r.startContainer,r.startOffset);
+  else probe.setStart(r.startContainer,r.startOffset);
+  const frag=probe.cloneContents();
+  // A trailing <br> is the empty-cell filler, not a line of its own.
+  return !frag.textContent.trim()&&!frag.querySelector('br,p,div,li');
+}
+// Bold/italic/underline/strikethrough over a block of selected cells. Each td is
+// its own contenteditable host, so the browser's selection can never span them —
+// which is why _rtSel exists, and why the plain shortcut lands on nothing. Run the
+// same execCommand per cell over that cell's whole contents, so the markup is
+// identical to what typing produces.
+const RT_FMT_TAGS={bold:'B,STRONG',italic:'I,EM',underline:'U',strikeThrough:'S,STRIKE,DEL'};
+// Fully formatted means the cell's content is one element of that kind wrapping
+// everything — anything less counts as "not yet", so the first press completes it.
+function _rtCellHasFmt(td,cmd){
+  const sel=RT_FMT_TAGS[cmd]; if(!sel) return false;
+  if(!td.textContent.trim()) return false;
+  const kids=[...td.childNodes].filter(n=>n.nodeType!==Node.TEXT_NODE||n.textContent.trim());
+  return kids.length>0&&kids.every(n=>n.nodeType===1&&n.matches(sel));
+}
+function rtFormatSel(cmd){
+  if(!_rtSel.length||!RT_FMT_TAGS[cmd]) return false;
+  const cells=_rtSel.slice(),host=rtHost(cells[0]);
+  const sel=window.getSelection();
+  // execCommand is a toggle per cell, so a mixed selection would flip each cell
+  // rather than bringing them all to the same state. Decide once, for all of them.
+  const allOn=cells.every(td=>_rtCellHasFmt(td,cmd));
+  cells.forEach(td=>{
+    if(_rtCellHasFmt(td,cmd)!==allOn) return; // already where this pass is heading
+    if(!td.textContent.trim()) return;        // nothing to format
+    const r=document.createRange();
+    r.selectNodeContents(td);
+    sel.removeAllRanges(); sel.addRange(r);
+    td.focus();
+    document.execCommand(cmd,false,null);
+  });
+  sel.removeAllRanges();
+  // One input event for the whole pass, so it is one undo step like every other
+  // programmatic edit here.
+  if(host) rtFire(host);
+  rtSetSel(cells); // execCommand rewrote the cells' insides, not the cells
+  return true;
+}
 function rtPasteClip(){
   if(!_rtClip) return false;
   const anchor=rtAnchorCell();
@@ -4925,6 +5022,20 @@ function rtShowCtl(t){
       m.appendChild(row);
     });
   }
+  // "+ line" strips. A table flush against the top or bottom of the card has no
+  // prose beside it to click into, and nothing is auto-inserted any more, so the
+  // way back is drawn here — on the fixed overlay, which costs no layout, so the
+  // table keeps sitting against the border until you actually ask for a line.
+  [true,false].forEach(before=>{
+    const edge=rtRunEdge(t,before);
+    if(!edge) return;
+    const er=edge.getBoundingClientRect();
+    const s=mk('rt-openln',`left:${wr.left}px;top:${(before?er.top-13:er.bottom+3)}px;width:${Math.max(60,wr.width)}px`);
+    s.textContent='+ line';
+    s.title=before?'Add a line above the table':'Add a line below the table';
+    s.onmousedown=e=>e.preventDefault(); // don't let the click steal focus first
+    s.onclick=()=>{ rtOpenLine(rtHost(t),edge,before); rtHideCtl(); };
+  });
   // ⠿ grip: pick the whole table up and put it somewhere else in the card.
   const gb=mk('rt-btn rt-tgrip',`left:${wr.left-24}px;top:${tb.top-3}px`);
   gb.textContent='⠿';gb.title='Drag to move this table';
