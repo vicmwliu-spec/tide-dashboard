@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0811-a1">
+<meta name="build" content="0811-b2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -124,12 +124,21 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tl-d.now{box-shadow:inset 0 0 0 2px var(--tlc,var(--edit));border-color:transparent;color:var(--text1);font-weight:600}
 .tl-d.now.sel{color:#fff}
 .tl-pad{border-color:transparent;background:transparent;cursor:default}
-.tl-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;
+/* margin-top on top of .tlcard's 8px gap. The footer is a different kind of thing from
+   the grid above it, and at 8px it read as a seventh week. */
+.tl-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:6px;
   font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums}
-/* Where you are, on two lines: the position, then what is left of the month. */
-.tl-pos{display:flex;flex-direction:column;gap:2px;line-height:1.35}
-.tl-pos b{color:var(--text1);font-weight:600;font-size:12px}
-.tl-pos span{color:var(--text3)}
+/* Where you are, on two lines: the position, then what is left of the month.
+   Three roles, three classes. "Day" is the same 9px tracked eyebrow as the weekday
+   heads and the quarter mark, so the footer speaks the card's own label language
+   instead of being a bold sentence in the middle of it; the number takes --tlc, the
+   exact colour filling the selected chip above, so the two read as one statement. */
+.tl-pos{display:flex;flex-direction:column;gap:3px;line-height:1.3}
+.tl-day{display:flex;align-items:baseline;gap:5px}
+.tl-dl{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
+.tl-day b{font-size:15px;font-weight:600;line-height:1;color:var(--tlc,var(--edit));font-variant-numeric:tabular-nums}
+.tl-dt{font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums}
+.tl-rem{font-size:10px;color:var(--text3)}
 /* The quarter's three months, named. No bar, so nothing appears to lead anywhere. */
 .tl-q{display:flex;align-items:center;gap:5px;white-space:nowrap}
 .tl-q em{font-style:normal;font-weight:700;font-size:9px;letter-spacing:.08em;color:var(--text3);margin-right:2px}
@@ -915,7 +924,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0811-a1';
+const RT_BUILD = '0811-b2';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
@@ -1783,8 +1792,9 @@ function timelineCardBody(id){
   const remain=isThisMonth?days-today:0;
   return `<div class="tl-grid"><div class="tl-hd">${hd}</div>${rows}</div>
     <div class="tl-foot">
-      <div class="tl-pos"><b>Day ${sel} of ${days}</b>${
-        isThisMonth?`<span>${remain} Day${remain===1?'':'s'} Remaining</span>`:''}</div>
+      <div class="tl-pos">
+        <div class="tl-day"><span class="tl-dl">Day</span><b>${sel}</b><span class="tl-dt">/ ${days}</span></div>${
+        isThisMonth?`<span class="tl-rem">${remain} day${remain===1?'':'s'} remaining</span>`:''}</div>
       <div class="tl-q"><em>Q${q+1}</em>${qmon}</div>
     </div>`;
 }
@@ -6716,7 +6726,7 @@ function rtShowCtl(t){
     // ask, and will manufacture the grid slots if the cell hasn't any spare. Both are
     // legitimate on a merged cell and mean different things, so this stays its own
     // button rather than being folded in.
-    if(act.length===1) btns.push(['Split…',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
+    if(act.length===1) btns.push(['Split',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
     // Evening up columns takes more than one cell to be a request. One merged cell
     // covers several columns too, and offering it there put a fourth button on the bar
     // for an action that means nothing without a range to spread across.
