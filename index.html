@@ -399,6 +399,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* Header row / header column are opt-in classes (rt-hopt marks a table as migrated) */
 .rt-table.rt-hr tr:first-child td,.rt-table.rt-hc tr td:first-child{background:var(--surface2);font-weight:600}
 .rt-table:not(.rt-hopt) tr:first-child td{background:var(--surface2);font-weight:600}
+/* Position decides header-ness by default, which is wrong the moment a cell moves:
+   split the first cell of a header column and only the left piece is :first-child
+   any more. These two let a cell say what it is outright, in either direction. Two
+   classes plus two elements matches the rule above — :first-child counts as a class,
+   so the tr is needed to draw level — and they win on coming later rather than on a
+   specificity trick. */
+.rt-table.rt-hopt tr td.rt-hd{background:var(--surface2);font-weight:600}
+.rt-table.rt-hopt tr td.rt-nohd{background:transparent;font-weight:400}
 /* Per-column widths live in the colgroup as percentages, so "fits the card" is a
    property of the layout rather than something JS has to recompute on every resize.
    width:100% with table-layout:fixed means the columns divide the card and text
@@ -5805,6 +5813,50 @@ function rtSelShape(){
   const hasSpan=_rtSel.some(td=>(td.colSpan||1)>1||(td.rowSpan||1)>1);
   return {t,gr,kind,rows,cols,fullRows,fullCols,rect,hasSpan};
 }
+// ── shading ──
+// What the stylesheet would paint this cell from its position alone, mirroring the
+// selectors at the top of the file exactly rather than asking getComputedStyle: the
+// answer has to be the same in jsdom, and it has to be readable mid-edit, before the
+// browser has laid anything out again.
+function rtHdPos(td){
+  const t=td&&td.closest&&td.closest('table'); if(!t) return false;
+  const tr=td.parentElement,body=tr&&tr.parentElement;
+  const firstRow=!!body&&body.firstElementChild===tr;
+  if(!t.classList.contains('rt-hopt')) return firstRow;
+  return (t.classList.contains('rt-hr')&&firstRow)||
+         (t.classList.contains('rt-hc')&&tr.firstElementChild===td);
+}
+// How the cell actually reads: its own word if it has one, its position otherwise.
+function rtHdOn(td){
+  if(!td||!td.classList) return false;
+  if(td.classList.contains('rt-hd')) return true;
+  if(td.classList.contains('rt-nohd')) return false;
+  return rtHdPos(td);
+}
+// Say it on the cell — but only when the cell and its position disagree. A piece that
+// lands somewhere the stylesheet would have shaded anyway keeps no class, so tables
+// don't silt up with markup that says what was already true.
+function rtHdSet(td,on){
+  if(!td||!td.classList) return;
+  td.classList.remove('rt-hd','rt-nohd');
+  if(rtHdPos(td)!==!!on) td.classList.add(on?'rt-hd':'rt-nohd');
+}
+// The button's label: shaded only if every selected cell is.
+function rtSelShaded(){ return _rtSel.length>0&&_rtSel.every(rtHdOn); }
+// One button, and never ambiguous on a mixed selection: any plain cell in the
+// selection means the click shades, so a second click always undoes the first.
+function rtShadeSel(){
+  if(!_rtSel.length) return false;
+  const t=_rtSel[0].closest('table'); if(!t) return false;
+  const on=!rtSelShaded();
+  // A table that never opted in is shaded by the :not(.rt-hopt) fallback. Opting it
+  // in now would take that away, so hand it the header row it was already showing —
+  // the same trade the ⋯ menu makes.
+  if(!t.classList.contains('rt-hopt')) t.classList.add('rt-hopt','rt-hr');
+  _rtSel.forEach(td=>rtHdSet(td,on));
+  rtFire(rtHost(t)); rtShowCtl(t);
+  return true;
+}
 // ── merging ──
 // The top-left cell takes the span and everything else's content, separated by a
 // line break: a merge must never quietly eat what was written in the cells it ate.
@@ -5842,6 +5894,7 @@ function rtUnmergeSelection(){
   targets.forEach(td=>{
     const gr=rtGrid(t),p=rtGridPos(gr,td);
     if(!p) return;
+    const was=rtHdOn(td); // same reason as in rtSplitCell: read it before it moves
     td.colSpan=1; td.rowSpan=1;
     const rows=rtRows(t);
     for(let r=p.r;r<p.r+p.rs;r++){
@@ -5849,9 +5902,12 @@ function rtUnmergeSelection(){
       const g2=rtGrid(t);
       for(let c=p.c;c<p.c+p.cs;c++){
         if(r===p.r&&c===p.c) continue;
-        tr.insertBefore(rtMakeCell(),_rtRefAt(g2,r,c));
+        const cell=rtMakeCell();
+        tr.insertBefore(cell,_rtRefAt(g2,r,c));
+        rtHdSet(cell,was);
       }
     }
+    rtHdSet(td,was);
   });
   rtClearSel();
   rtFire(rtHost(t)); rtShowCtl(t);
@@ -5923,6 +5979,10 @@ function rtSplitCell(td,nc,nr){
   nr=Math.max(1,Math.min(20,Math.round(Number(nr))||1));
   if(nc===1&&nr===1) return false;
   const t=td&&td.closest&&td.closest('table'); if(!t) return false;
+  // Read how the cell looks now, before the geometry moves under it: once the pieces
+  // exist, "first cell of a header column" is only true of the leftmost one, and the
+  // rest would come out plain next to it.
+  const was=rtHdOn(td);
   let p=rtGridPos(rtGrid(t),td); if(!p) return false;
   _rtGrowSpan(t,td,nc-p.cs,'col');
   p=rtGridPos(rtGrid(t),td); if(!p) return false;
@@ -5945,8 +6005,10 @@ function rtSplitCell(td,nc,nr){
       const cell=rtMakeCell();
       cell.colSpan=cw[j]; cell.rowSpan=rh[i];
       tr.insertBefore(cell,refs[i]);
+      rtHdSet(cell,was); // after insertion: rtHdPos needs the cell's position to exist
     }
   }
+  rtHdSet(td,was);
   rtSetSel([td]);
   rtFire(rtHost(t)); rtShowCtl(t);
   return true;
@@ -6331,6 +6393,8 @@ function rtShowCtl(t){
     // ask, and will manufacture the grid slots if the cell hasn't any spare.
     if(_rtSel.length===1) btns.push(['Split…',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
     if(s.cols.length>1) btns.push(['Match widest',rtDistributeSelCols]);
+    // Shading a whole column or row needs nothing else: the grips already select one.
+    btns.push([rtSelShaded()?'Unshade':'Shade',rtShadeSel]);
     if(btns.length){
       const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
       btns.forEach(([label,fn])=>{
