@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0811-c3">
+<meta name="build" content="0811-c4">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -418,8 +418,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    is what the last column handle drags. inline-block stays so two tables narrow
    enough to share a row do, and wrap onto the next when they don't. */
 .rt-tw{overflow-x:auto;margin:10px 0;width:100%;display:inline-block;vertical-align:top}
-/* Gap only between a pair, so a lone full-width table keeps its exact old box. */
-.rt-tw + .rt-tw{margin-left:10px}
+/* Gap only between a pair you deliberately made, which is why both halves carry the
+   class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
+   table to sit under another, or paste one beside one, and the second was shunted 10px
+   right for no reason anybody asked for. A pair is now something you say, not something
+   the DOM infers. */
+.rt-tw.rt-pair + .rt-tw.rt-pair{margin-left:10px}
 /* width:100% here as well as on .rt-fixed, so a table fits its card in the moment
    between being pasted in and rtEnsureCols giving it a colgroup. */
 .rt-table{border-collapse:collapse;width:100%;font-size:13px;font-family:var(--font);table-layout:fixed}
@@ -946,7 +950,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0811-c3';
+const RT_BUILD = '0811-c4';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
@@ -1879,6 +1883,64 @@ function cvSave(n){
 // Every box body saves the card it sits on, not itself — one card, one slot.
 function cvOnInput(el){ rtOnInput(el); cvSave(el); }
 
+// ── Undo, for the surface itself ──
+// The only undo in the app was per rich-text host: it can bring back what a box said,
+// and knows nothing about the box existing. So deleting a box was unrecoverable — and
+// once it was gone rtActiveHost had no host to look up and Ctrl+Z didn't even
+// preventDefault, which is "nothing happens" exactly. Filed by card id rather than by
+// element, for the reason the text stack is: render() rebuilds the DOM and a stack
+// keyed on a node would quietly empty itself.
+const _cvU=new Map();
+let _cvRestoring=false,_cvLastId='';
+function _cvUState(surf){
+  const card=cvCard(surf); const id=card&&card.dataset?card.dataset.cardid:'';
+  if(!id) return null;
+  _cvLastId=id;
+  let st=_cvU.get(id);
+  if(!st){ st={s:[],i:-1}; _cvU.set(id,st); }
+  return st;
+}
+// Called on both sides of every structural change: before it, so the state you want
+// back is on the stack even when text was typed since the last one, and after it, so
+// the change itself is a step. Deduped, so the pair costs nothing where nothing moved.
+function cvPush(surf){
+  if(_cvRestoring||!surf) return;
+  const st=_cvUState(surf); if(!st) return;
+  const h=cvHTML(surf);
+  if(st.i>=0&&st.s[st.i]===h) return;
+  st.s=st.s.slice(0,st.i+1);
+  st.s.push(h);
+  if(st.s.length>60) st.s.shift();
+  st.i=st.s.length-1;
+}
+// The canvas a Ctrl+Z means when the pointer has moved on and the box that had focus
+// has been deleted out from under it.
+function cvLastSurf(){
+  if(!_cvLastId) return null;
+  const card=document.querySelector('.cvcard[data-cardid="'+_cvLastId+'"]');
+  return card?card.querySelector('.cv-surface'):null;
+}
+function cvUndo(surf,redo){
+  const st=_cvUState(surf); if(!st) return false;
+  cvPush(surf); // what is on screen has to be on the stack before you can step off it
+  const ni=st.i+(redo?1:-1);
+  if(ni<0||ni>=st.s.length) return false;
+  const card=cvCard(surf); if(!card) return false;
+  st.i=ni;
+  _cvRestoring=true;
+  try{
+    const d=document.createElement('div'); d.innerHTML=st.s[ni];
+    const fresh=d.firstElementChild;
+    if(!fresh) return false;
+    surf.parentNode.replaceChild(fresh,surf);
+    // Box bodies carry their uid in the saved HTML, so a box that comes back keeps the
+    // text history filed under it rather than returning as a stranger.
+    cvFit(fresh);
+    saveCard(card.dataset.cardid,cvHTML(fresh));
+  } finally { _cvRestoring=false; }
+  return true;
+}
+
 // The uid is saved with the box and is what its undo history is filed under, so a
 // render that rebuilds the box doesn't lose what you'd typed into it.
 function cvUid(){ return 'b'+Math.random().toString(36).slice(2,9) }
@@ -1888,6 +1950,7 @@ function cvBoxHTML(html,x,y,w){
     +(html||'<p><br></p>')+`</div></div>`;
 }
 function cvNewBox(surf,x,y,html){
+  cvPush(surf);
   const d=document.createElement('div');
   d.innerHTML=cvBoxHTML(html,x,y,CV_W);
   const box=d.firstElementChild;
@@ -1896,19 +1959,23 @@ function cvNewBox(surf,x,y,html){
   const bd=box.querySelector('.cv-bd');
   // preventScroll: focusing a box you just made should not jump the page to it.
   rtSeedUndo(bd); rtPlaceCaretAtEnd(bd); bd.focus({preventScroll:true});
-  cvSave(surf);
+  cvSave(surf); cvPush(surf);
   return box;
 }
 // An empty box is a click you thought better of, not a thing you made. It goes
 // when you look away, so a stray click never leaves litter behind.
 function cvPurgeEmpty(surf,except){
-  let gone=false;
-  cvBoxes(surf).forEach(b=>{
-    if(b===except) return;
+  // Gathered before anything is removed, so the "before" snapshot is only pushed when
+  // there is actually something to undo — an empty purge must not cost an undo step.
+  const gone=cvBoxes(surf).filter(b=>{
+    if(b===except) return false;
     const bd=b.querySelector('.cv-bd');
-    if(bd&&!bd.textContent.trim()&&!bd.querySelector('table,img,.rt-tog')){ b.remove(); gone=true; }
+    return bd&&!bd.textContent.trim()&&!bd.querySelector('table,img,.rt-tog');
   });
-  if(gone) cvSave(surf);
+  if(!gone.length) return;
+  cvPush(surf);
+  gone.forEach(b=>b.remove());
+  cvSave(surf); cvPush(surf);
 }
 
 // ── Selection ──
@@ -1919,8 +1986,9 @@ function cvSelect(surf,boxes,add){
 }
 function cvDeleteSelected(surf){
   const sel=cvSelected(surf); if(!sel.length) return false;
+  cvPush(surf);
   sel.forEach(b=>b.remove());
-  cvSave(surf); cvHideCtl();
+  cvSave(surf); cvPush(surf); cvHideCtl();
   return true;
 }
 
@@ -2032,6 +2100,10 @@ function cvAccent(card){
 function cvDragStart(e,box){
   const surf=cvSurf(box); if(!surf) return;
   e.preventDefault();
+  // Snapshotted at the start, before the grab raises the box in DOM order, so undo
+  // returns both the position and the stacking. A press that turns out not to be a
+  // drag costs nothing: the push dedupes against the state already on top.
+  cvPush(surf);
   // Dragging any member of a selection drags the whole selection.
   const sel=cvSelected(surf);
   const group=(sel.length>1&&sel.includes(box))?sel:[box];
@@ -2070,7 +2142,7 @@ function cvDragMove(e){
 function cvDragEnd(){
   const d=_cvDrag; _cvDrag=null; if(!d) return;
   cvCtl().querySelectorAll('.cv-guide').forEach(el=>el.remove());
-  if(d.moved) cvSave(d.surf);
+  if(d.moved){ cvSave(d.surf); cvPush(d.surf); }
 }
 
 // ── Resizing ──
@@ -2078,6 +2150,7 @@ function cvRzStart(e,box,dir){
   e.preventDefault(); e.stopPropagation();
   const p=cvPos(box);
   _cvRz={surf:cvSurf(box),box,dir,sx:e.clientX,sy:e.clientY,p};
+  cvPush(_cvRz.surf);
 }
 function cvRzMove(e){
   const z=_cvRz; if(!z) return;
@@ -2099,7 +2172,7 @@ function cvRzMove(e){
   if(d.includes('n')||d.includes('s')) z.box.style.height=Math.round(h)+'px';
   cvShowCtl(z.box);
 }
-function cvRzEnd(){ const z=_cvRz; _cvRz=null; if(z) cvSave(z.surf); }
+function cvRzEnd(){ const z=_cvRz; _cvRz=null; if(z){ cvSave(z.surf); cvPush(z.surf); } }
 
 // ── Click, and marquee ──
 // A press on empty surface is either a new box or a marquee, and which one it was
@@ -2154,17 +2227,40 @@ document.addEventListener('pointerup',e=>{
   if(_cvRz) return cvRzEnd(e);
   if(_cvMarq) return cvMarqEnd(e);
 });
-// Click on a box selects it; Shift adds to what is already selected.
+// Click on a box's chrome selects it; Shift adds to what is already selected.
+// Clicking into a box's *text* deliberately selects nothing. It used to select the box,
+// and since Delete removes the selected box whenever the key doesn't land in editable
+// content, that made a box holding a table a trap: a table wrapper is
+// contenteditable="false", so touching its border, its controls or a drag across its
+// cells leaves focus outside any .cv-bd while the box is still marked — and one Delete
+// took the box, table and all. Picking a box to delete is now something you do from
+// outside its text: its chrome, a marquee, or Shift-click.
 document.addEventListener('mousedown',e=>{
   const box=e.target&&e.target.closest?e.target.closest('.cv-box'):null;
   if(!box) return;
   const surf=cvSurf(box); if(!surf) return;
   if(e.shiftKey){ e.preventDefault(); box.classList.toggle('cv-sel'); return; }
+  if(e.target.closest('.cv-bd')){ cvSelect(surf,[]); return; }
   if(!box.classList.contains('cv-sel')) cvSelect(surf,[box]);
 });
 document.addEventListener('keydown',e=>{
   const inBody=e.target&&e.target.closest&&e.target.closest('.cv-bd');
   const surf=cvSurf(e.target)||(_cvHover&&cvSurf(_cvHover));
+  // Ctrl+Z follows where the caret is: inside a box body it is that box's text undo,
+  // untouched; anywhere else on a canvas it is the surface. cvLastSurf is the fallback
+  // for the case that prompted this — after deleting a box, focus is on nothing and the
+  // pointer has usually moved off, so neither of the two lookups above finds a canvas.
+  if((e.ctrlKey||e.metaKey)&&/^[zy]$/i.test(e.key)&&!inBody){
+    const s=surf||cvLastSurf();
+    if(s&&cvUndo(s,/^y$/i.test(e.key)||e.shiftKey)){
+      e.preventDefault();
+      // The document-level text-undo handler is registered after this one and would
+      // otherwise run too, undoing a second, unrelated thing on the same keystroke.
+      e.stopImmediatePropagation();
+      cvHideCtl();
+    }
+    return;
+  }
   if(!surf) return;
   if((e.ctrlKey||e.metaKey)&&/^a$/i.test(e.key)&&!inBody){
     e.preventDefault(); cvSelect(surf,cvBoxes(surf)); return;
@@ -4722,11 +4818,14 @@ function richtextKD(e){
       if(k==='x') rtDeleteSelection();
       return;
     }
-    if(k==='v'&&_rtClip&&_rtClip.grid&&rtAnchorCell()){
-      e.preventDefault();
-      rtPasteClip();
-      return;
-    }
+    // Ctrl+V is deliberately not handled here. It was, and because _rtClip holds the
+    // last thing copied inside TIDE for the rest of the session, that shortcut pasted
+    // it whatever the system clipboard actually held — preventDefault meant the paste
+    // event never fired and the "is this still ours?" test never ran. Copy a table,
+    // copy anything else, paste into a cell: you got the table from ten minutes ago.
+    // Selecting the text inside one cell and copying was worse: that path never touches
+    // _rtClip, so Ctrl+V pasted a whole stale table over a word. The paste listener is
+    // the single place that decides what a paste means; let it decide.
   }
   // Tab moves between cells; Tab in the last cell appends a row
   if(e.key==='Tab'){
@@ -4810,6 +4909,11 @@ function richtextKD(e){
     const h=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
     if(h){
       e.preventDefault();
+      // Stopped here, or the document-level handler undoes a second step on the same
+      // keystroke. Its guard is "is the target inside a host?", and rtUndo replaces the
+      // host's innerHTML — so by the time the event reaches document, e.target is a
+      // detached cell whose closest() walks up to nothing and the guard reads false.
+      e.stopPropagation();
       rtUndo(h,/^y$/i.test(e.key)||e.shiftKey);
       return;
     }
@@ -5194,6 +5298,11 @@ const _rtU=new WeakMap();
 // is filed under that instead of under the element that happens to hold it now.
 const _rtUById=new Map();
 let _rtRestoring=false;
+// True while rtFire is dispatching its synthetic `input`. That event runs the host's
+// oninput, which schedules a debounced undo push — of the DOM *after* the programmatic
+// edit — and that would overwrite the pending snapshot of what was typed a moment
+// earlier, which is the one thing the two-step fix below depends on keeping.
+let _rtFiring=false;
 function _rtUState(h){
   // A card's history belongs to the card, not to whichever div is currently showing it.
   // render() rebuilds the page from scratch, so a WeakMap keyed on the element loses
@@ -5240,28 +5349,44 @@ function _rtSeek(h,c){
     const s=window.getSelection();s.removeAllRanges();s.addRange(r);
   }catch(err){ rtPlaceCaretAtEnd(h); }
 }
-function _rtCommit(h,st){
-  const html=h.innerHTML;
-  if(st.i>=0&&st.s[st.i].h===html) return;
+// `snap` commits something other than what is on screen — the state a typing burst had
+// reached before a programmatic edit overwrote the DOM. Without it there is no way to
+// record the past, because by then h.innerHTML is already the future.
+function _rtCommit(h,st,snap){
+  const state=snap||{h:h.innerHTML,c:_rtPath(h)};
+  if(st.i>=0&&st.s[st.i].h===state.h) return;
   st.s=st.s.slice(0,st.i+1);
-  st.s.push({h:html,c:_rtPath(h)});
+  st.s.push(state);
   if(st.s.length>80) st.s.shift();
   st.i=st.s.length-1;
 }
 // `now` for programmatic edits, so each is one undo step; typing coalesces on a debounce.
 function rtPushUndo(h,now){
   if(!h||_rtRestoring) return;
+  // rtFire's own input event is not typing; the explicit push that follows it records
+  // the edit properly, and letting this one through would lose the burst before it.
+  if(!now&&_rtFiring) return;
   const st=_rtUState(h);
+  // A programmatic edit landing inside the debounce window used to clear the timer and
+  // commit only the new DOM, so the typing was never recorded at all: the move and the
+  // words you typed just before it became one step, and undoing the move also undid the
+  // words. Commit what the burst had reached first, and the two become two steps in the
+  // order they happened.
+  if(now&&st.t&&st.p) _rtCommit(h,st,st.p);
   clearTimeout(st.t); st.t=0;
-  if(now) _rtCommit(h,st);
-  else st.t=setTimeout(()=>{ st.t=0; _rtCommit(h,st); },350);
+  if(now){ st.p=null; _rtCommit(h,st); }
+  else{
+    // Snapshotted at schedule time, when the DOM still holds what was typed.
+    st.p={h:h.innerHTML,c:_rtPath(h)};
+    st.t=setTimeout(()=>{ st.t=0; const p=st.p; st.p=null; _rtCommit(h,st,p); },350);
+  }
 }
 // Content replaced from outside (render() reloads the cards, the AAR editor reloads on
 // open) must not stay undoable back to somebody else's text. Reseed whenever what's on
 // screen isn't what the stack last saw.
 function rtSeedUndo(h){
   const st=_rtUState(h);
-  if(st.i<0||st.s[st.i].h!==h.innerHTML){ clearTimeout(st.t); st.s=[{h:h.innerHTML,c:null}]; st.i=0; }
+  if(st.i<0||st.s[st.i].h!==h.innerHTML){ clearTimeout(st.t); st.t=0; st.p=null; st.s=[{h:h.innerHTML,c:null}]; st.i=0; }
 }
 function rtUndo(h,redo){
   const st=_rtUState(h);
@@ -5275,8 +5400,9 @@ function rtUndo(h,redo){
   // — undo returns true, the numbers all move, and the split is still on screen. Which
   // is the "Ctrl+Z does nothing" being reported. Drift is not an edit; drop it.
   const pending=!!st.t;
-  clearTimeout(st.t); st.t=0;
-  if(!redo&&pending) _rtCommit(h,st);
+  const p=st.p;
+  clearTimeout(st.t); st.t=0; st.p=null;
+  if(!redo&&pending) _rtCommit(h,st,p);
   const ni=st.i+(redo?1:-1);
   if(ni<0||ni>=st.s.length) return false;
   st.i=ni;
@@ -5346,7 +5472,10 @@ let _rtSplit=false;
 
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
-function rtFire(el){ if(el){ rtSetLastHost(el); el.dispatchEvent(new Event('input',{bubbles:true})); rtPushUndo(el,true); } }
+function rtFire(el){ if(el){ rtSetLastHost(el);
+  _rtFiring=true;
+  try{ el.dispatchEvent(new Event('input',{bubbles:true})); } finally{ _rtFiring=false; }
+  rtPushUndo(el,true); } }
 function rtHost(n){
   const el=n&&n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return el&&el.closest?el.closest(RT_HOSTS):null;
@@ -5757,6 +5886,10 @@ function rtInsertTable(host,opts){
   if(beside){
     beside.style.width=RT_HALF;
     wrap.style.width=RT_HALF;
+    // Both halves say they are a pair. That, and not mere adjacency, is what earns the
+    // 10px gap — see .rt-tw.rt-pair in the stylesheet.
+    beside.classList.add('rt-pair');
+    wrap.classList.add('rt-pair');
     beside.parentNode.insertBefore(wrap,side==='left'?beside:beside.nextSibling);
     const bt=beside.querySelector('.rt-table');
     if(bt) rtNormalizeCols(bt);
@@ -5945,6 +6078,20 @@ function rtMoveTable(t,dir){
 // `box`, which may be the card itself or an open toggle's body. Taking the box as
 // an argument is what lets a table be dragged into a toggle: before, the insert
 // always went to the host, so a drop inside a toggle landed beside it instead.
+// Take a wrapper out of a side-by-side pair: the partner is whichever neighbour is
+// also marked, and neither is half of anything once they are apart, so both lose the
+// class and the inline 50% width and go back to full width.
+function rtUnpair(w){
+  if(!w||!w.classList||!w.classList.contains('rt-pair')) return;
+  [w.previousElementSibling,w.nextElementSibling].forEach(sib=>{
+    if(sib&&sib.classList&&sib.classList.contains('rt-pair')){
+      sib.classList.remove('rt-pair');
+      sib.style.width='';
+    }
+  });
+  w.classList.remove('rt-pair');
+  w.style.width='';
+}
 function rtMoveBlockTo(w,ref,before,box){
   const host=rtHost(w);
   if(!w||!host) return false;
@@ -5952,6 +6099,8 @@ function rtMoveBlockTo(w,ref,before,box){
   box=box&&host.contains(box)?box:host;
   // A block cannot be dropped inside itself.
   if(w.contains(box)) return false;
+  // Dragged out of a pair before it is moved, while its partner is still beside it.
+  rtUnpair(w);
   box.insertBefore(w,before?ref:(ref?ref.nextSibling:null));
   rtGuardBlocks(host);
   rtFire(host);
@@ -6364,12 +6513,23 @@ function rtCopyTable(t){
   // and strip the highlight classes so they aren't baked into the copy.
   const snap=wrap.cloneNode(true);
   snap.querySelectorAll('.rt-sel').forEach(td=>td.classList.remove('rt-sel'));
+  // A copy of one half of a side-by-side pair is not itself half of anything. Carrying
+  // the class over would hand the 10px gap to whichever wrapper it happened to land
+  // next to, and the inline 50% width would leave the copy stuck at half size.
+  snap.classList.remove('rt-pair');
+  snap.style.width='';
   // The clip is both things at once, and where you paste decides which you get: in a
   // cell the grid fills cells, outside one the html inserts the table. Without the
   // grid, copying a whole table could only ever make a second table.
+  // Built off the grid so a table containing one merged cell doesn't produce ragged
+  // rows — [...tr.cells] gives that row one entry fewer, which shifted every row after
+  // it left when the copy was pasted back.
+  const gt=rtGrid(t);
+  const cells=fn=>Array.from({length:gt.rows},(_,r)=>
+    Array.from({length:gt.cols},(_,c)=>{ const td=gt.g[r][c]; return td?fn(td):''; }));
   _rtClip={kind:'table',html:snap.outerHTML,tsv:'',
-    grid:rtRows(t).map(tr=>[...tr.cells].map(td=>td.innerHTML||'<br>'))};
-  _rtClip.tsv=rtClipMirror(rtRows(t).map(tr=>[...tr.cells].map(rtCellText)));
+    grid:cells(td=>td.innerHTML||'<br>')};
+  _rtClip.tsv=rtClipMirror(cells(rtCellText));
   return true;
 }
 function rtDuplicateTable(t){
@@ -6379,14 +6539,11 @@ function rtDuplicateTable(t){
   const copy=tmp.firstElementChild;
   if(!copy||!host) return false;
   const after=document.createElement('p');after.innerHTML='<br>';
-  // A paragraph goes *between* the two, not just after the copy. Wrappers are
-  // inline-blocks and `.rt-tw + .rt-tw` gives an immediately-following table a
-  // 10px left margin — that rule is what "Insert table to the right" relies on, and
-  // it was also catching the duplicate, which then read as indented under the
-  // original instead of sitting squarely beneath it.
-  const gap=document.createElement('p');gap.innerHTML='<br>';
-  wrap.parentNode.insertBefore(gap,wrap.nextSibling);
-  gap.parentNode.insertBefore(copy,gap.nextSibling);
+  // The blank paragraph that used to go *between* the two is gone with the reason for
+  // it: the 10px indent now needs both wrappers to be marked a pair, and a duplicate is
+  // never marked, so it sits squarely under the original without a spacer line to
+  // delete. See .rt-tw.rt-pair.
+  wrap.parentNode.insertBefore(copy,wrap.nextSibling);
   copy.parentNode.insertBefore(after,copy.nextSibling);
   rtGuardBlocks(host);
   const first=copy.querySelector('td');
@@ -6490,8 +6647,13 @@ function rtClipRead(){
   // Highlighting every cell means "the table", not "all of its rows" — copy the whole
   // thing so column widths and header flags travel with it.
   if(s.rows.length===rtRows(s.t).length&&s.cols.length===rtColCount(s.t)&&rtCopyTable(s.t)) return s;
+  // Read by grid position. s.rows and s.cols are grid indices — they come out of
+  // rtSelShape, which counts slots — so indexing rtRows()[r].cells[c] with them was
+  // comparing two different coordinate systems, and any merged cell in the table made
+  // the copy read the wrong cells from that row on.
+  const gc=rtGrid(s.t);
   const grid=s.rows.map(r=>s.cols.map(c=>{
-    const td=rtRows(s.t)[r]&&rtRows(s.t)[r].cells[c];
+    const td=gc.g[r]&&gc.g[r][c];
     return td?td.innerHTML:'<br>';
   }));
   _rtClip={kind:s.kind,grid,tsv:''};
@@ -6576,30 +6738,29 @@ function rtPasteClip(gridIn){
   const t=anchor.closest('table');
   if(!t) return false;
   rtEnsureCols(t);
-  const kind=gridIn?'cells':_rtClip.kind;
   const at=rtPos(anchor),g=gridIn||_rtClip.grid;
   if(!g||!g.length) return false; // a clip with no cells to fill from is rtPasteTable's job
-  if(kind==='rows'){
-    g.slice().reverse().forEach(row=>{
-      const tr=rtAddRow(t,at.r);
-      row.forEach((h,i)=>{ if(tr.cells[i]) tr.cells[i].innerHTML=h||'<br>'; });
-    });
-  }else if(kind==='cols'){
-    const w=g[0]?g[0].length:0;
-    for(let k=w-1;k>=0;k--){
-      rtAddCol(t,at.c);
-      rtRows(t).forEach((tr,ri)=>{ const h=g[ri]&&g[ri][k]; if(tr.cells[at.c]) tr.cells[at.c].innerHTML=h||'<br>'; });
-    }
-  }else{
-    const need=at.r+g.length,needC=at.c+(g[0]?g[0].length:0);
-    while(rtRows(t).length<need) rtAddRow(t);
-    while(rtColCount(t)<needC) rtAddCol(t);
-    g.forEach((row,ri)=>row.forEach((h,ci)=>{
-      const tr=rtRows(t)[at.r+ri];
-      const td=tr&&tr.cells[at.c+ci];
-      if(td) td.innerHTML=h||'<br>';
-    }));
-  }
+  // A paste fills, always. It used to branch on the shape of the *source* selection and
+  // insert a row or a column instead — and rtSelShape is a shape test, not an intent
+  // test: any block that happens to fill the table's full height counts as "a column".
+  // So dragging down a three-row table's middle column and pasting it into another
+  // table grew that table by a column rather than writing into the cells you pointed
+  // at. Adding a row or a column is what the + buttons are for; a paste puts content
+  // where the caret is and only grows the table when the block runs off the edge.
+  const need=at.r+g.length,needC=at.c+(g[0]?g[0].length:0);
+  while(rtRows(t).length<need) rtAddRow(t);
+  while(rtColCount(t)<needC) rtAddCol(t);
+  // Addressed through the grid, not through tr.cells[n]: cellIndex stops being the grid
+  // column the moment anything is merged or split, which is the whole reason rtGrid
+  // exists. A merged cell covers several slots and is written once, by its top-left.
+  const gr=rtGrid(t),done=new Set();
+  g.forEach((row,ri)=>row.forEach((h,ci)=>{
+    const gRow=gr.g[at.r+ri];
+    const td=gRow&&gRow[at.c+ci];
+    if(!td||done.has(td)) return;
+    done.add(td);
+    td.innerHTML=h||'<br>';
+  }));
   rtClearSel();
   rtFire(rtHost(t));
   rtShowCtl(t);
