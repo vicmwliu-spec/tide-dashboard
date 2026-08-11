@@ -455,6 +455,18 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    never reshuffles under the pointer. */
 #rt-ctl .rt-menu .rt-item.rt-off{opacity:.35;cursor:default}
 #rt-ctl .rt-menu .rt-item.rt-off:hover{background:none}
+/* Four directions, or two sides to insert on, are one decision with several answers —
+   so they get one row and one label, not one row each. The row itself is not clickable;
+   the little buttons in it are. */
+#rt-ctl .rt-menu .rt-item.rt-multi{cursor:default}
+#rt-ctl .rt-menu .rt-item.rt-multi:hover{background:none}
+#rt-ctl .rt-menu .rt-multi .rt-opts{margin-left:auto;display:flex;gap:2px}
+#rt-ctl .rt-menu .rt-multi .rt-opt{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--border);background:var(--surface);color:var(--text1);border-radius:calc(var(--r2) - 3px);
+  font:inherit;font-size:12px;line-height:1;cursor:pointer;padding:0}
+#rt-ctl .rt-menu .rt-multi .rt-opt:hover{background:var(--surface2)}
+#rt-ctl .rt-menu .rt-multi .rt-opt[disabled]{opacity:.3;cursor:default}
+#rt-ctl .rt-menu .rt-multi .rt-opt[disabled]:hover{background:var(--surface)}
 /* Whole-block drag grip. A tall pill, not a circle: it sits right above the round
    ⋯ button and the two were indistinguishable when they shared a shape. */
 /* Specificity has to match #rt-ctl .rt-btn above, or the round border-radius wins. */
@@ -5049,7 +5061,13 @@ const _rtU=new WeakMap();
 const _rtUById=new Map();
 let _rtRestoring=false;
 function _rtUState(h){
-  const uid=h&&h.dataset&&h.dataset.uid;
+  // A card's history belongs to the card, not to whichever div is currently showing it.
+  // render() rebuilds the page from scratch, so a WeakMap keyed on the element loses
+  // everything the moment anything re-renders — leaving edit mode, adding a card, a
+  // cadence tick — and the focusin reseed then makes the empty stack look healthy.
+  // Canvas boxes got a uid for exactly this reason; card bodies already carry a stable
+  // id, so use it.
+  const uid=(h&&h.dataset&&h.dataset.uid)||(h&&h.id&&h.id.startsWith('card-')?h.id:'');
   if(uid){
     let st=_rtUById.get(uid);
     if(!st){ st={s:[],i:-1,t:0}; _rtUById.set(uid,st); }
@@ -5100,9 +5118,9 @@ function _rtCommit(h,st){
 function rtPushUndo(h,now){
   if(!h||_rtRestoring) return;
   const st=_rtUState(h);
-  clearTimeout(st.t);
+  clearTimeout(st.t); st.t=0;
   if(now) _rtCommit(h,st);
-  else st.t=setTimeout(()=>_rtCommit(h,st),350);
+  else st.t=setTimeout(()=>{ st.t=0; _rtCommit(h,st); },350);
 }
 // Content replaced from outside (render() reloads the cards, the AAR editor reloads on
 // open) must not stay undoable back to somebody else's text. Reseed whenever what's on
@@ -5114,10 +5132,17 @@ function rtSeedUndo(h){
 function rtUndo(h,redo){
   const st=_rtUState(h);
   if(!st||!st.s.length) return false;
-  clearTimeout(st.t);
   // A typing burst may still be pending, so the first Ctrl+Z would otherwise step back
-  // over a state identical to what's on screen and appear to do nothing.
-  if(!redo) _rtCommit(h,st);
+  // over a state identical to what's on screen and appear to do nothing. Only a burst,
+  // though. Committing whatever happens to be on screen looks equivalent and isn't:
+  // laying a table out rewrites min-width and the colgroup percentages after rtFire has
+  // already snapshotted, so the top of the stack is a little behind the DOM at all
+  // times. Commit that and the step gets spent recording presentation nobody asked for
+  // — undo returns true, the numbers all move, and the split is still on screen. Which
+  // is the "Ctrl+Z does nothing" being reported. Drift is not an edit; drop it.
+  const pending=!!st.t;
+  clearTimeout(st.t); st.t=0;
+  if(!redo&&pending) _rtCommit(h,st);
   const ni=st.i+(redo?1:-1);
   if(ni<0||ni>=st.s.length) return false;
   st.i=ni;
@@ -5296,6 +5321,64 @@ function rtMinTableWidth(t){
   const rows=rtRows(t);
   if(!rows.length) return rtCols(t).length*RT_MINW;
   return Math.max(...rows.map(r=>r.cells.length))*RT_MINW;
+}
+
+// Percentages are written to two places, so two edges that ought to coincide only do
+// if they are rounded the same way. Rounding once, here, is what keeps a column that
+// several rows share genuinely shared rather than a pixel apart in each of them.
+const RT_Q=100;
+function rtQ(v){ return Math.round(v*RT_Q)/RT_Q; }
+
+// Where every cell begins and ends, as a percentage across the table.
+//
+// The grid is not the model — it is a rendering of one. Columns are shared by
+// construction, so "move this column" is the only thing a colgroup can express, and
+// every attempt to move one row's boundary has to be smuggled past that fact. Read the
+// boundaries out instead and the awkward case stops being a special case: a boundary
+// one row has is just an edge missing from the other rows' sets, and moving it is one
+// number changing in one cell's entry.
+function rtCellBounds(t){
+  const gr=rtGrid(t),cols=rtCols(t);
+  const inner=rtInnerWidth(t)||RT_NOMW;
+  // Cumulative edges of the grid columns, in percent, from what is on screen now.
+  const at=[0];
+  for(let i=0;i<cols.length;i++) at.push(at[i]+rtColWidth(cols[i])/inner*100);
+  const total=at[at.length-1]||100;
+  const m=new Map();
+  for(let r=0;r<gr.rows;r++) for(let c=0;c<gr.cols;c++){
+    const td=gr.g[r][c];
+    if(!td||m.has(td)) continue;
+    const p=rtGridPos(gr,td); if(!p) continue;
+    const l=(at[p.c]||0)/total*100,rr=(at[p.c+p.cs]!=null?at[p.c+p.cs]:total)/total*100;
+    m.set(td,{l:rtQ(l),r:rtQ(rr)});
+  }
+  return m;
+}
+// The inverse. The grid columns are simply the distinct edges anyone asked for, and a
+// cell's colSpan is how many of them it covers — so a column appears or disappears as
+// a consequence of the boundaries rather than by span surgery at the call site.
+// Nothing here touches cell identity, which is what lets a drag leave the caret, the
+// selection and the cell contents exactly where they were.
+function rtApplyBounds(t,bounds){
+  const rows=rtRows(t); if(!rows.length) return;
+  const edges=new Set([0,100]);
+  bounds.forEach(b=>{ edges.add(rtQ(b.l)); edges.add(rtQ(b.r)); });
+  const es=[...edges].sort((a,b)=>a-b);
+  const idx=new Map(es.map((v,i)=>[v,i]));
+  let cg=t.querySelector('colgroup');
+  if(!cg){ cg=document.createElement('colgroup'); t.insertBefore(cg,t.firstChild); }
+  const n=es.length-1;
+  while(cg.children.length<n) cg.appendChild(document.createElement('col'));
+  while(cg.children.length>n) cg.lastElementChild.remove();
+  [...cg.children].forEach((c,i)=>{ c.style.width=rtQ(es[i+1]-es[i]).toFixed(2)+'%'; });
+  rows.forEach(tr=>[...tr.cells].forEach(td=>{
+    const b=bounds.get(td); if(!b) return;
+    const a=idx.get(rtQ(b.l)),z=idx.get(rtQ(b.r));
+    if(a==null||z==null||z<=a) return;
+    if(z-a===1) td.removeAttribute('colspan'); else td.colSpan=z-a;
+  }));
+  t.classList.add('rt-fixed');
+  rtNormalizeCols(t);
 }
 
 // Drop a table wrapper after whatever top-level block the caret sits in, followed by an
@@ -6289,6 +6372,20 @@ function rtShowCtl(t){
   // the handle then acts on the whole band the cell covers, so the band is what gets
   // passed around below; cellIndex is not the grid column the moment anything spans.
   const gr0=rtGrid(t);
+  // Which boundaries each grid row actually has. Two neighbouring slots holding
+  // different cells means there is a border between them in that row; a cell that
+  // spans rows contributes its edges to every row it covers, because that is where the
+  // border is drawn. An edge every row has runs the full height of the table and moving
+  // it moves a column. An edge only some rows have belongs to those rows and nobody
+  // else — which is also why no full-height handle is drawn across a split row any
+  // more: it falls out of the rule rather than needing to be suppressed.
+  const rowEdges=[];
+  for(let r=0;r<gr0.rows;r++){
+    const s=new Set();
+    for(let c=1;c<gr0.cols;c++) if(gr0.g[r][c]!==gr0.g[r][c-1]) s.add(c);
+    rowEdges.push(s);
+  }
+  const rtShared=c=>c>=gr0.cols||rowEdges.every(s=>s.has(c));
   [...tr0.cells].forEach(td=>{
     const bp=rtGridPos(gr0,td)||{c:0,cs:1};
     const ci=bp.c,cn=bp.cs;
@@ -6304,7 +6401,7 @@ function rtShowCtl(t){
     g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtBandCells(t,ci,cn)); };
     // Resize handle on this column's right boundary.
     const bx=Math.min(r.right,wr.right);
-    if(bx>=wr.left&&bx<=wr.right+1){
+    if(bx>=wr.left&&bx<=wr.right+1&&rtShared(ci+cn)){
       const rz=mk('rt-rz',`left:${bx-3}px;top:${tb.top}px;height:${tb.height}px`);
       rz.title='Drag to resize · double-click to distribute evenly';
       if(_rtRz&&_rtRz.ci===ci) rz.classList.add('rt-rz-on');
@@ -6328,24 +6425,22 @@ function rtShowCtl(t){
   // not care how the width behind it is divided up. So moving it moves one row's
   // border and leaves the rest of the table where it was. Word and Docs behave the
   // same way, and the column handles above still move every row at once.
-  const bandEdges=new Set([...tr0.cells].map(td=>{ const p=rtGridPos(gr0,td)||{c:0,cs:1}; return p.c+p.cs; }));
-  rtRows(t).forEach((tr,ri)=>{
-    if(ri===0) return; // the top row's boundaries are the bands' own
-    const cells=[...tr.cells];
-    cells.forEach((td,i)=>{
-      if(i===cells.length-1) return; // the table's right edge, not an inner boundary
-      const p=rtGridPos(gr0,td); if(!p) return;
-      const edge=p.c+p.cs;
-      if(bandEdges.has(edge)) return; // a full-height handle already sits here
-      const q=rtGridPos(gr0,cells[i+1]); if(!q) return;
-      const cr=td.getBoundingClientRect(),rr=tr.getBoundingClientRect();
+  const trs=rtRows(t);
+  for(let ri=0;ri<gr0.rows;ri++){
+    const tr=trs[ri]; if(!tr) continue;
+    rowEdges[ri].forEach(c=>{
+      if(rtShared(c)) return; // a full-height handle already stands here
+      const tdA=gr0.g[ri][c-1],tdB=gr0.g[ri][c];
+      if(!tdA||!tdB) return;
+      const cr=tdA.getBoundingClientRect(),rr=tr.getBoundingClientRect();
       const bx=cr.right;
       if(bx<wr.left||bx>wr.right+1) return;
+      const on=_rtRz&&_rtRz.t===t&&_rtRz.rowb&&_rtRz.tdA===tdA;
       const rz=mk('rt-rz rt-rz-row',`left:${bx-3}px;top:${rr.top}px;height:${rr.height}px`);
       rz.title='Drag to resize this row only';
-      if(_rtRz&&_rtRz.t===t&&_rtRz.rowb&&_rtRz.ci===p.c) rz.classList.add('rt-rz-on');
-      rz.onmousedown=e=>rtRowRzStart(e,t,p,q,rz);
-      if(_rtRz&&_rtRz.t===t&&_rtRz.rowb&&_rtRz.ci===p.c){
+      if(on) rz.classList.add('rt-rz-on');
+      rz.onmousedown=e=>rtRowRzStart(e,t,tdA,tdB,rz);
+      if(on){
         mk('rt-guide',`left:${bx}px;top:${rr.top}px;height:${rr.height}px`);
         const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${rr.top-10}px`);
         b.innerHTML='<span></span>'+(_rtRz.label?'<span class="rt-snap"></span>':'');
@@ -6353,7 +6448,7 @@ function rtShowCtl(t){
         if(_rtRz.label) b.lastElementChild.textContent=_rtRz.label;
       }
     });
-  });
+  } // end per-row boundary handles
   rtRows(t).forEach((tr,ri)=>{
     const r=tr.getBoundingClientRect();
     const g=mk('rt-grip',`left:${wr.left-7}px;top:${r.top+2}px;width:4px;height:${Math.max(6,r.height-4)}px`);
@@ -6398,26 +6493,45 @@ function rtShowCtl(t){
     // Moving a table: by drag from the ⠿ grip, or precisely from here when the card
     // is too tight to drag in. A direction with nowhere to go is shown disabled
     // rather than hidden, so the set of options doesn't shift under the pointer.
-    const mvItems=[['←','Move left','left'],['→','Move right','right'],['↑','Move up','up'],['↓','Move down','down']]
-      .map(([ic,label,dir])=>[ic,label,()=>rtMoveTable(t,dir),!!rtTableNeighbour(t,dir)]);
-    const acts=[
-      ...mvItems,
+    // "Which way?" is one question. Four rows spelling out its four answers made the
+    // menu a third taller than it needed to be for no extra meaning, so the answers go
+    // side by side on the row that asks it. A direction with nowhere to go is still
+    // shown disabled rather than hidden, so nothing shifts under the pointer.
+    const multi=(ck,label,opts)=>{
+      const row=document.createElement('div');row.className='rt-item rt-multi';
+      row.innerHTML='<span class="rt-ck"></span><span></span><span class="rt-opts"></span>';
+      row.firstElementChild.textContent=ck;
+      row.children[1].textContent=label;
+      const box=row.lastElementChild;
+      opts.forEach(([ic,title,fn,on])=>{
+        const b=document.createElement('button');
+        b.className='rt-opt';b.textContent=ic;b.title=title;
+        if(on) b.onclick=()=>{ _rtMenu=false; fn(); }; else b.disabled=true;
+        box.appendChild(b);
+      });
+      m.appendChild(row);
+    };
+    multi('⤧','Move table',[['←','Move left','left'],['→','Move right','right'],
+      ['↑','Move up','up'],['↓','Move down','down']]
+      .map(([ic,title,dir])=>[ic,title,()=>rtMoveTable(t,dir),!!rtTableNeighbour(t,dir)]));
+    multi('⊞','Insert table',[
       ['⊣','Insert table to the left',()=>{ rtInsertTable(rtHost(t),{after:t.closest('.rt-tw'),side:'left'}); rtHideCtl(); },true],
       ['⊢','Insert table to the right',()=>{ rtInsertTable(rtHost(t),{after:t.closest('.rt-tw'),side:'right'}); rtHideCtl(); },true],
-      ['⧉','Copy table',()=>{ rtCopyTable(t); rtHideCtl(); },true],
-      ['⊞','Duplicate table',()=>{ rtDuplicateTable(t); rtHideCtl(); },true],
-      ['✕','Delete table',()=>{ rtDeleteTable(t); },true],
-    ];
-    acts.forEach(([ic,label,fn,on],i)=>{
-      if(i===mvItems.length){ const s=document.createElement('div');s.className='rt-sep';m.appendChild(s); }
-      const row=document.createElement('div');row.className='rt-item'+(on?'':' rt-off');
+    ]);
+    const sep3=document.createElement('div');sep3.className='rt-sep';m.appendChild(sep3);
+    [
+      ['⧉','Copy table',()=>{ rtCopyTable(t); rtHideCtl(); }],
+      ['⊞','Duplicate table',()=>{ rtDuplicateTable(t); rtHideCtl(); }],
+      ['✕','Delete table',()=>{ rtDeleteTable(t); }],
+    ].forEach(([ic,label,fn])=>{
+      const row=document.createElement('div');row.className='rt-item';
       row.innerHTML='<span class="rt-ck"></span><span></span>';
       row.firstElementChild.textContent=ic;
       row.lastElementChild.textContent=label;
-      if(on) row.onclick=()=>{ _rtMenu=false; fn(); };
+      row.onclick=()=>{ _rtMenu=false; fn(); };
       m.appendChild(row);
     });
-    // Keep it on screen. Thirteen rows is taller than the room under a table near
+    // Keep it on screen. Even at eight rows it can be taller than the room under a table near
     // the bottom of the page, and nothing clamped it, so Delete sat below the fold.
     // Measure now it is in the DOM: shift it up to fit, and if it is taller than the
     // window itself, scroll inside it rather than off the end of it.
@@ -6457,12 +6571,23 @@ function rtShowCtl(t){
     // they stay on the real selection. Split and Shade are happy with one cell.
     const s=_rtSel.length?rtSelShape():null;
     const btns=[];
+    // One slot, one decision. Merge and Unmerge are two faces of the same question and
+    // were showing side by side, which is two buttons asking you to read both labels to
+    // work out which one applies. Shade already worked this way — one button saying what
+    // the click will do — so it is the pattern the rest follow. Selecting more than one
+    // cell can only mean joining them; sitting in a single cell that spans can only mean
+    // taking it apart. The two states are exclusive, so one slot is enough for both.
     if(s&&s.rect&&_rtSel.length>1) btns.push(['Merge',rtMergeSelection]);
-    if(s&&s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
+    else if(s&&s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
     // Unmerge takes a merged cell back to 1×1. Split divides one cell however you
-    // ask, and will manufacture the grid slots if the cell hasn't any spare.
+    // ask, and will manufacture the grid slots if the cell hasn't any spare. Both are
+    // legitimate on a merged cell and mean different things, so this stays its own
+    // button rather than being folded in.
     if(act.length===1) btns.push(['Split…',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
-    if(s&&s.cols.length>1) btns.push(['Distribute',rtDistributeSelCols]);
+    // Evening up columns takes more than one cell to be a request. One merged cell
+    // covers several columns too, and offering it there put a fourth button on the bar
+    // for an action that means nothing without a range to spread across.
+    if(s&&_rtSel.length>1&&s.cols.length>1) btns.push(['Distribute',rtDistributeSelCols]);
     // Shading a whole column or row needs nothing else: the grips already select one.
     btns.push([rtSelShaded()?'Unshade':'Shade',rtShadeSel]);
     if(btns.length){
@@ -6667,14 +6792,21 @@ function rtRzStart(e,t,ci,handle,cn){
 // changes — which is what keeps every other row still. The pair, not the table, is
 // what the snap points are fractions of: there is nothing meaningful to line this
 // boundary up with outside the cell it divides.
-function rtRowRzStart(e,t,p,q,handle){
+function rtRowRzStart(e,t,tdA,tdB,handle){
   e.preventDefault(); e.stopPropagation();
-  const cols=rtEnsureCols(t);
-  if(!cols[p.c]) return;
-  const wid=(c0,cn)=>{ let w=0; for(let i=c0;i<c0+cn;i++) if(cols[i]) w+=rtColWidth(cols[i]); return w; };
-  const w0=wid(p.c,p.cs);
-  _rtRz={t,ci:p.c,cn:p.cs,x0:e.clientX,w0,w:w0,label:'',matches:[],fit:0,unit:'px',
-    last:false,rowb:true,nb:{c:q.c,cs:q.cs},pair:w0+wid(q.c,q.cs),wrap:null,tw0:0,hostW:0};
+  rtEnsureCols(t);
+  const b=rtCellBounds(t);
+  const A=b.get(tdA),B=b.get(tdB);
+  if(!A||!B) return;
+  // The boundaries as they stand, kept for the whole drag. Rebuilding from the snapshot
+  // each time means the pointer maps to one absolute edge position rather than to a
+  // running total of the moves before it, so the drag cannot accumulate rounding.
+  const snap=[]; b.forEach((v,td)=>snap.push([td,v.l,v.r]));
+  const inner=rtInnerWidth(t)||RT_NOMW;
+  const w0=(A.r-A.l)/100*inner;
+  _rtRz={t,rowb:true,tdA,tdB,snap,inner,lo:A.l,x0:e.clientX,w0,w:w0,
+    label:'',matches:[],fit:0,unit:'px',last:false,pair:(B.r-A.l)/100*inner,
+    ci:-1,cn:1,nb:null,wrap:null,tw0:0,hostW:0};
   handle.classList.add('rt-rz-on');
   document.body.style.userSelect='none';
 }
@@ -6689,6 +6821,21 @@ function rtRzSnapPair(pair,raw){
 }
 function rtRzMove(e){
   const r=_rtRz,dx=e.clientX-r.x0;
+  if(r.rowb){
+    // One edge, in one row. Everything else goes back exactly as it was, so a row that
+    // spans this boundary — or merely happens to share its old position — cannot tell
+    // it moved. The pair either side of it is the whole budget, which is why the table's
+    // own width is unchanged by construction rather than by correction afterwards.
+    const lo=RT_MINW,hi=Math.max(lo,r.pair-RT_MINW);
+    const raw=Math.max(lo,Math.min(hi,r.w0+dx));
+    const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}:rtRzSnapPair(r.pair,raw);
+    r.w=Math.max(lo,Math.min(hi,s.w)); r.unit='px'; r.label=s.label; r.matches=[];
+    const edge=rtQ(r.lo+r.w/r.inner*100);
+    const m=new Map(r.snap.map(([td,l,rr])=>[td,{l,r:rr}]));
+    m.get(r.tdA).r=edge; m.get(r.tdB).l=edge;
+    rtApplyBounds(r.t,m);
+    rtReposition(); return;
+  }
   const cols=rtEnsureCols(r.t);
   if(!cols[r.ci]) return;
   if(r.last){
@@ -6708,9 +6855,7 @@ function rtRzMove(e){
   const lo=RT_MINW*cn,hi=Math.max(lo,r.pair-RT_MINW*(r.nb.cs||1));
   const raw=Math.max(lo,Math.min(hi,r.w0+dx));
   // Alt bypasses snapping for a freehand width.
-  const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}
-    :r.rowb?rtRzSnapPair(r.pair,raw)
-    :rtRzSnap(r.t,r.ci,raw,r.fit);
+  const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}:rtRzSnap(r.t,r.ci,raw,r.fit);
   r.w=Math.max(lo,Math.min(hi,s.w)); r.unit='px';
   r.label=s.label; r.matches=s.matches;
   rtSetBandWidth(r.t,r.ci,cn,r.w);
