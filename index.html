@@ -5282,8 +5282,20 @@ function rtNormalizeCols(t){
   const tot=p.reduce((a,b)=>a+b,0)||100;
   cs.forEach((c,i)=>{ c.style.width=(p[i]/tot*100).toFixed(2)+'%'; });
   // The scroll floor. Inline so it survives into the saved card HTML, and rewritten
-  // here so it always matches the column count.
-  t.style.minWidth=(cs.length*RT_MINW)+'px';
+  // here so it always matches the widest row.
+  t.style.minWidth=rtMinTableWidth(t)+'px';
+}
+// What the table cannot be narrower than. Counting colgroup entries gets this wrong
+// the moment one row is split: the split adds a grid column to express a boundary
+// that exists in that row alone, and every other row goes on showing the cells it
+// always had. Charging the whole table RT_MINW for it raises the floor past the card
+// and everything resizes to make room for a column nobody can see. What actually has
+// to fit is the row with the most cells in it — a colspan is one cell however many
+// grid columns it happens to cover.
+function rtMinTableWidth(t){
+  const rows=rtRows(t);
+  if(!rows.length) return rtCols(t).length*RT_MINW;
+  return Math.max(...rows.map(r=>r.cells.length))*RT_MINW;
 }
 
 // Drop a table wrapper after whatever top-level block the caret sits in, followed by an
@@ -6308,6 +6320,40 @@ function rtShowCtl(t){
       }
     }
   });
+  // Boundaries that belong to one row alone. Splitting a cell gives that row a border
+  // the rows above and below do not have, and until now there was no handle on it —
+  // the only handles were the full-height ones above, which move the whole column.
+  // Drawn at the row's own height, because that is exactly how far the effect reaches:
+  // every other row spans straight across this boundary, and a cell that spans it does
+  // not care how the width behind it is divided up. So moving it moves one row's
+  // border and leaves the rest of the table where it was. Word and Docs behave the
+  // same way, and the column handles above still move every row at once.
+  const bandEdges=new Set([...tr0.cells].map(td=>{ const p=rtGridPos(gr0,td)||{c:0,cs:1}; return p.c+p.cs; }));
+  rtRows(t).forEach((tr,ri)=>{
+    if(ri===0) return; // the top row's boundaries are the bands' own
+    const cells=[...tr.cells];
+    cells.forEach((td,i)=>{
+      if(i===cells.length-1) return; // the table's right edge, not an inner boundary
+      const p=rtGridPos(gr0,td); if(!p) return;
+      const edge=p.c+p.cs;
+      if(bandEdges.has(edge)) return; // a full-height handle already sits here
+      const q=rtGridPos(gr0,cells[i+1]); if(!q) return;
+      const cr=td.getBoundingClientRect(),rr=tr.getBoundingClientRect();
+      const bx=cr.right;
+      if(bx<wr.left||bx>wr.right+1) return;
+      const rz=mk('rt-rz rt-rz-row',`left:${bx-3}px;top:${rr.top}px;height:${rr.height}px`);
+      rz.title='Drag to resize this row only';
+      if(_rtRz&&_rtRz.t===t&&_rtRz.rowb&&_rtRz.ci===p.c) rz.classList.add('rt-rz-on');
+      rz.onmousedown=e=>rtRowRzStart(e,t,p,q,rz);
+      if(_rtRz&&_rtRz.t===t&&_rtRz.rowb&&_rtRz.ci===p.c){
+        mk('rt-guide',`left:${bx}px;top:${rr.top}px;height:${rr.height}px`);
+        const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${rr.top-10}px`);
+        b.innerHTML='<span></span>'+(_rtRz.label?'<span class="rt-snap"></span>':'');
+        b.firstElementChild.textContent=Math.round(_rtRz.w)+'px';
+        if(_rtRz.label) b.lastElementChild.textContent=_rtRz.label;
+      }
+    });
+  });
   rtRows(t).forEach((tr,ri)=>{
     const r=tr.getBoundingClientRect();
     const g=mk('rt-grip',`left:${wr.left-7}px;top:${r.top+2}px;width:4px;height:${Math.max(6,r.height-4)}px`);
@@ -6616,6 +6662,31 @@ function rtRzStart(e,t,ci,handle,cn){
   handle.classList.add('rt-rz-on');
   document.body.style.userSelect='none';
 }
+// A boundary that only one row has. The two cells either side of it sit inside one
+// band, so the drag hands width from one to the other and the band's total never
+// changes — which is what keeps every other row still. The pair, not the table, is
+// what the snap points are fractions of: there is nothing meaningful to line this
+// boundary up with outside the cell it divides.
+function rtRowRzStart(e,t,p,q,handle){
+  e.preventDefault(); e.stopPropagation();
+  const cols=rtEnsureCols(t);
+  if(!cols[p.c]) return;
+  const wid=(c0,cn)=>{ let w=0; for(let i=c0;i<c0+cn;i++) if(cols[i]) w+=rtColWidth(cols[i]); return w; };
+  const w0=wid(p.c,p.cs);
+  _rtRz={t,ci:p.c,cn:p.cs,x0:e.clientX,w0,w:w0,label:'',matches:[],fit:0,unit:'px',
+    last:false,rowb:true,nb:{c:q.c,cs:q.cs},pair:w0+wid(q.c,q.cs),wrap:null,tw0:0,hostW:0};
+  handle.classList.add('rt-rz-on');
+  document.body.style.userSelect='none';
+}
+function rtRzSnapPair(pair,raw){
+  let best=null;
+  for(let k=2;k<=4;k++) for(let j=1;j<k;j++){
+    const w=pair*j/k,d=Math.abs(w-raw);
+    if(d<=RT_SNAP&&(!best||d<best.d)) best={d,w,label:j===1&&k===2?'Half':j+'/'+k};
+  }
+  if(best) return {w:Math.round(best.w),label:best.label,matches:[]};
+  return {w:Math.round(raw),label:'',matches:[]};
+}
 function rtRzMove(e){
   const r=_rtRz,dx=e.clientX-r.x0;
   const cols=rtEnsureCols(r.t);
@@ -6624,7 +6695,7 @@ function rtRzMove(e){
     // The table's own width. Floored at the scroll floor so a drag cannot leave it
     // narrower than it is willing to render, and capped at the card.
     const hostW=r.hostW||rtInnerWidth(r.t);
-    const floor=Math.min(hostW,RT_MINW*cols.length);
+    const floor=Math.min(hostW,rtMinTableWidth(r.t));
     const px=Math.max(floor,Math.min(hostW,r.tw0+dx));
     const pct=Math.max(10,Math.min(100,px/(hostW||1)*100));
     if(r.wrap) r.wrap.style.width=pct.toFixed(1)+'%';
@@ -6637,7 +6708,9 @@ function rtRzMove(e){
   const lo=RT_MINW*cn,hi=Math.max(lo,r.pair-RT_MINW*(r.nb.cs||1));
   const raw=Math.max(lo,Math.min(hi,r.w0+dx));
   // Alt bypasses snapping for a freehand width.
-  const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}:rtRzSnap(r.t,r.ci,raw,r.fit);
+  const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}
+    :r.rowb?rtRzSnapPair(r.pair,raw)
+    :rtRzSnap(r.t,r.ci,raw,r.fit);
   r.w=Math.max(lo,Math.min(hi,s.w)); r.unit='px';
   r.label=s.label; r.matches=s.matches;
   rtSetBandWidth(r.t,r.ci,cn,r.w);
