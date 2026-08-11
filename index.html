@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="build" content="0811-a1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -909,6 +910,12 @@ const SB_URL = 'https://kluxonxyygddfbliognh.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsdXhvbnh5eWdkZGZibGlvZ25oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNzk0MDksImV4cCI6MjA5NDY1NTQwOX0.2spUovftRZPDwhe-HJjeWq6-QNvhfiGm3OfBivHTHIQ';
 const _sb = supabase.createClient(SB_URL, SB_KEY);
 
+// Which build is on screen. GitHub Pages serves this with Cache-Control: max-age=600 and
+// Chrome holds it longer still on a soft reload, so "I'm not seeing the change" has three
+// times now meant a stale bundle rather than a bug. There is no build step to inject a
+// hash, so this is bumped by hand at commit time; it is shown in the sync badge and
+// mirrored into <meta name="build"> so curl can answer the same question without a browser.
+const RT_BUILD = '0811-a1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
@@ -923,7 +930,8 @@ function updateSyncBadge(){
     offline: {dot:'#EF4444', text:'Offline'},
     conflict:{dot:'#F59E0B', text:'Updated elsewhere — refreshed'},
   }[_syncStatus] || {dot:'#999', text:'...'};
-  el.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:${cfg.dot};display:inline-block;flex-shrink:0"></span><span>${cfg.text}</span>`;
+  el.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:${cfg.dot};display:inline-block;flex-shrink:0"></span><span>${cfg.text}</span>`
+    +`<span style="color:var(--text3);font-size:9px;letter-spacing:.04em">${RT_BUILD}</span>`;
 }
 
 async function _pushToCloud(force){
@@ -4844,6 +4852,35 @@ function richtextKD(e){
     document.execCommand(e.shiftKey?'outdent':'indent');
     return;
   }
+  // Backspace inside the empty run above a table that opens a card takes a line off it.
+  // Chrome will not merge an empty block into a contenteditable="false" inline-block, so
+  // the default here is to do nothing at all and the gap cannot be closed by hand — the
+  // shape rtTrimLeadingGap cleans up on load. This is the manual way out, so a run typed
+  // back in later never strands the table low again.
+  if(e.key==='Backspace'&&!_rtSel.length){
+    const sel0=window.getSelection();
+    if(sel0&&sel0.rangeCount&&sel0.getRangeAt(0).collapsed){
+      const host=rtHost(sel0.getRangeAt(0).startContainer);
+      let blk=sel0.getRangeAt(0).startContainer;
+      blk=blk.nodeType===Node.TEXT_NODE?blk.parentElement:blk;
+      while(host&&blk&&blk.parentElement&&blk.parentElement!==host) blk=blk.parentElement;
+      if(host&&blk&&blk.parentElement===host&&_rtBlankLead(blk)){
+        let p=blk.previousSibling,lead=true;
+        while(p){ if(!_rtBlankLead(p)){ lead=false; break; } p=p.previousSibling; }
+        let nx=blk.nextSibling;
+        while(nx&&_rtBlankLead(nx)) nx=nx.nextSibling;
+        const onTable=!!nx&&nx.nodeType===1&&(nx.classList.contains('rt-tw')||nx.tagName==='TABLE');
+        if(lead&&onTable){
+          e.preventDefault();
+          blk.remove();
+          const td=nx.querySelector('td,th');
+          if(td) rtPlaceCaretAtEnd(td);
+          rtFire(host);
+          return;
+        }
+      }
+    }
+  }
   // Backspace on empty list item, or at the very start of a non-empty list item → outdent instead of merge up
   if(e.key==='Backspace'){
     const sel=window.getSelection();
@@ -5156,20 +5193,34 @@ function rtUndo(h,redo){
 }
 document.addEventListener('focusin',e=>{
   const h=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
-  if(h){ rtSeedUndo(h); _rtLastHost=h; }
+  if(h){ rtSeedUndo(h); rtSetLastHost(h); }
 });
 // Which card was last edited. Every table operation runs from a button on #rt-ctl,
 // which lives on <body> — and deleting a table takes the caret with it — so after
 // one, focus is outside every host and the card's own onkeydown never sees Ctrl+Z.
 // The stack was there the whole time; nothing could reach it.
 let _rtLastHost=null;
+// The stable name of a host, which is what actually survives: render() rebuilds the page,
+// so the div is replaced while the card it was showing is still right there. Same key
+// _rtUState uses for the history, so the route and the stack can never disagree.
+function _rtHostKey(h){
+  if(!h) return '';
+  if(h.dataset&&h.dataset.uid) return '[data-uid="'+h.dataset.uid+'"]';
+  return h.id?'#'+h.id:'';
+}
+function rtSetLastHost(h){ _rtLastHost=h; _rtLastHostKey=_rtHostKey(h); }
+let _rtLastHostKey='';
 function rtActiveHost(){
   const a=document.activeElement;
   const h=a&&a.closest?a.closest(RT_HOSTS):null;
   if(h) return h;
-  // A host that has been re-rendered away is not somewhere to put content back.
   if(_rtLastHost&&document.contains(_rtLastHost)) return _rtLastHost;
-  _rtLastHost=null;
+  // Detached, not gone. Undo after a render used to die here: the node was replaced, this
+  // returned null, and Ctrl+Z fell through without even preventing the default — while the
+  // card's history sat intact under its id. Look the card up again instead of giving up.
+  const live=_rtLastHostKey?document.querySelector(_rtLastHostKey):null;
+  if(live&&live.closest(RT_HOSTS)){ _rtLastHost=live; return live; }
+  _rtLastHost=null; _rtLastHostKey='';
   return null;
 }
 document.addEventListener('keydown',e=>{
@@ -5198,7 +5249,7 @@ let _rtSplit=false;
 
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
-function rtFire(el){ if(el){ _rtLastHost=el; el.dispatchEvent(new Event('input',{bubbles:true})); rtPushUndo(el,true); } }
+function rtFire(el){ if(el){ rtSetLastHost(el); el.dispatchEvent(new Event('input',{bubbles:true})); rtPushUndo(el,true); } }
 function rtHost(n){
   const el=n&&n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return el&&el.closest?el.closest(RT_HOSTS):null;
@@ -5451,6 +5502,35 @@ function rtGuardBlocks(host){
   host.querySelectorAll('.rt-tog-s').forEach(s=>fill(s,'<br>'));
   return dirty;
 }
+// Whether a node contributes nothing but height at the top of a card. A bare <br> counts:
+// the guard rule that used to force a line above a leading table left several shapes
+// behind — <p></p>, <p><br></p>, <div></div>, and a naked <br> — and they measure between
+// 10 and 32px each. Anything holding a table or an image is content, whatever its text.
+function _rtBlankLead(n){
+  if(n.nodeType===Node.TEXT_NODE) return !n.textContent.trim();
+  if(n.nodeType!==1) return true;
+  if(n.tagName==='BR') return true;
+  if(n.classList.contains('rt-tw')||n.tagName==='TABLE'||n.querySelector('table,img')) return false;
+  return !n.textContent.trim();
+}
+// Drop the empty run above a table that opens a card. Cards written under the old guard
+// rule still carry it, it is real saved content so nothing lays it out away, and it cannot
+// be deleted by hand: Backspace in an empty block immediately before a
+// contenteditable="false" inline-block is a no-op in Chrome, which is why the only way out
+// was to cut the table, backspace, and paste it back.
+// Deliberately narrow. Only a run that is strictly leading and strictly above a table goes;
+// blank lines you typed between two paragraphs are yours and are never touched.
+function rtTrimLeadingGap(host){
+  if(!host) return false;
+  const kids=[...host.childNodes];
+  let i=0;
+  while(i<kids.length&&_rtBlankLead(kids[i])) i++;
+  const first=kids[i];
+  if(!i||!first||first.nodeType!==1) return false;
+  if(!(first.classList.contains('rt-tw')||first.tagName==='TABLE')) return false;
+  for(let k=0;k<i;k++) kids[k].remove();
+  return true;
+}
 // Tables written before the wrapper existed are bare in the card, which is why
 // nothing — guards, resize handles, the row/column controls, copy — recognises
 // them. Wrap them once, in place. Only the wrapper changes; cells are untouched.
@@ -5481,6 +5561,9 @@ function rtFreezeTables(){
     // it has its wrapper, and the guard pass reads the result.
     let dirty=rtWrapLooseTables(host);
     if(rtGuardBlocks(host)) dirty=true;
+    // After wrapping, so a bare leading table is recognised as one. Idempotent — once the
+    // run is gone there is nothing left to trim, so this saves once and then goes quiet.
+    if(rtTrimLeadingGap(host)) dirty=true;
     host.querySelectorAll('.rt-table').forEach(t=>{
       if(!rtColCount(t)) return;
       const cg=t.querySelector('colgroup');
@@ -5838,7 +5921,13 @@ function rtDelCols(t,idxs){
 // selection toolbar appears and disappears with the selection itself.
 // The split popover belongs to the selection it was opened over, so it goes with it.
 function rtClearSel(){ const had=_rtSel.length; _rtSplit=false; _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; if(had) rtReposition(); }
-function rtSetSel(cells){ rtClearSel(); _rtSel=cells.filter(Boolean); _rtSel.forEach(td=>td.classList.add('rt-sel')); rtReposition(); }
+// `byUser` records who highlighted these cells, which matters because a highlight is now
+// also a mode: it scopes a boundary drag to its own rows. Splitting, merging and formatting
+// all leave a cell highlighted so the control bar has something to act on — the app's doing,
+// not a request — and letting that arm the mode would change what the very next drag means
+// without anyone asking. Only a highlight you made yourself counts.
+let _rtSelUser=false;
+function rtSetSel(cells,byUser){ rtClearSel(); _rtSel=cells.filter(Boolean); _rtSelUser=!!byUser&&_rtSel.length>0; _rtSel.forEach(td=>td.classList.add('rt-sel')); rtReposition(); }
 // The cell the caret is in, if it is in one. _rtSel only ever fills from a drag
 // ACROSS cells or from a grip, so in any table with more than one row there was no
 // gesture that meant "this cell" — which is why the toolbar had nothing to draw for.
@@ -5894,7 +5983,7 @@ function rtSelectRange(t,a,b){
   const gr=rtGrid(t);
   const rect=rtSelRect(gr,a,b);
   if(!rect) return;
-  rtSetSel(rtCellsInRect(gr,rect));
+  rtSetSel(rtCellsInRect(gr,rect),true); // dragged across cells by hand
 }
 // Backspace/Delete over a cell selection: full rows/cols are removed,
 // anything else just has its contents cleared.
@@ -6233,6 +6322,28 @@ function rtPasteTable(){
   rtFire(host);
   return true;
 }
+// Clipboard text → a grid of cell HTML, the way every spreadsheet writes it: tabs between
+// cells, newlines between rows. Returns null for a single line with no tabs, deliberately —
+// pasting one word into a cell must stay one word in that cell, not become a table op.
+function rtGridFromText(txt){
+  const rows=String(txt||'').replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n');
+  if(rows.length<2&&rows[0].indexOf('\t')<0) return null;
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const g=rows.map(r=>r.split('\t').map(c=>esc(c)||'<br>'));
+  const w=Math.max(...g.map(r=>r.length));
+  g.forEach(r=>{ while(r.length<w) r.push('<br>'); });
+  return g;
+}
+// The same from an HTML table on the clipboard — Excel, Word and most web pages put one
+// there alongside the text, and it carries the cell formatting the tabs cannot.
+function rtGridFromHTML(html){
+  if(!html) return null;
+  const d=document.createElement('div');
+  d.innerHTML=html;
+  const t=d.querySelector('table');
+  if(!t||!t.rows.length) return null;
+  return [...t.rows].map(tr=>[...tr.cells].map(td=>td.innerHTML||'<br>'));
+}
 function rtClipRead(){
   const s=rtSelShape();
   // Highlighting every cell means "the table", not "all of its rows" — copy the whole
@@ -6310,24 +6421,29 @@ function rtFormatSel(cmd){
   // One input event for the whole pass, so it is one undo step like every other
   // programmatic edit here.
   if(host) rtFire(host);
-  rtSetSel(cells); // execCommand rewrote the cells' insides, not the cells
+  rtSetSel(cells,_rtSelUser); // execCommand rewrote the cells' insides, not the cells
   return true;
 }
-function rtPasteClip(){
-  if(!_rtClip) return false;
+// Fill cells from a grid of cell HTML. With no argument that grid is the app's own clip;
+// gridIn is how text from outside the app gets here, and it always lands as a block of
+// cells rather than as whole rows or columns, because a foreign paste has no idea which
+// of ours it was.
+function rtPasteClip(gridIn){
+  if(!gridIn&&!_rtClip) return false;
   const anchor=rtAnchorCell();
   if(!anchor) return false;
   const t=anchor.closest('table');
   if(!t) return false;
   rtEnsureCols(t);
-  const at=rtPos(anchor),g=_rtClip.grid;
-  if(!g) return false; // a clip with no cells to fill from is rtPasteTable's job
-  if(_rtClip.kind==='rows'){
+  const kind=gridIn?'cells':_rtClip.kind;
+  const at=rtPos(anchor),g=gridIn||_rtClip.grid;
+  if(!g||!g.length) return false; // a clip with no cells to fill from is rtPasteTable's job
+  if(kind==='rows'){
     g.slice().reverse().forEach(row=>{
       const tr=rtAddRow(t,at.r);
       row.forEach((h,i)=>{ if(tr.cells[i]) tr.cells[i].innerHTML=h||'<br>'; });
     });
-  }else if(_rtClip.kind==='cols'){
+  }else if(kind==='cols'){
     const w=g[0]?g[0].length:0;
     for(let k=w-1;k>=0;k--){
       rtAddCol(t,at.c);
@@ -6398,22 +6514,39 @@ function rtShowCtl(t){
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='col'&&_rtMv.from===ci) g.classList.add('rt-mv');
     if(_rtRz&&_rtRz.t===t&&_rtRz.matches&&_rtRz.matches.indexOf(ci)>=0) g.classList.add('rt-eq');
     g.onmousedown=e=>rtMvStart(e,t,'col',ci,g);
-    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtBandCells(t,ci,cn)); };
+    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtBandCells(t,ci,cn),true); };
     // Resize handle on this column's right boundary.
     const bx=Math.min(r.right,wr.right);
     if(bx>=wr.left&&bx<=wr.right+1&&rtShared(ci+cn)){
-      const rz=mk('rt-rz',`left:${bx-3}px;top:${tb.top}px;height:${tb.height}px`);
-      rz.title='Drag to resize · double-click to distribute evenly';
+      // Same gesture, two scopes, so the handle has to say which is armed before it is
+      // grabbed. Highlighted rows shorten it to those rows and change the tooltip.
+      const sp=rtSelPairsAt(t,ci+cn);
+      let top=tb.top,hgt=tb.height;
+      if(sp.length){
+        const rs=sp.map(p=>p[0].getBoundingClientRect());
+        top=Math.min(...rs.map(x=>x.top));
+        hgt=Math.max(...rs.map(x=>x.bottom))-top;
+      }
+      const rz=mk('rt-rz'+(sp.length?' rt-rz-row':''),`left:${bx-3}px;top:${top}px;height:${hgt}px`);
+      rz.title=sp.length?`Drag to resize ${sp.length===1?'the selected cell':'the selected rows'} only`
+                        :'Drag to resize · double-click to distribute evenly';
       if(_rtRz&&_rtRz.ci===ci) rz.classList.add('rt-rz-on');
       rz.onmousedown=e=>rtRzStart(e,t,ci,rz,cn);
       rz.ondblclick=e=>{ e.preventDefault(); e.stopPropagation(); _rtRz=null; document.body.style.userSelect=''; rtDistributeCols(t); };
       // Alignment guide + width badge for the column currently being dragged.
-      if(_rtRz&&_rtRz.t===t&&_rtRz.ci===ci){
-        mk('rt-guide',`left:${bx}px;top:${tb.top-8}px;height:${tb.height+16}px`);
-        const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${tb.top-10}px`);
-        b.innerHTML='<span></span>'+(_rtRz.label?'<span class="rt-snap"></span>':'');
+      // A selection-scoped drag runs through the row path, so it has no ci to match on —
+      // recognise it by the pair it is moving instead, or it drags with no readout at all.
+      const mine=_rtRz&&_rtRz.t===t&&(_rtRz.ci===ci
+        ||(_rtRz.rowb&&sp.length&&_rtRz.pairs&&_rtRz.pairs[0][0]===sp[0][0]));
+      if(mine){
+        mk('rt-guide',`left:${bx}px;top:${top-8}px;height:${hgt+16}px`);
+        const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${top-10}px`);
+        // The number alone cannot distinguish "this column" from "these two rows", and the
+        // gesture is identical, so the scope is spelled out whenever it is not the default.
+        const scope=_rtRz.rowb&&sp.length?(sp.length===1?'this cell':`these ${sp.length} rows`):'';
+        b.innerHTML='<span></span>'+(_rtRz.label||scope?'<span class="rt-snap"></span>':'');
         b.firstElementChild.textContent=Math.round(_rtRz.w)+(_rtRz.unit||'px');
-        if(_rtRz.label) b.lastElementChild.textContent=_rtRz.label;
+        if(_rtRz.label||scope) b.lastElementChild.textContent=[_rtRz.label,scope].filter(Boolean).join(' · ');
       }
     }
   });
@@ -6439,7 +6572,7 @@ function rtShowCtl(t){
       const rz=mk('rt-rz rt-rz-row',`left:${bx-3}px;top:${rr.top}px;height:${rr.height}px`);
       rz.title='Drag to resize this row only';
       if(on) rz.classList.add('rt-rz-on');
-      rz.onmousedown=e=>rtRowRzStart(e,t,tdA,tdB,rz);
+      rz.onmousedown=e=>rtRowRzStart(e,t,[[tdA,tdB]],rz);
       if(on){
         mk('rt-guide',`left:${bx}px;top:${rr.top}px;height:${rr.height}px`);
         const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${rr.top-10}px`);
@@ -6455,7 +6588,7 @@ function rtShowCtl(t){
     g.title='Drag to move row, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='row'&&_rtMv.from===ri) g.classList.add('rt-mv');
     g.onmousedown=e=>rtMvStart(e,t,'row',ri,g);
-    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel([...tr.cells]); };
+    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel([...tr.cells],true); };
   });
   // Both buttons live in the gutter to the table's left, stacked, rather than on the
   // line above it: over that line they covered the text you were typing, which is
@@ -6768,11 +6901,35 @@ function rtRzSnap(t,ci,raw,fitW){
 // overflowing its card. The last boundary has nothing on the far side to take from,
 // so it sizes the table instead, as a share of the card. Google Docs draws the same
 // distinction between a column boundary and the table's right edge.
+// Which rows a highlighted selection would scope this boundary drag to — Word's rule, where
+// the selection is the switch: nothing highlighted, the boundary moves for the whole column;
+// highlight cells first and it moves for those alone. Empty when the drag is whole-column.
+// A caret is deliberately not enough. It is in a cell whenever you type, so counting one
+// would quietly turn every ordinary column drag into a one-row drag; only rt-sel counts.
+function rtSelPairsAt(t,bnd){
+  if(!_rtSel.length||!_rtSelUser) return [];
+  const gr=rtGrid(t),sel=new Set(_rtSel),pairs=[];
+  if(bnd<=0||bnd>=gr.cols) return [];
+  for(let r=0;r<gr.rows;r++){
+    const a=gr.g[r][bnd-1],z=gr.g[r][bnd];
+    if(!a||!z||a===z) continue;
+    if(!sel.has(a)&&!sel.has(z)) continue;
+    const p=rtGridPos(gr,a);
+    if(!p||p.c+p.cs!==bnd) continue;      // a has to actually end here, not span past it
+    if(pairs.some(q=>q[0]===a)) continue; // a row-spanning cell contributes once
+    pairs.push([a,z]);
+  }
+  // Every row selected is just the column again, and the band path does that better —
+  // it is what Distribute and Fit share.
+  return pairs.length>=gr.rows?[]:pairs;
+}
 function rtRzStart(e,t,ci,handle,cn){
   e.preventDefault(); e.stopPropagation();
   const cols=rtEnsureCols(t);
   if(!cols[ci]) return;
   cn=Math.max(1,cn||1);
+  const scoped=rtSelPairsAt(t,ci+cn);
+  if(scoped.length){ rtRowRzStart(e,t,scoped,handle); return; }
   const bands=rtBands(t),bi=bands.findIndex(b=>b.c===ci);
   const last=bi<0||bi===bands.length-1;
   const nb=last?null:bands[bi+1];
@@ -6792,10 +6949,16 @@ function rtRzStart(e,t,ci,handle,cn){
 // changes — which is what keeps every other row still. The pair, not the table, is
 // what the snap points are fractions of: there is nothing meaningful to line this
 // boundary up with outside the cell it divides.
-function rtRowRzStart(e,t,tdA,tdB,handle){
+// `pairs` is [[leftCell,rightCell],…] — one entry per row whose boundary is being moved.
+// A split's own border is one pair; a highlighted range is one per selected row. Same
+// arithmetic either way, which is the point of taking a list rather than a pair.
+function rtRowRzStart(e,t,pairs,handle){
   e.preventDefault(); e.stopPropagation();
   rtEnsureCols(t);
   const b=rtCellBounds(t);
+  const ps=pairs.filter(p=>b.get(p[0])&&b.get(p[1]));
+  if(!ps.length) return;
+  const tdA=ps[0][0],tdB=ps[0][1];
   const A=b.get(tdA),B=b.get(tdB);
   if(!A||!B) return;
   // The boundaries as they stand, kept for the whole drag. Rebuilding from the snapshot
@@ -6804,7 +6967,7 @@ function rtRowRzStart(e,t,tdA,tdB,handle){
   const snap=[]; b.forEach((v,td)=>snap.push([td,v.l,v.r]));
   const inner=rtInnerWidth(t)||RT_NOMW;
   const w0=(A.r-A.l)/100*inner;
-  _rtRz={t,rowb:true,tdA,tdB,snap,inner,lo:A.l,x0:e.clientX,w0,w:w0,
+  _rtRz={t,rowb:true,tdA,tdB,pairs:ps,snap,inner,lo:A.l,x0:e.clientX,w0,w:w0,
     label:'',matches:[],fit:0,unit:'px',last:false,pair:(B.r-A.l)/100*inner,
     ci:-1,cn:1,nb:null,wrap:null,tw0:0,hostW:0};
   handle.classList.add('rt-rz-on');
@@ -6832,7 +6995,7 @@ function rtRzMove(e){
     r.w=Math.max(lo,Math.min(hi,s.w)); r.unit='px'; r.label=s.label; r.matches=[];
     const edge=rtQ(r.lo+r.w/r.inner*100);
     const m=new Map(r.snap.map(([td,l,rr])=>[td,{l,r:rr}]));
-    m.get(r.tdA).r=edge; m.get(r.tdB).l=edge;
+    r.pairs.forEach(([a,z])=>{ const ma=m.get(a),mz=m.get(z); if(ma&&mz){ ma.r=edge; mz.l=edge; } });
     rtApplyBounds(r.t,m);
     rtReposition(); return;
   }
@@ -7129,13 +7292,29 @@ window.addEventListener('resize',rtReposition);
 // Whole-table paste is handled on the paste event rather than in keydown so the system
 // clipboard can be compared against the TSV written at copy time. If the user has copied
 // something else since, the held table is stale and the native paste is left alone.
+// The one place that decides what a paste means, so the keydown route and this one cannot
+// drift apart again. They did: keydown filled cells from _rtClip.grid while this listener
+// only ever called rtPasteTable, which never reads the grid and inserts the clip *after*
+// the table the caret is in — so pasting into a cell added a second table instead.
+// Where the caret is settles it. In a cell, a paste fills cells; outside one, it inserts a
+// table. Both are true of the same clipboard at the same time.
 document.addEventListener('paste',e=>{
-  if(!_rtClip||_rtClip.kind!=='table') return;
-  if(_rtClip.tsv){
-    const txt=e.clipboardData?e.clipboardData.getData('text/plain'):'';
-    if(txt.replace(/\r/g,'')!==_rtClip.tsv) return;
+  const cd=e.clipboardData;
+  const txt=cd?cd.getData('text/plain'):'';
+  // Ours only if the system clipboard still holds what we put there. Unconditional now:
+  // guarding this behind `if(_rtClip.tsv)` let an empty tsv skip the check entirely, so a
+  // stale clip could hijack a paste that had nothing to do with it.
+  const ours=!!_rtClip&&txt.replace(/\r/g,'')===(_rtClip.tsv||'');
+  if(rtAnchorCell()){
+    if(ours&&_rtClip.grid){ if(rtPasteClip()) e.preventDefault(); return; }
+    // From outside the app. An HTML table on the clipboard beats the tabs, because it
+    // carries the cell formatting too; failing that, tab/newline text. A single plain word
+    // yields no grid and is left to the browser.
+    const g=rtGridFromHTML(cd?cd.getData('text/html'):'')||rtGridFromText(txt);
+    if(g&&rtPasteClip(g)) e.preventDefault();
+    return;
   }
-  if(rtPasteTable()) e.preventDefault();
+  if(ours&&_rtClip.kind==='table'&&rtPasteTable()) e.preventDefault();
 });
 
 // ─── Slash command menu ──────────────────────────────────────────
