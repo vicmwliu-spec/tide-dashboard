@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0811-c4">
+<meta name="build" content="0811-c5">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -950,7 +950,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0811-c4';
+const RT_BUILD = '0811-c5';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
@@ -6493,6 +6493,49 @@ function rtDeleteSelection(){
 let _rtClip=null;
 // Mirror a grid of cell text to the system clipboard as TSV. The same string is kept on
 // _rtClip so a later paste can tell whether the clipboard still holds what we put there.
+// A block of cells is still a table. Copying part of one — some cells, a row, a column
+// — fills _rtClip with a grid but no html, because there is no whole wrapper to clone;
+// pasting that outside a table therefore fell through to the prose branch and arrived
+// as bare tab-separated text. It builds the table the block describes instead.
+function rtWrapFromGrid(g){
+  if(!g||!g.length||!g[0].length) return null;
+  const wrap=document.createElement('div');
+  wrap.className='rt-tw';
+  wrap.setAttribute('contenteditable','false');
+  const tbl=document.createElement('table');
+  tbl.className='rt-table';
+  const body=document.createElement('tbody');
+  g.forEach(row=>{
+    const tr=document.createElement('tr');
+    row.forEach(h=>{ const td=rtMakeCell(); td.innerHTML=h||'<br>'; tr.appendChild(td); });
+    body.appendChild(tr);
+  });
+  tbl.appendChild(body); wrap.appendChild(tbl);
+  return wrap;
+}
+function rtPasteGridAsTable(g){
+  const wrap=rtWrapFromGrid(g);
+  if(!wrap) return false;
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount) return false;
+  let n=sel.getRangeAt(0).startContainer;
+  n=n.nodeType===Node.TEXT_NODE?n.parentElement:n;
+  const host=rtHost(n);
+  if(!host) return false;
+  // Dropped after the table you were standing next to, the same as a whole-table paste.
+  const inner=n&&n.closest?n.closest('.rt-tw'):null;
+  if(inner&&host.contains(inner)){
+    const after=document.createElement('p');after.innerHTML='<br>';
+    inner.parentNode.insertBefore(wrap,inner.nextSibling);
+    wrap.parentNode.insertBefore(after,wrap.nextSibling);
+  }else rtPlaceWrap(host,wrap);
+  rtGuardBlocks(host);
+  rtEnsureCols(wrap.querySelector('.rt-table'));
+  const first=wrap.querySelector('td');
+  if(first) rtPlaceCaretAtEnd(first);
+  rtFire(host);
+  return true;
+}
 function rtClipMirror(rows){
   const tsv=rows.map(r=>r.join('\t')).join('\n');
   try{
@@ -7623,6 +7666,14 @@ document.addEventListener('paste',e=>{
   // A whole copied table only ever lands in prose — dropping one inside a cell is not
   // something the grid can hold, so from a cell this stays out of the way.
   if(!inCell&&ours&&_rtClip.kind==='table'&&rtPasteTable()){ e.preventDefault(); return; }
+  // Part of a table is a table too. Only our own clip and a real <table> off the
+  // clipboard qualify — several lines of ordinary text are prose, not a grid, and
+  // turning those into a table is not what anyone means by pasting a paragraph.
+  if(!inCell&&ours&&_rtClip.grid&&rtPasteGridAsTable(_rtClip.grid)){ e.preventDefault(); return; }
+  if(!inCell){
+    const gh=rtGridFromHTML(cd?cd.getData('text/html'):'');
+    if(gh&&rtPasteGridAsTable(gh)){ e.preventDefault(); return; }
+  }
   // Not a cell and not one of our tables: ordinary prose, where the same painted white
   // and black arrive from the same places. Only worth intercepting when the clipboard
   // actually carries HTML — a plain-text paste has nothing to strip and is left to the
