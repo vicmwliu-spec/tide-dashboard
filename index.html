@@ -5744,6 +5744,23 @@ function rtDelCols(t,idxs){
 // The split popover belongs to the selection it was opened over, so it goes with it.
 function rtClearSel(){ const had=_rtSel.length; _rtSplit=false; _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; if(had) rtReposition(); }
 function rtSetSel(cells){ rtClearSel(); _rtSel=cells.filter(Boolean); _rtSel.forEach(td=>td.classList.add('rt-sel')); rtReposition(); }
+// The cell the caret is in, if it is in one. _rtSel only ever fills from a drag
+// ACROSS cells or from a grip, so in any table with more than one row there was no
+// gesture that meant "this cell" — which is why the toolbar had nothing to draw for.
+function rtCaretCell(){
+  const s=window.getSelection&&window.getSelection();
+  const n=s&&s.anchorNode; if(!n) return null;
+  const el=n.nodeType===1?n:n.parentElement;
+  return el&&el.closest?el.closest('.rt-table td'):null;
+}
+// What a toolbar action applies to: the selection when there is one, the caret's cell
+// otherwise. A caret is not a selection — it paints no rt-sel and Backspace still
+// deletes a character — but it says which cell you mean, which is all this needs.
+function rtActiveCells(){
+  if(_rtSel.length) return _rtSel;
+  const td=rtCaretCell();
+  return td?[td]:[];
+}
 function rtPos(td){
   const t=td.closest('table');
   const p=t?rtGridPos(rtGrid(t),td):null;
@@ -5842,18 +5859,19 @@ function rtHdSet(td,on){
   if(rtHdPos(td)!==!!on) td.classList.add(on?'rt-hd':'rt-nohd');
 }
 // The button's label: shaded only if every selected cell is.
-function rtSelShaded(){ return _rtSel.length>0&&_rtSel.every(rtHdOn); }
+function rtSelShaded(){ const cs=rtActiveCells(); return cs.length>0&&cs.every(rtHdOn); }
 // One button, and never ambiguous on a mixed selection: any plain cell in the
 // selection means the click shades, so a second click always undoes the first.
 function rtShadeSel(){
-  if(!_rtSel.length) return false;
-  const t=_rtSel[0].closest('table'); if(!t) return false;
+  const cells=rtActiveCells();
+  if(!cells.length) return false;
+  const t=cells[0].closest('table'); if(!t) return false;
   const on=!rtSelShaded();
   // A table that never opted in is shaded by the :not(.rt-hopt) fallback. Opting it
   // in now would take that away, so hand it the header row it was already showing —
   // the same trade the ⋯ menu makes.
   if(!t.classList.contains('rt-hopt')) t.classList.add('rt-hopt','rt-hr');
-  _rtSel.forEach(td=>rtHdSet(td,on));
+  cells.forEach(td=>rtHdSet(td,on));
   rtFire(rtHost(t)); rtShowCtl(t);
   return true;
 }
@@ -5941,7 +5959,7 @@ function _rtGrowSpan(t,td,k,dir){
     td.colSpan=p.cs+k;
     // The new columns are carved out of this cell's own width rather than added to
     // the table's, so no column outside the cell moves — the same rule the selection
-    // bar's "Match widest" follows.
+    // bar's "Distribute" follows.
     const cg=t.querySelector('colgroup');
     if(cg){
       const W=[...cg.children].slice(p.c,X).reduce((a,c)=>a+rtColWidth(c),0)||RT_MINW*p.cs;
@@ -6384,15 +6402,21 @@ function rtShowCtl(t){
   gb.onmousedown=e=>rtTwMvStart(e,t,gb);
   // Selection toolbar. It lives here rather than in the ⋯ menu because opening
   // that menu is a click, and a click is what clears a cell selection.
-  if(_rtSel.length&&_rtSel[0].closest('table')===t){
-    const s=rtSelShape();
+  // A caret in a cell counts, so a single cell is reachable at all: _rtSel only fills
+  // from a drag across cells or a grip, neither of which can mean one cell in a table
+  // with more than one row.
+  const act=rtActiveCells();
+  if(act.length&&act[0].closest('table')===t){
+    // Merge, Unmerge and Distribute act on a region, and a caret is not one, so
+    // they stay on the real selection. Split and Shade are happy with one cell.
+    const s=_rtSel.length?rtSelShape():null;
     const btns=[];
-    if(s.rect&&_rtSel.length>1) btns.push(['Merge',rtMergeSelection]);
-    if(s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
+    if(s&&s.rect&&_rtSel.length>1) btns.push(['Merge',rtMergeSelection]);
+    if(s&&s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
     // Unmerge takes a merged cell back to 1×1. Split divides one cell however you
     // ask, and will manufacture the grid slots if the cell hasn't any spare.
-    if(_rtSel.length===1) btns.push(['Split…',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
-    if(s.cols.length>1) btns.push(['Match widest',rtDistributeSelCols]);
+    if(act.length===1) btns.push(['Split…',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
+    if(s&&s.cols.length>1) btns.push(['Distribute',rtDistributeSelCols]);
     // Shading a whole column or row needs nothing else: the grips already select one.
     btns.push([rtSelShaded()?'Unshade':'Shade',rtShadeSel]);
     if(btns.length){
@@ -6408,8 +6432,8 @@ function rtShowCtl(t){
     // The "how many pieces" popover, drawn on the overlay like the ⋯ menu so it takes
     // no layout and dies with the controls. Every part of it has to preventDefault on
     // mousedown: a click that moves focus clears the very selection it acts on.
-    if(_rtSplit&&_rtSel.length===1){
-      const cell=_rtSel[0];
+    if(_rtSplit&&act.length===1){
+      const cell=act[0];
       const m=mk('rt-menu rt-splitpop',`left:${Math.max(4,wr.left)}px;top:${tb.top+4}px`);
       m.onmousedown=e=>e.preventDefault();
       const num=(label,val)=>{
@@ -6870,6 +6894,15 @@ document.addEventListener('mouseup',()=>{
   else if(_rtMv) rtMvEnd();
   else if(_rtTwMv) rtTwMvEnd(false);
   _rtDrag=null;
+});
+// Moving the caret changes what the toolbar should offer, and fires none of the
+// events that redraw it. rtReposition coalesces on a frame, so this costs one rebuild
+// per frame at worst while typing. Not while the split popover is open: rebuilding
+// would take away the input it just put the caret in.
+document.addEventListener('selectionchange',()=>{
+  if(!_rtCtlTable||_rtSplit) return;
+  const td=rtCaretCell();
+  if(td&&td.closest('table')===_rtCtlTable) rtReposition();
 });
 // Escape abandons a table drag where it started, like every other drag here.
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&_rtTwMv){ e.preventDefault(); rtTwMvEnd(true); } },true);
