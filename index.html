@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0811-c1">
+<meta name="build" content="0811-c2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -403,14 +403,14 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before{
   position:absolute;left:-16px;width:14px;text-align:center;line-height:inherit;
   cursor:pointer;text-decoration:none;font-size:11px}
-/* Not started is deliberately the quietest thing on the line — it is the default state
-   and most items will be in it. Only "in progress" takes the accent, because that is
-   the one you want to find when you scan the card. */
-#aar-editor ul>li[data-st="1"]::before,.quote-ta ul>li[data-st="1"]::before,.priority-ta ul>li[data-st="1"]::before,.notes-ta ul>li[data-st="1"]::before,.intention-ta ul>li[data-st="1"]::before,.cv-bd ul>li[data-st="1"]::before{content:'●';color:var(--text3)}
-#aar-editor ul>li[data-st="2"]::before,.quote-ta ul>li[data-st="2"]::before,.priority-ta ul>li[data-st="2"]::before,.notes-ta ul>li[data-st="2"]::before,.intention-ta ul>li[data-st="2"]::before,.cv-bd ul>li[data-st="2"]::before{content:'◐';color:var(--edit)}
-#aar-editor ul>li[data-st="3"]::before,.quote-ta ul>li[data-st="3"]::before,.priority-ta ul>li[data-st="3"]::before,.notes-ta ul>li[data-st="3"]::before,.intention-ta ul>li[data-st="3"]::before,.cv-bd ul>li[data-st="3"]::before{content:'✓';color:var(--text2)}
+/* There is no glyph for "not started" because the disc already is one. An untouched
+   bullet is the default state, which is where most items live, so the marked states are
+   only the two that say something: in progress takes the accent, because that is what
+   you want to find when you scan the card, and done goes quiet. */
+#aar-editor ul>li[data-st="doing"]::before,.quote-ta ul>li[data-st="doing"]::before,.priority-ta ul>li[data-st="doing"]::before,.notes-ta ul>li[data-st="doing"]::before,.intention-ta ul>li[data-st="doing"]::before,.cv-bd ul>li[data-st="doing"]::before{content:'◐';color:var(--edit)}
+#aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
 /* Done looks the same here as a ticked checklist item does above. One "done" in the app. */
-#aar-editor ul>li[data-st="3"],.quote-ta ul>li[data-st="3"],.priority-ta ul>li[data-st="3"],.notes-ta ul>li[data-st="3"],.intention-ta ul>li[data-st="3"],.cv-bd ul>li[data-st="3"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
 /* Rich-text simple table (Notion-style) */
 /* The wrapper owns the width, as a share of the card, and the table fills it. An
    explicit width is what lets the table inside be a percentage at all — a
@@ -942,7 +942,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0811-c1';
+const RT_BUILD = '0811-c2';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
@@ -5075,10 +5075,14 @@ function rtSetList(kind){
   document.execCommand(spec.tag==='OL'?'insertOrderedList':'insertUnorderedList');
   return rtConvertList(kind);
 }
-// ● not started → ◐ in progress → ✓ done → plain bullet again. Declared up here rather
-// than beside the click handler that cycles it because rtNormalizeLists validates
-// against it, and that can run on the very first render.
-const RT_ST_RING=['1','2','3'];
+// • not started → ◐ in progress → ✓ done → • again. Not started has no attribute and no
+// glyph of its own: it is the plain disc, which already means that. So the ring is the
+// two states worth marking, and "no status" is the third by being the absence of one.
+// Named rather than numbered so the saved HTML says what it means, and so a value from
+// an older shape is simply unrecognised and swept up by rtNormalizeLists below.
+// Declared up here rather than beside the click handler that cycles it because that
+// normalizer validates against it, and it can run on the very first render.
+const RT_ST_RING=['doing','done'];
 // Every list item the selection touches, or the caret's own item when nothing is
 // selected. Range.intersectsNode is the direct answer; the fallbacks are there because
 // the jsdom harness doesn't implement every Range method.
@@ -5095,9 +5099,10 @@ function rtSelLis(){
   const all=[...el.querySelectorAll('li')].filter(hit);
   return all.length?all:(li?[li]:[]);
 }
-// Give the touched items a status. With no list at the caret, make one through
-// rtSetList so there is still exactly one path to "this is now a list". A checklist is
-// left alone — its items already own that gutter for the checkbox.
+// Give the touched items a status — the first marked one, since a plain bullet is
+// already "not started" and asking for that would be asking for nothing. With no list
+// at the caret, make one through rtSetList so there is still exactly one path to "this
+// is now a list". A checklist is left alone — its items own that gutter for the box.
 function rtSetStatus(){
   let lis=rtSelLis();
   if(!lis.length){
@@ -5108,7 +5113,7 @@ function rtSetStatus(){
   }
   lis=lis.filter(li=>{ const p=li.parentElement;
     return p&&p.tagName==='UL'&&!p.classList.contains('rt-todo'); });
-  lis.forEach(li=>li.setAttribute('data-st','1'));
+  lis.forEach(li=>li.setAttribute('data-st',RT_ST_RING[0]));
   return lis.length;
 }
 function rtNormalizeLists(root){
@@ -7408,11 +7413,11 @@ const RT_CMDS=[
   {k:'numbered',ic:'1.',label:'Numbered list',run:()=>rtSetList('number')},
   {k:'lettered',ic:'a.',label:'Lettered list',run:()=>rtSetList('letter')},
   {k:'todo',ic:'☑',label:'To-do list',run:()=>rtSetList('todo')},
-  {k:'status',ic:'◐',label:'Status list',run:()=>rtSetStatus()},
+  {k:'status',ic:'◐',label:'Mark in progress',run:()=>rtSetStatus()},
   {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>document.execCommand('strikeThrough',false,null)}
 ];
-// Four clicks return the item to what it was, which is the whole reason a plain bullet
-// can safely have a live click zone at all: a stray hit in the gutter costs three more
+// Three clicks return the item to what it was, which is the whole reason a plain bullet
+// can safely have a live click zone at all: a stray hit in the gutter costs two more
 // clicks, never a trip to a menu.
 // Clicking the marker changes the item; clicking the text just places the caret. Both
 // markers live in the gutter, but not in the same box: a checkbox is drawn inside the
