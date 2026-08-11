@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0811-b2">
+<meta name="build" content="0811-c1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -393,6 +393,24 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before{
   content:'✓';background:var(--text2);border-color:var(--text2)}
 #aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
+/* Task status, carried by the bullet itself. Not a list kind — a property of the item,
+   so an ordinary bullet list holds statused and plain items side by side. The <ul>
+   already reserves 22px of padding for markers, so the glyph is drawn back into that
+   space with position:absolute and the item's own text box never moves: a statused
+   line and a plain one sit on exactly the same left edge. Scoped off .rt-todo, whose
+   items own that gutter already for their checkbox. */
+#aar-editor ul:not(.rt-todo)>li[data-st],.quote-ta ul:not(.rt-todo)>li[data-st],.priority-ta ul:not(.rt-todo)>li[data-st],.notes-ta ul:not(.rt-todo)>li[data-st],.intention-ta ul:not(.rt-todo)>li[data-st],.cv-bd ul:not(.rt-todo)>li[data-st]{list-style:none;position:relative}
+#aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before{
+  position:absolute;left:-16px;width:14px;text-align:center;line-height:inherit;
+  cursor:pointer;text-decoration:none;font-size:11px}
+/* Not started is deliberately the quietest thing on the line — it is the default state
+   and most items will be in it. Only "in progress" takes the accent, because that is
+   the one you want to find when you scan the card. */
+#aar-editor ul>li[data-st="1"]::before,.quote-ta ul>li[data-st="1"]::before,.priority-ta ul>li[data-st="1"]::before,.notes-ta ul>li[data-st="1"]::before,.intention-ta ul>li[data-st="1"]::before,.cv-bd ul>li[data-st="1"]::before{content:'●';color:var(--text3)}
+#aar-editor ul>li[data-st="2"]::before,.quote-ta ul>li[data-st="2"]::before,.priority-ta ul>li[data-st="2"]::before,.notes-ta ul>li[data-st="2"]::before,.intention-ta ul>li[data-st="2"]::before,.cv-bd ul>li[data-st="2"]::before{content:'◐';color:var(--edit)}
+#aar-editor ul>li[data-st="3"]::before,.quote-ta ul>li[data-st="3"]::before,.priority-ta ul>li[data-st="3"]::before,.notes-ta ul>li[data-st="3"]::before,.intention-ta ul>li[data-st="3"]::before,.cv-bd ul>li[data-st="3"]::before{content:'✓';color:var(--text2)}
+/* Done looks the same here as a ticked checklist item does above. One "done" in the app. */
+#aar-editor ul>li[data-st="3"],.quote-ta ul>li[data-st="3"],.priority-ta ul>li[data-st="3"],.notes-ta ul>li[data-st="3"],.intention-ta ul>li[data-st="3"],.cv-bd ul>li[data-st="3"]{text-decoration:line-through;color:var(--text3)}
 /* Rich-text simple table (Notion-style) */
 /* The wrapper owns the width, as a share of the card, and the table fills it. An
    explicit width is what lets the table inside be a percentage at all — a
@@ -924,7 +942,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0811-b2';
+const RT_BUILD = '0811-c1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
@@ -4794,6 +4812,13 @@ function richtextKD(e){
     if(fmt) run(fmt);
     // Shift-guarded so plain Ctrl+X (table cut) is untouched.
     if(e.shiftKey&&(e.key==='x'||e.key==='X')) run('strikeThrough');
+    // Status on every item the selection touches. /status can't do this one — typing a
+    // slash replaces the selection you were trying to act on — so the block route is a
+    // shortcut. Shift-guarded to leave Ctrl+S alone.
+    if(e.shiftKey&&(e.key==='s'||e.key==='S')){
+      const h=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
+      if(h&&rtSetStatus()){ e.preventDefault(); rtFire(h); }
+    }
   }
   // "--" → em dash
   if(e.key==='-'){
@@ -5031,6 +5056,9 @@ function rtConvertList(kind){
   if(spec.mark) nl.style.listStyleType=spec.mark;
   nl.appendChild(li);
   if(kind!=='todo') li.removeAttribute('data-done');
+  // A status belongs to a plain bullet. Carried into a numbered or lettered list it
+  // would draw nothing; carried into a checklist it would sit under the checkbox.
+  if(kind!=='bullet') li.removeAttribute('data-st');
   list.parentNode.insertBefore(nl,list.nextSibling);
   if(!list.querySelector('li')) list.remove();
   rtPlaceCaretAtEnd(li); // moving the node dropped the selection
@@ -5047,6 +5075,42 @@ function rtSetList(kind){
   document.execCommand(spec.tag==='OL'?'insertOrderedList':'insertUnorderedList');
   return rtConvertList(kind);
 }
+// ● not started → ◐ in progress → ✓ done → plain bullet again. Declared up here rather
+// than beside the click handler that cycles it because rtNormalizeLists validates
+// against it, and that can run on the very first render.
+const RT_ST_RING=['1','2','3'];
+// Every list item the selection touches, or the caret's own item when nothing is
+// selected. Range.intersectsNode is the direct answer; the fallbacks are there because
+// the jsdom harness doesn't implement every Range method.
+function rtSelLis(){
+  const s=window.getSelection();
+  const li=rtCaretLi();
+  if(!s||!s.rangeCount) return li?[li]:[];
+  const r=s.getRangeAt(0);
+  if(r.collapsed) return li?[li]:[];
+  const a=r.commonAncestorContainer;
+  const el=a.nodeType===Node.ELEMENT_NODE?a:a.parentElement;
+  if(!el||!el.querySelectorAll) return li?[li]:[];
+  const hit=n=>r.intersectsNode?r.intersectsNode(n):(s.containsNode?s.containsNode(n,true):true);
+  const all=[...el.querySelectorAll('li')].filter(hit);
+  return all.length?all:(li?[li]:[]);
+}
+// Give the touched items a status. With no list at the caret, make one through
+// rtSetList so there is still exactly one path to "this is now a list". A checklist is
+// left alone — its items already own that gutter for the checkbox.
+function rtSetStatus(){
+  let lis=rtSelLis();
+  if(!lis.length){
+    const l=rtSetList('bullet');
+    const li=rtCaretLi();
+    if(li) lis=[li];
+    else if(l) lis=[...l.children].filter(n=>n.tagName==='LI');
+  }
+  lis=lis.filter(li=>{ const p=li.parentElement;
+    return p&&p.tagName==='UL'&&!p.classList.contains('rt-todo'); });
+  lis.forEach(li=>li.setAttribute('data-st','1'));
+  return lis.length;
+}
 function rtNormalizeLists(root){
   if(!root) return;
   const styleOf=el=>el.style.listStyleType||'';
@@ -5058,6 +5122,14 @@ function rtNormalizeLists(root){
   // the flag behind, so whatever you typed next arrived already struck through.
   root.querySelectorAll('ul.rt-todo > li[data-done]').forEach(li=>{
     if(!li.textContent.trim()) li.removeAttribute('data-done');
+  });
+  // Same hazard for a status, plus one of its own: a value the CSS doesn't know draws
+  // no glyph at all, so a hand-edited or badly-pasted attribute would leave an item
+  // that is silently missing its bullet. Anything unrecognised goes back to a disc.
+  root.querySelectorAll('li[data-st]').forEach(li=>{
+    const p=li.parentElement;
+    if(!li.textContent.trim()||!p||p.tagName!=='UL'||p.classList.contains('rt-todo')
+      ||RT_ST_RING.indexOf(li.getAttribute('data-st'))<0) li.removeAttribute('data-st');
   });
   let changed=true,guard=0;
   while(changed&&guard++<20){
@@ -7336,20 +7408,37 @@ const RT_CMDS=[
   {k:'numbered',ic:'1.',label:'Numbered list',run:()=>rtSetList('number')},
   {k:'lettered',ic:'a.',label:'Lettered list',run:()=>rtSetList('letter')},
   {k:'todo',ic:'☑',label:'To-do list',run:()=>rtSetList('todo')},
+  {k:'status',ic:'◐',label:'Status list',run:()=>rtSetStatus()},
   {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>document.execCommand('strikeThrough',false,null)}
 ];
-// Clicking the box toggles; clicking the text just places the caret. The box is drawn
-// in the item's left padding, so a hit is anything left of the content edge.
+// Four clicks return the item to what it was, which is the whole reason a plain bullet
+// can safely have a live click zone at all: a stray hit in the gutter costs three more
+// clicks, never a trip to a menu.
+// Clicking the marker changes the item; clicking the text just places the caret. Both
+// markers live in the gutter, but not in the same box: a checkbox is drawn inside the
+// item's own left padding, while a status glyph sits just outside it, in the padding
+// the <ul> reserves for the disc it replaces. So the two need different bounds.
 document.addEventListener('click',e=>{
-  const li=e.target&&e.target.closest?e.target.closest('ul.rt-todo > li'):null;
+  const li=e.target&&e.target.closest?e.target.closest('li'):null;
   if(!li) return;
+  const ul=li.parentElement;
+  if(!ul||ul.tagName!=='UL') return;
   const host=li.closest(RT_HOSTS);
   if(!host) return;
+  const todo=ul.classList.contains('rt-todo');
   const r=li.getBoundingClientRect();
-  if(e.clientX>=r.left+22) return;
+  const lo=todo?r.left:r.left-18, hi=todo?r.left+22:r.left+2;
+  if(e.clientX<lo||e.clientX>=hi) return;
   e.preventDefault();
-  if(li.hasAttribute('data-done')) li.removeAttribute('data-done');
-  else li.setAttribute('data-done','1');
+  if(todo){
+    if(li.hasAttribute('data-done')) li.removeAttribute('data-done');
+    else li.setAttribute('data-done','1');
+  }else{
+    const i=RT_ST_RING.indexOf(li.getAttribute('data-st'));
+    if(i<0) li.setAttribute('data-st',RT_ST_RING[0]);
+    else if(i+1<RT_ST_RING.length) li.setAttribute('data-st',RT_ST_RING[i+1]);
+    else li.removeAttribute('data-st');
+  }
   rtFire(host);
 });
 let _rtSlash=null;
