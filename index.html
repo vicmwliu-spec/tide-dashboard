@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0811-c2">
+<meta name="build" content="0811-c3">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -515,11 +515,15 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-ctl .rt-splitrow input:focus{border-color:#3B82F6}
 #rt-ctl .rt-splitgo{width:100%;margin-top:5px;background:#3B82F6;color:#fff;padding:5px 8px}
 #rt-ctl .rt-splitgo:hover{background:#2f76e0}
-/* "+ line" strip: the way to get a caret past a table that sits flush against the
-   top or bottom of a card. Drawn on the overlay so it takes up no layout space. */
+/* "space" strip: the way to get a caret past a table that sits flush against the top or
+   bottom of a card. Drawn on the overlay so it takes up no layout space, and invisible
+   until pointed at — it only exists while the table's controls are up, so it is never
+   hidden anywhere you aren't already looking. The label is the card's own 9px tracked
+   eyebrow, the same one the weekday heads and the day label use, and the rule is a plain
+   hairline: a dashed line was the only one in the app. */
 #rt-ctl .rt-openln{position:fixed;pointer-events:auto;height:14px;display:flex;align-items:center;justify-content:center;
-  font-family:var(--font);font-size:9px;font-weight:600;letter-spacing:.06em;color:var(--text3);
-  border-top:1px dashed var(--border);cursor:text;opacity:.65}
+  font-family:var(--font);font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);
+  border-top:1px solid var(--border);cursor:text;opacity:0;transition:opacity .12s ease}
 #rt-ctl .rt-openln:hover{opacity:1;color:var(--text2);border-top-color:var(--text3)}
 /* Toggle block. Collapsing is this attribute and this one rule — the body stays in
    the document, so folding never costs you anything and the state saves itself. */
@@ -942,7 +946,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0811-c2';
+const RT_BUILD = '0811-c3';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
@@ -4416,12 +4420,18 @@ function openWeekGrpTip(e){
 function closeWeekGrpTip(){const t=document.getElementById('wgtip');if(t)t.remove();}
 // openGradeTip/closeGradeTip lived here: the "n more → A Ascending" hover. Its only
 // callers were the next-grade nudges, which are gone.
+// There is one #cpop on the page at a time, so what closes it is simply a click that
+// isn't in it — which popup opened it is not the question. It used to be: this asked
+// only about colorPopTarget, so the group and habit swatches closed and the chart and
+// timeline ones, which track their state in chartColorPopKey, never did. Resetting both
+// keys closes the bug rather than the instance.
 function closePop(e){
-  if(colorPopTarget&&!e.target.closest('#cpop')){
-    const p=document.getElementById('cpop');
-    if(p) p.remove();
-    colorPopTarget=null;
-  }
+  if(!colorPopTarget&&chartColorPopKey===null) return;
+  if(e.target.closest&&e.target.closest('#cpop')) return;
+  const p=document.getElementById('cpop');
+  if(p) p.remove();
+  colorPopTarget=null;
+  chartColorPopKey=null;
 }
 
 function setGroupColor(gid,color){
@@ -6421,6 +6431,50 @@ function rtGridFromText(txt){
   g.forEach(r=>{ while(r.length<w) r.push('<br>'); });
   return g;
 }
+// Word, Excel and Sheets paint their text explicitly: white behind it and black on top,
+// as inline style or as the presentational attributes they have emitted since 1997.
+// Pasted into a shaded cell the white sits over the shade, because shading here is a
+// class on the cell and an inline background beats it; pasted into a dark card the black
+// is barely readable. Neither is anything the app can express itself, so both come off.
+// Everything else survives — weight, italics, links, lists, a nested table, data-st.
+// Parsed into a detached div, never the live document, so nothing here can run.
+const RT_PASTE_KILL=['background','background-color','background-image','color'];
+function rtCleanPaste(html){
+  if(!html) return html;
+  // Word and Sheets put a whole document on the clipboard and mark the part you actually
+  // selected with comments. Taking the fragment first is what keeps their <style> block,
+  // their conditional comments and their <meta> out of the card.
+  const m=/<!--\s*StartFragment\s*-->([\s\S]*?)<!--\s*EndFragment\s*-->/i.exec(String(html));
+  const d=document.createElement('div');
+  d.innerHTML=m?m[1]:String(html);
+  d.querySelectorAll('style,meta,link,title,script,base').forEach(el=>el.remove());
+  // Comments survive innerHTML and would be carried into the saved card forever.
+  const walk=document.createTreeWalker(d,NodeFilter.SHOW_COMMENT);
+  const dead=[]; while(walk.nextNode()) dead.push(walk.currentNode);
+  dead.forEach(n=>n.parentNode&&n.parentNode.removeChild(n));
+  d.querySelectorAll('font').forEach(f=>{
+    const p=f.parentNode; if(!p) return;
+    while(f.firstChild) p.insertBefore(f.firstChild,f);
+    p.removeChild(f);
+  });
+  d.querySelectorAll('*').forEach(el=>{
+    el.removeAttribute('bgcolor');
+    el.removeAttribute('color');
+    if(!el.hasAttribute('style')) return;
+    // Filtered as text rather than through el.style.removeProperty, which cannot be
+    // trusted with the `background` shorthand — removing it leaves the longhands behind
+    // in some engines, and white pasted as `background:#fff` would survive the strip.
+    // Splitting on semicolons outside parentheses keeps a url() with one in it intact.
+    const kept=el.getAttribute('style').split(/;(?![^(]*\))/)
+      .filter(dec=>{ const p=dec.split(':')[0].trim().toLowerCase();
+        return p&&RT_PASTE_KILL.indexOf(p)<0; })
+      .join(';').trim().replace(/;+$/,'');
+    // A style attribute emptied of everything is worse than no attribute: it survives
+    // every later round trip as style="" and makes the saved HTML unreadable.
+    if(kept) el.setAttribute('style',kept); else el.removeAttribute('style');
+  });
+  return d.innerHTML;
+}
 // The same from an HTML table on the clipboard — Excel, Word and most web pages put one
 // there alongside the text, and it carries the cell formatting the tabs cannot.
 function rtGridFromHTML(html){
@@ -6429,7 +6483,7 @@ function rtGridFromHTML(html){
   d.innerHTML=html;
   const t=d.querySelector('table');
   if(!t||!t.rows.length) return null;
-  return [...t.rows].map(tr=>[...tr.cells].map(td=>td.innerHTML||'<br>'));
+  return [...t.rows].map(tr=>[...tr.cells].map(td=>rtCleanPaste(td.innerHTML)||'<br>'));
 }
 function rtClipRead(){
   const s=rtSelShape();
@@ -6760,7 +6814,7 @@ function rtShowCtl(t){
     if(mh2>room){ m.style.maxHeight=room+'px'; m.style.overflowY='auto'; m.style.top='8px'; }
     else if(tb.top+mh2>window.innerHeight-8) m.style.top=Math.max(8,window.innerHeight-8-mh2)+'px';
   }
-  // "+ line" strips. A table flush against the top or bottom of the card has no
+  // "space" strips. A table flush against the top or bottom of the card has no
   // prose beside it to click into, and nothing is auto-inserted any more, so the
   // way back is drawn here — on the fixed overlay, which costs no layout, so the
   // table keeps sitting against the border until you actually ask for a line.
@@ -6769,7 +6823,7 @@ function rtShowCtl(t){
     if(!edge) return;
     const er=edge.getBoundingClientRect();
     const s=mk('rt-openln',`left:${wr.left}px;top:${(before?er.top-13:er.bottom+3)}px;width:${Math.max(60,wr.width)}px`);
-    s.textContent='+ line';
+    s.textContent='space';
     s.title=before?'Add a line above the table':'Add a line below the table';
     s.onmousedown=e=>e.preventDefault(); // don't let the click steal focus first
     s.onclick=()=>{ rtOpenLine(rtHost(t),edge,before); rtHideCtl(); };
@@ -7392,16 +7446,47 @@ document.addEventListener('paste',e=>{
   // guarding this behind `if(_rtClip.tsv)` let an empty tsv skip the check entirely, so a
   // stale clip could hijack a paste that had nothing to do with it.
   const ours=!!_rtClip&&txt.replace(/\r/g,'')===(_rtClip.tsv||'');
-  if(rtAnchorCell()){
+  const inCell=!!rtAnchorCell();
+  if(inCell){
     if(ours&&_rtClip.grid){ if(rtPasteClip()) e.preventDefault(); return; }
     // From outside the app. An HTML table on the clipboard beats the tabs, because it
     // carries the cell formatting too; failing that, tab/newline text. A single plain word
     // yields no grid and is left to the browser.
     const g=rtGridFromHTML(cd?cd.getData('text/html'):'')||rtGridFromText(txt);
-    if(g&&rtPasteClip(g)) e.preventDefault();
-    return;
+    if(g&&rtPasteClip(g)){ e.preventDefault(); return; }
+    // No grid in it: a phrase, a sentence, one painted word. That is the common case in
+    // the report — text copied out of Word into a shaded cell — and it used to return
+    // here, straight to the browser's own paste, which keeps every inline colour. It
+    // falls through to the prose branch instead, which is the same sanitizer.
   }
-  if(ours&&_rtClip.kind==='table'&&rtPasteTable()) e.preventDefault();
+  // A whole copied table only ever lands in prose — dropping one inside a cell is not
+  // something the grid can hold, so from a cell this stays out of the way.
+  if(!inCell&&ours&&_rtClip.kind==='table'&&rtPasteTable()){ e.preventDefault(); return; }
+  // Not a cell and not one of our tables: ordinary prose, where the same painted white
+  // and black arrive from the same places. Only worth intercepting when the clipboard
+  // actually carries HTML — a plain-text paste has nothing to strip and is left to the
+  // browser, which is also the path every typed character and simple copy takes.
+  const host=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
+  if(!host) return;
+  const raw=cd?cd.getData('text/html'):'';
+  if(!raw) return;
+  const clean=rtCleanPaste(raw);
+  e.preventDefault();
+  // Inserted through a Range rather than execCommand('insertHTML'), which runs Chrome's
+  // own editing sanitizer over the fragment and quietly drops a <span style="font-weight">
+  // — so pasted bold arrived unbolded. Undo does not depend on execCommand here: this
+  // app keeps its own stack, and rtFire is what feeds it.
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount){ document.execCommand('insertHTML',false,clean); rtFire(host); return; }
+  const r=sel.getRangeAt(0);
+  r.deleteContents();
+  const frag=document.createRange().createContextualFragment(clean);
+  const last=frag.lastChild;
+  r.insertNode(frag);
+  if(last){ const after=document.createRange();
+    after.setStartAfter(last); after.collapse(true);
+    sel.removeAllRanges(); sel.addRange(after); }
+  rtFire(host);
 });
 
 // ─── Slash command menu ──────────────────────────────────────────
