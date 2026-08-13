@@ -6620,11 +6620,14 @@ function rtPasteTable(){
   return true;
 }
 // Clipboard text → a grid of cell HTML, the way every spreadsheet writes it: tabs between
-// cells, newlines between rows. Returns null for a single line with no tabs, deliberately —
-// pasting one word into a cell must stay one word in that cell, not become a table op.
+// cells, newlines between rows. A tab somewhere is what makes it a grid at all. Newlines
+// alone used to be enough, and that is what shredded a pasted list: copy a bulleted item
+// with three numbered sub-items out of a cell and the four lines came back as four rows
+// of escaped plain text, bullets and all other markup gone. Several lines of tab-free
+// text are lines, not rows — they belong in the one cell you pointed at.
 function rtGridFromText(txt){
+  if(String(txt||'').indexOf('\t')<0) return null;
   const rows=String(txt||'').replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n');
-  if(rows.length<2&&rows[0].indexOf('\t')<0) return null;
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const g=rows.map(r=>r.split('\t').map(c=>esc(c)||'<br>'));
   const w=Math.max(...g.map(r=>r.length));
@@ -6685,6 +6688,11 @@ function rtGridFromHTML(html){
   if(!t||!t.rows.length) return null;
   return [...t.rows].map(tr=>[...tr.cells].map(td=>rtCleanPaste(td.innerHTML)||'<br>'));
 }
+// Chrome hands back a selection's <table> ancestor when you copy from inside a single
+// cell, so a 1×1 grid means "content that happened to live in a cell", not a block of
+// cells. Pasting it as a grid would replace the whole target cell rather than insert at
+// the caret, and would drop a 1×1 table into prose.
+function rtIsGrid(g){ return !!g&&(g.length>1||(g[0]&&g[0].length>1)); }
 function rtClipRead(){
   const s=rtSelShape();
   // Highlighting every cell means "the table", not "all of its rows" — copy the whole
@@ -7654,14 +7662,17 @@ document.addEventListener('paste',e=>{
   if(inCell){
     if(ours&&_rtClip.grid){ if(rtPasteClip()) e.preventDefault(); return; }
     // From outside the app. An HTML table on the clipboard beats the tabs, because it
-    // carries the cell formatting too; failing that, tab/newline text. A single plain word
-    // yields no grid and is left to the browser.
+    // carries the cell formatting too; failing that, tab-separated text. Only a real block
+    // of cells fills cells — one cell's worth of anything is content, not a grid.
     const g=rtGridFromHTML(cd?cd.getData('text/html'):'')||rtGridFromText(txt);
-    if(g&&rtPasteClip(g)){ e.preventDefault(); return; }
-    // No grid in it: a phrase, a sentence, one painted word. That is the common case in
-    // the report — text copied out of Word into a shaded cell — and it used to return
-    // here, straight to the browser's own paste, which keeps every inline colour. It
-    // falls through to the prose branch instead, which is the same sanitizer.
+    if(rtIsGrid(g)&&rtPasteClip(g)){ e.preventDefault(); return; }
+    // No grid in it: a phrase, a sentence, one painted word, a whole bulleted list copied
+    // out of another cell. That last one is why this branch has to reach the sanitizer
+    // rather than the browser — pasted through a Range it keeps its bullets, its nesting
+    // and its data-st, and rtFire's input event hands it to rtNormalizeLists like a typed
+    // list. The other common case is the one from the report: text copied out of Word into
+    // a shaded cell, which used to return here, straight to the browser's own paste, and
+    // kept every inline colour. Both fall through to the prose branch, the same sanitizer.
   }
   // A whole copied table only ever lands in prose — dropping one inside a cell is not
   // something the grid can hold, so from a cell this stays out of the way.
@@ -7672,7 +7683,7 @@ document.addEventListener('paste',e=>{
   if(!inCell&&ours&&_rtClip.grid&&rtPasteGridAsTable(_rtClip.grid)){ e.preventDefault(); return; }
   if(!inCell){
     const gh=rtGridFromHTML(cd?cd.getData('text/html'):'');
-    if(gh&&rtPasteGridAsTable(gh)){ e.preventDefault(); return; }
+    if(rtIsGrid(gh)&&rtPasteGridAsTable(gh)){ e.preventDefault(); return; }
   }
   // Not a cell and not one of our tables: ordinary prose, where the same painted white
   // and black arrive from the same places. Only worth intercepting when the clipboard
