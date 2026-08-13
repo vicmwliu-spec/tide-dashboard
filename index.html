@@ -124,6 +124,19 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tl-d.now{box-shadow:inset 0 0 0 2px var(--tlc,var(--edit));border-color:transparent;color:var(--text1);font-weight:600}
 .tl-d.now.sel{color:#fff}
 .tl-pad{border-color:transparent;background:transparent;cursor:default}
+/* Month paging. The chevrons borrow the header's .nav-btn idiom — transparent until
+   hovered — so the card reads as the same app rather than a widget with its own manners.
+   The label between them is a button too: while the card is browsing away from the
+   dashboard's month it turns the card's colour and takes you back. */
+.tl-nav{display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:2px}
+.tl-nb{background:none;border:none;cursor:pointer;color:var(--text3);padding:1px 7px;
+  border-radius:4px;font-size:14px;line-height:1;font-family:var(--font);transition:background .12s,color .12s}
+.tl-nb:hover{background:var(--border);color:var(--text1)}
+.tl-ml{background:none;border:none;cursor:pointer;font-family:var(--font);font-size:11px;
+  font-weight:600;color:var(--text2);padding:2px 8px;border-radius:4px;min-width:104px;
+  text-align:center;font-variant-numeric:tabular-nums;transition:background .12s,color .12s}
+.tl-ml:hover{background:var(--border);color:var(--text1)}
+.tl-ml.off{color:var(--tlc,var(--edit))}
 /* margin-top on top of .tlcard's 8px gap. The footer is a different kind of thing from
    the grid above it, and at 8px it read as a seventh week. */
 .tl-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:6px;
@@ -1774,8 +1787,9 @@ function mkCardGrid(){
   return wrap;
 }
 
-// Jump to a day in the month on screen. stepDay already carries the sync + render.
-function goDay(n){ stepDay(n-PD.getDate()); }
+// Jump to an exact day. Absolute rather than a delta off PD, because a timeline card can
+// be showing a month PD is not in — a delta would land in the wrong month entirely.
+function goDate(y,m,d){ PD=new Date(y,m,d); _syncPD(); _navRender(); }
 
 // ─── TIMELINE CARD ───────────────────────────────────────────────
 // The one place the month lives, now the ribbon under the header has gone. Weeks
@@ -1786,11 +1800,34 @@ function goDay(n){ stepDay(n-PD.getDate()); }
 // The card's colour is yours: D.chartColors.tl_<id> if you have set one, and the
 // app's own accent if you haven't.
 function timelineAccent(id){ return (id&&D.chartColors&&D.chartColors['tl_'+id])||gradeAccent(); }
+// How many months a card is browsing away from the dashboard's own month. Per card id, so
+// two timeline cards page independently, and in memory only: a peek that outlived a reload
+// would leave the card months from everything else with nothing on screen explaining why.
+// _navRender clears it, so any real navigation puts every card back in step.
+const _tlMo={};
+function tlStep(id,d){ _tlMo[id]=(_tlMo[id]||0)+d; tlRepaint(id); }
+function tlHome(id){ delete _tlMo[id]; tlRepaint(id); }
+// Only this card's body. A full render() would rebuild the whole dashboard — every other
+// card, the header and the charts — to page one card's calendar.
+function tlRepaint(id){
+  const el=document.querySelector(`.tlcard[data-cardid="${id}"]`);
+  if(el) el.innerHTML=timelineCardBody(id);
+}
 function timelineCardBody(id){
   const ac=timelineAccent(id);
-  const y=PD.getFullYear(),m=PD.getMonth(),days=dim(y,m),sel=PD.getDate();
+  // Anchored on CY/CM — the month the rest of the page is showing — plus this card's own
+  // browse offset. It used to read PD, which the header's month arrows never move, so
+  // paging the header to September left this card sitting on August.
+  const off=_tlMo[id]||0;
+  const base=new Date(CY,CM+off,1);   // Date normalizes a month over/underflow, year included
+  const y=base.getFullYear(),m=base.getMonth(),days=dim(y,m);
   const isThisMonth=y===now.getFullYear()&&m===now.getMonth();
   const today=isThisMonth?now.getDate():0;
+  // PD's day is a selection only on the month PD is actually in. 0 means "no day here".
+  const onPD=y===PD.getFullYear()&&m===PD.getMonth();
+  const sel=onPD?PD.getDate():0;
+  // A month wholly behind us is spent, the same as the elapsed days of this one.
+  const isPastMo=y<now.getFullYear()||(y===now.getFullYear()&&m<now.getMonth());
   const hd=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(n=>`<div class="tl-h">${n}</div>`).join('');
   const rows=getWeekSpans(y,m).map(sp=>{
     const cells=[];
@@ -1799,10 +1836,10 @@ function timelineCardBody(id){
     for(let i=0;i<lead;i++) cells.push('<div class="tl-d tl-pad"></div>');
     for(let n=sp.start;n<=sp.end;n++){
       const cls=['tl-d'];
-      if(today&&n<today) cls.push('past');
+      if(isPastMo||(today&&n<today)) cls.push('past');
       if(n===today) cls.push('now');
-      if(n===sel) cls.push('sel');
-      cells.push(`<button class="${cls.join(' ')}" onclick="goDay(${n})">${n}</button>`);
+      if(sel&&n===sel) cls.push('sel');
+      cells.push(`<button class="${cls.join(' ')}" onclick="goDate(${y},${m},${n})">${n}</button>`);
     }
     while(cells.length<7) cells.push('<div class="tl-d tl-pad"></div>');
     return `<div class="tl-wk"><span class="tl-wn">W${sp.week}</span><div class="tl-days">${cells.join('')}</div></div>`;
@@ -1816,10 +1853,24 @@ function timelineCardBody(id){
   }).join('<i>·</i>');
   // The remainder is only a fact about the month you are actually in.
   const remain=isThisMonth?days-today:0;
-  return `<div class="tl-grid"><div class="tl-hd">${hd}</div>${rows}</div>
+  // The label is also the way back: while browsing it names the month you would return to,
+  // which is cheaper than a second button and puts the escape where the eye already is.
+  const lbl=`${MON[m]} ${y}`;
+  const nav=`<div class="tl-nav">
+      <button class="tl-nb" onclick="tlStep('${id}',-1)" title="Previous month">&#8249;</button>
+      <button class="tl-ml${off?' off':''}" onclick="tlHome('${id}')"
+        title="${off?`Back to ${MON[CM]} ${CY}`:lbl}">${lbl}</button>
+      <button class="tl-nb" onclick="tlStep('${id}',1)" title="Next month">&#8250;</button>
+    </div>`;
+  // "Day 13 / 31" is a statement about PD. On a month PD is not in there is no such day,
+  // so the card states the month's own length instead of a number belonging elsewhere.
+  const pos=onPD
+    ? `<div class="tl-day"><span class="tl-dl">Day</span><b>${sel}</b><span class="tl-dt">/ ${days}</span></div>`
+    : `<div class="tl-day"><b>${days}</b><span class="tl-dt">days</span></div>`;
+  return `${nav}<div class="tl-grid"><div class="tl-hd">${hd}</div>${rows}</div>
     <div class="tl-foot">
       <div class="tl-pos">
-        <div class="tl-day"><span class="tl-dl">Day</span><b>${sel}</b><span class="tl-dt">/ ${days}</span></div>${
+        ${pos}${
         isThisMonth?`<span class="tl-rem">${remain} day${remain===1?'':'s'} remaining</span>`:''}</div>
       <div class="tl-q"><em>Q${q+1}</em>${qmon}</div>
     </div>`;
@@ -2382,7 +2433,7 @@ function mkPlannerCard(def,ix){
   }else if(def.type==='timeline'){
     // The colour rides in as a custom property, so every marked state inside picks
     // it up from one place instead of each button carrying its own inline style.
-    body=`<div class="pcard-bd tlcard" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
+    body=`<div class="pcard-bd tlcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
     foot='';
   }else if(def.type==='canvas'){
     // The surface is restored from the card's own slot like any other content — the
@@ -4583,7 +4634,9 @@ function openHabitColorPop(e,hid){
 // ─────────────────────────────────────────
 //  ACTIONS
 // ─────────────────────────────────────────
-function _navRender(){if(view!=='today'&&isMonthArchived()&&(editMode||fathomEditMode)){editMode=false;fathomEditMode=false;}render()}
+// Navigating the page ends every card's peek: a browsed calendar left sitting two months
+// from the dashboard after you moved the dashboard is just a card showing the wrong month.
+function _navRender(){if(view!=='today'&&isMonthArchived()&&(editMode||fathomEditMode)){editMode=false;fathomEditMode=false;}for(const k in _tlMo) delete _tlMo[k];render()}
 // The header arrows step days on Today and months everywhere else. CY/CM follow the
 // plan date so completions, snapshots and week spans all resolve against the day
 // you're actually looking at.
