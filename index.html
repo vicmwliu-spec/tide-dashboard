@@ -600,7 +600,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    broken if you cannot tell it is on before you commit to the drag. So this one shows itself
    at rest and only brightens under the pointer. */
 #rt-ctl .rt-rz.rt-rz-sel::after{background:#3B82F6;opacity:.5}
-#rt-ctl .rt-rz.rt-rz-sel:hover::after,#rt-ctl .rt-rz.rt-rz-sel.rt-rz-on::after{opacity:1;left:2px;width:2px}
+#rt-ctl .rt-rz.rt-rz-sel:hover::after,#rt-ctl .rt-rz.rt-rz-sel.rt-rz-hot::after,
+#rt-ctl .rt-rz.rt-rz-sel.rt-rz-on::after{opacity:1;left:2px;width:2px}
 /* Drop indicator while reordering a row/column */
 #rt-ctl .rt-ins{position:fixed;background:#3B82F6;pointer-events:none;border-radius:1px}
 /* Resize guides: alignment line, width badge, matched-column highlight */
@@ -7482,15 +7483,23 @@ function rtShowCtl(t){
     const sp=rtSelPairsAt(t,c);
     if(!sp.length) continue;
     scopedAt.add(c);
+    // Lit as one thing, because they act as one thing. Which handle the drag happens to have
+    // started from is an implementation detail; what the user needs to see is the set that is
+    // about to move. So the drag state is per boundary, not per pair.
+    const live=_rtRz&&_rtRz.t===t&&_rtRz.rowb&&sp.some(p=>p[0]===_rtRz.tdA);
+    const group=[];
     sp.forEach(pair=>{
       const cr=pair[0].getBoundingClientRect();
       const bx=cr.right;
       if(bx<wr.left||bx>wr.right+1) return;
       const rz=mk('rt-rz rt-rz-row rt-rz-sel',`left:${bx-3}px;top:${cr.top}px;height:${cr.height}px`);
       rz.title=`Drag to resize ${sp.length===1?'the selected cell':`the ${sp.length} selected rows`} only`;
-      const on=_rtRz&&_rtRz.t===t&&_rtRz.rowb&&_rtRz.tdA===pair[0];
-      if(on) rz.classList.add('rt-rz-on');
+      if(live) rz.classList.add('rt-rz-on');
       rz.onmousedown=e=>rtRowRzStart(e,t,sp,rz);
+      group.push(rz);
+      // The guide and the badge stay on the one pair the drag is anchored to. They are a
+      // readout, and the same number stacked down the table N times is noise, not information.
+      const on=live&&_rtRz.tdA===pair[0];
       if(on){
         if(_rtRz.aligned) mk('rt-guide rt-guide-a',`left:${bx}px;top:${tb.top-8}px;height:${tb.height+16}px`);
         else mk('rt-guide',`left:${bx}px;top:${cr.top-8}px;height:${cr.height+16}px`);
@@ -7501,6 +7510,11 @@ function rtShowCtl(t){
         b.lastElementChild.textContent=[_rtRz.label,scope].filter(Boolean).join(' · ');
       }
     });
+    // :hover reaches one element and these are siblings, so the set has to be lit by hand.
+    // Brightening only the border under the pointer says "this one row will move", which is
+    // the opposite of what letting go actually does.
+    const hot=v=>group.forEach(el=>el.classList.toggle('rt-rz-hot',v));
+    group.forEach(el=>{ el.onmouseenter=()=>hot(true); el.onmouseleave=()=>hot(false); });
   }
   // Boundaries that belong to one row alone. Splitting a cell gives that row a border
   // the rows above and below do not have, and until now there was no handle on it —
