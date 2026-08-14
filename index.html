@@ -158,6 +158,56 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tl-q i{font-style:normal;color:var(--border)}
 .tl-qm{color:var(--text3)}
 .tl-qm.on{color:var(--tlc,var(--edit));font-weight:700}
+/* ── Journal card ──
+   A picker beside a page. The picker is the same month grid the timeline draws — it reuses
+   every .tl-* rule above — plus two marks that only mean something here: a dot for a day
+   with an entry, and a week number you can click. The grid is a fixed column and the page
+   takes the rest, so widening the card widens the writing, not the calendar. */
+.jrcard{display:flex;flex-direction:column;min-height:0}
+.jr{display:flex;gap:14px;align-items:stretch;min-height:0;flex:1}
+.jr-side{width:214px;flex:none;display:flex;flex-direction:column;gap:8px;min-width:0}
+.jr-list{flex:1;overflow-y:auto;min-height:0}
+.jr-grid{margin-top:2px}
+/* The dot sits under the numeral rather than beside it: nothing moves when an entry
+   appears, and a month of them reads as a row of marks instead of a row of decorations. */
+.jr-grid .tl-d{position:relative}
+.jr-grid .tl-d.has::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
+  width:3px;height:3px;border-radius:50%;background:var(--tlc,var(--edit))}
+.jr-grid .tl-d.sel.has::after,.jr-grid .tl-d.now.has::after{background:currentColor}
+.jr-wn{background:none;border:none;padding:0;cursor:pointer;font-family:var(--font)}
+.jr-wn:hover{color:var(--text1)}
+.jr-wn.has{color:var(--tlc,var(--edit));font-weight:700}
+.jr-wn.sel{color:var(--tlc,var(--edit));text-decoration:underline;text-underline-offset:2px}
+.jr-q{width:100%;box-sizing:border-box;padding:5px 9px;border:1px solid var(--border);
+  border-radius:var(--r2);background:var(--surface);color:var(--text1);
+  font-family:var(--font);font-size:11px}
+.jr-q:focus{outline:none;border-color:var(--tlc,var(--edit))}
+.jr-hit{display:flex;flex-direction:column;gap:1px;width:100%;text-align:left;background:none;
+  border:none;border-left:2px solid transparent;padding:5px 8px;cursor:pointer;font-family:var(--font)}
+.jr-hit:hover{background:var(--surface2)}
+.jr-hit.on{background:var(--surface2);border-left-color:var(--tlc,var(--edit))}
+.jr-hd{font-size:11px;font-weight:600;color:var(--text1);display:flex;gap:5px;align-items:baseline}
+.jr-hd i{font-style:normal;font-size:9px;color:var(--text3);font-variant-numeric:tabular-nums}
+.jr-hs{font-size:10.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jr-empty{font-size:11px;color:var(--text3);font-style:italic;padding:8px}
+.jr-main{flex:1;min-width:0;display:flex;flex-direction:column;
+  border-left:1px solid var(--border);padding-left:14px}
+.jr-cap{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--text2);
+  padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.jr-pane{display:none;background:none;border:none;cursor:pointer;color:var(--text3);
+  font-size:13px;padding:0 2px;line-height:1;font-family:var(--font)}
+.jr-pane:hover{color:var(--text1)}
+.jr-ed{flex:1;overflow-y:auto;min-height:0;outline:none;font-size:13px;line-height:1.8;color:var(--text1)}
+/* One column at a time when there is no room for two — a narrow card or a phone come to the
+   same thing, so .jr-narrow is set from the card's measured width rather than from a media
+   query and a span rule that would disagree with each other. The ▦ button is the only way
+   across, so it appears exactly when it is needed. */
+.jr-narrow .jr-pane{display:block}
+.jr-narrow .jr{gap:0}
+.jr-narrow .jr-main{border-left:none;padding-left:0}
+.jr-narrow .jr[data-pane="grid"] .jr-main{display:none}
+.jr-narrow .jr[data-pane="grid"] .jr-side{width:auto;flex:1}
+.jr-narrow .jr[data-pane="entry"] .jr-side{display:none}
 /* Edit cards, under the grid rather than in the header. */
 .pcard-bar{display:flex;justify-content:flex-start;margin-bottom:14px}
 /* min-width:0 because a grid item's automatic minimum is its content: a card
@@ -165,7 +215,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    the whole grid sideways, instead of letting the table scroll inside .rt-tw. */
 .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative;min-width:0}
 .pcard.editing{border-color:var(--edit-line)}
-.pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap}
+/* position:relative so the grab handle can hang in the left padding. In flow the handle
+   plus its gap pushed the title to ~32px while the body starts at 16px — a title indented
+   past the content it labels, and at rest the handle is transparent, so the gap read as
+   nothing but crooked whitespace. Out of flow, the title lines up with the body and the
+   handle still appears where it always did. */
+.pcard-hd{display:flex;align-items:baseline;gap:8px;padding:11px 16px 3px;flex-wrap:wrap;position:relative}
 /* No text-transform: a title reads exactly as it was typed, upper or lower case.
    Labels stored before this (TODAY, THIS WEEK) keep their capitals because that is
    how they are stored — retyping one is all it takes. */
@@ -184,8 +239,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard-bd{padding:8px 16px 14px;min-height:80px;flex:1}
 /* A block at the very top of a card sits at exactly the body's top padding, so
    a table inserted first lines up identically on every card. */
-.pcard-bd>*:first-child,#aar-editor>*:first-child{margin-top:0}
-.pcard-bd>*:last-child,#aar-editor>*:last-child{margin-bottom:0}
+.pcard-bd>*:first-child,#aar-editor>*:first-child,.jr-ed>*:first-child{margin-top:0}
+.pcard-bd>*:last-child,#aar-editor>*:last-child,.jr-ed>*:last-child{margin-bottom:0}
 .pcard-ft{border-top:1px solid var(--border2);padding:5px 11px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .pcard-lnk{background:none;border:none;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px}
 .pcard-lnk:hover{color:var(--accent);background:var(--surface2)}
@@ -220,7 +275,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    touch drag reorders instead of scrolling the page. */
 .pcard-grab{cursor:grab;touch-action:none}
 .pcard.pdrag .pcard-grab{cursor:grabbing}
-.pgrab{color:transparent;font-size:13px;letter-spacing:-1px;user-select:none;flex-shrink:0;transition:color .1s}
+.pgrab{color:transparent;font-size:13px;letter-spacing:-1px;user-select:none;flex-shrink:0;transition:color .1s;
+  position:absolute;left:6px;top:9px}
 .pcard:hover .pgrab{color:var(--border)}
 .pcard-grab:hover .pgrab{color:var(--text3)}
 /* Lifted card follows the pointer; the placeholder holds its slot in the grid. */
@@ -385,45 +441,45 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .wk-arc-btn:hover{background:var(--border2);color:var(--text1)}
 .wk-arc-btn.wk-arc-on{color:var(--accent)}
 .wk-arc-btn svg{width:12px;height:12px;display:block}
-#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr,.cv-bd hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
-#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol,.cv-bd ul,.cv-bd ol{padding-left:22px;margin:4px 0}
-#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li,.cv-bd li{margin:2px 0}
-#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul,.cv-bd ul{list-style-type:disc}
-#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul,.cv-bd ul ul{list-style-type:circle}
-#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul,.cv-bd ul ul ul{list-style-type:square}
-#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol,.cv-bd ol{list-style-type:decimal}
+#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr,.cv-bd hr,.jr-ed hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
+#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol,.cv-bd ul,.cv-bd ol,.jr-ed ul,.jr-ed ol{padding-left:22px;margin:4px 0}
+#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li,.cv-bd li,.jr-ed li{margin:2px 0}
+#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul,.cv-bd ul,.jr-ed ul{list-style-type:disc}
+#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul,.cv-bd ul ul,.jr-ed ul ul{list-style-type:circle}
+#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul,.cv-bd ul ul ul,.jr-ed ul ul ul{list-style-type:square}
+#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol,.cv-bd ol,.jr-ed ol{list-style-type:decimal}
 /* Numbered lists stay numbered at every depth. A lettered list is something you ask
    for with the "A. " shortcut, which sets list-style-type inline and so still wins. */
 /* Checklists. The checkbox is drawn entirely in CSS from a data attribute — an
    <input> would be useless here because its checked state is a property and never
    survives the innerHTML round trip we persist card content through. */
-#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo,.cv-bd ul.rt-todo{list-style:none;padding-left:4px}
-#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li,.cv-bd ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
-#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before,.cv-bd ul.rt-todo li::before{
+#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo,.cv-bd ul.rt-todo,.jr-ed ul.rt-todo{list-style:none;padding-left:4px}
+#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li,.cv-bd ul.rt-todo li,.jr-ed ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
+#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before,.cv-bd ul.rt-todo li::before,.jr-ed ul.rt-todo li::before{
   content:'';position:absolute;left:0;top:.28em;width:14px;height:14px;box-sizing:border-box;
   border:1.5px solid var(--border);border-radius:4px;cursor:pointer;text-decoration:none;
   font-size:10px;line-height:11px;text-align:center;color:#fff;font-weight:700}
-#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before{
+#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before,.jr-ed ul.rt-todo li[data-done="1"]::before{
   content:'✓';background:var(--text2);border-color:var(--text2)}
-#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"],.jr-ed ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
 /* Task status, carried by the bullet itself. Not a list kind — a property of the item,
    so an ordinary bullet list holds statused and plain items side by side. The <ul>
    already reserves 22px of padding for markers, so the glyph is drawn back into that
    space with position:absolute and the item's own text box never moves: a statused
    line and a plain one sit on exactly the same left edge. Scoped off .rt-todo, whose
    items own that gutter already for their checkbox. */
-#aar-editor ul:not(.rt-todo)>li[data-st],.quote-ta ul:not(.rt-todo)>li[data-st],.priority-ta ul:not(.rt-todo)>li[data-st],.notes-ta ul:not(.rt-todo)>li[data-st],.intention-ta ul:not(.rt-todo)>li[data-st],.cv-bd ul:not(.rt-todo)>li[data-st]{list-style:none;position:relative}
-#aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before{
+#aar-editor ul:not(.rt-todo)>li[data-st],.quote-ta ul:not(.rt-todo)>li[data-st],.priority-ta ul:not(.rt-todo)>li[data-st],.notes-ta ul:not(.rt-todo)>li[data-st],.intention-ta ul:not(.rt-todo)>li[data-st],.cv-bd ul:not(.rt-todo)>li[data-st],.jr-ed ul:not(.rt-todo)>li[data-st]{list-style:none;position:relative}
+#aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before,.jr-ed ul:not(.rt-todo)>li[data-st]::before{
   position:absolute;left:-16px;width:14px;text-align:center;line-height:inherit;
   cursor:pointer;text-decoration:none;font-size:11px}
 /* There is no glyph for "not started" because the disc already is one. An untouched
    bullet is the default state, which is where most items live, so the marked states are
    only the two that say something: in progress takes the accent, because that is what
    you want to find when you scan the card, and done goes quiet. */
-#aar-editor ul>li[data-st="doing"]::before,.quote-ta ul>li[data-st="doing"]::before,.priority-ta ul>li[data-st="doing"]::before,.notes-ta ul>li[data-st="doing"]::before,.intention-ta ul>li[data-st="doing"]::before,.cv-bd ul>li[data-st="doing"]::before{content:'◐';color:var(--edit)}
-#aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
+#aar-editor ul>li[data-st="doing"]::before,.quote-ta ul>li[data-st="doing"]::before,.priority-ta ul>li[data-st="doing"]::before,.notes-ta ul>li[data-st="doing"]::before,.intention-ta ul>li[data-st="doing"]::before,.cv-bd ul>li[data-st="doing"]::before,.jr-ed ul>li[data-st="doing"]::before{content:'◐';color:var(--edit)}
+#aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before,.jr-ed ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
 /* Done looks the same here as a ticked checklist item does above. One "done" in the app. */
-#aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"],.jr-ed ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
 /* Rich-text simple table (Notion-style) */
 /* The wrapper owns the width, as a share of the card, and the table fills it. An
    explicit width is what lets the table inside be a percentage at all — a
@@ -1754,6 +1810,7 @@ const CARD_TYPES=[
   {id:'clock', name:'Clock',  blurb:'Today’s shape: the dial and your blocks with times.'},
   {id:'timeline',name:'Timeline',blurb:'The month as a calendar — where you are in it, and in the quarter.'},
   {id:'canvas',name:'Canvas',blurb:'Click anywhere and type there. Drag things around; they line up as you go.'},
+  {id:'journal',name:'Journal',blurb:'Your entries as a month you can page through — write, search, and read back.'},
 ];
 let _paddOpen=false;
 function _paddToggle(){ _paddOpen=!_paddOpen; render(); }
@@ -1813,6 +1870,22 @@ function tlRepaint(id){
   const el=document.querySelector(`.tlcard[data-cardid="${id}"]`);
   if(el) el.innerHTML=timelineCardBody(id);
 }
+// Weeks as rows, Monday-led, with the W-number gutter: the one place the shape of a month is
+// built. The Timeline and the Journal draw the same grid and disagree only about what a day
+// means, so the day cell — and the gutter, which the Journal makes clickable — are the
+// caller's to render.
+function monthGridRows(y,m,cell,wk){
+  return getWeekSpans(y,m).map(sp=>{
+    const cells=[];
+    // Mon=0, so the first row is padded out to the weekday the month starts on.
+    const lead=(new Date(y,m,sp.start).getDay()+6)%7;
+    for(let i=0;i<lead;i++) cells.push('<div class="tl-d tl-pad"></div>');
+    for(let n=sp.start;n<=sp.end;n++) cells.push(cell(n,sp));
+    while(cells.length<7) cells.push('<div class="tl-d tl-pad"></div>');
+    const gut=wk?wk(sp):`<span class="tl-wn">W${sp.week}</span>`;
+    return `<div class="tl-wk">${gut}<div class="tl-days">${cells.join('')}</div></div>`;
+  }).join('');
+}
 function timelineCardBody(id){
   const ac=timelineAccent(id);
   // Anchored on CY/CM — the month the rest of the page is showing — plus this card's own
@@ -1829,21 +1902,13 @@ function timelineCardBody(id){
   // A month wholly behind us is spent, the same as the elapsed days of this one.
   const isPastMo=y<now.getFullYear()||(y===now.getFullYear()&&m<now.getMonth());
   const hd=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(n=>`<div class="tl-h">${n}</div>`).join('');
-  const rows=getWeekSpans(y,m).map(sp=>{
-    const cells=[];
-    // Mon=0, so the first row is padded out to the weekday the month starts on.
-    const lead=(new Date(y,m,sp.start).getDay()+6)%7;
-    for(let i=0;i<lead;i++) cells.push('<div class="tl-d tl-pad"></div>');
-    for(let n=sp.start;n<=sp.end;n++){
-      const cls=['tl-d'];
-      if(isPastMo||(today&&n<today)) cls.push('past');
-      if(n===today) cls.push('now');
-      if(sel&&n===sel) cls.push('sel');
-      cells.push(`<button class="${cls.join(' ')}" onclick="goDate(${y},${m},${n})">${n}</button>`);
-    }
-    while(cells.length<7) cells.push('<div class="tl-d tl-pad"></div>');
-    return `<div class="tl-wk"><span class="tl-wn">W${sp.week}</span><div class="tl-days">${cells.join('')}</div></div>`;
-  }).join('');
+  const rows=monthGridRows(y,m,n=>{
+    const cls=['tl-d'];
+    if(isPastMo||(today&&n<today)) cls.push('past');
+    if(n===today) cls.push('now');
+    if(sel&&n===sel) cls.push('sel');
+    return `<button class="${cls.join(' ')}" onclick="goDate(${y},${m},${n})">${n}</button>`;
+  });
   const q=Math.floor(m/3);
   // All three months named, current one marked. Bars followed by a month name read
   // as a progress meter arriving at that month; three peers cannot.
@@ -1875,6 +1940,220 @@ function timelineCardBody(id){
       <div class="tl-q"><em>Q${q+1}</em>${qmon}</div>
     </div>`;
 }
+
+// ─── JOURNAL CARD ────────────────────────────────────────────────
+// The same entries the ✎ button on a day cell writes — the card is a way through them,
+// not a second store. A month grid picks the entry, dotted on the days you actually wrote,
+// because that dot is the thing a list cannot show: a month of your writing at a glance.
+// The grid does NOT navigate the dashboard the way the timeline's does; paging here is
+// reading, and it would be hostile to move the whole page because you looked something up.
+const _jr={};
+// The journal editor you were last writing in — what the template buttons act on when the
+// ✎ modal is not open. See _aarEditorEl.
+let _jrLastEd=null;
+// gy/gm are the month the grid is showing; y/m/day/week are the entry that is open. They
+// start out the same and must not be merged: paging the calendar to September to see what
+// is there cannot silently move you off the entry you were writing in August.
+function jrState(id){
+  return _jr[id]||(_jr[id]={
+    gy:now.getFullYear(), gm:now.getMonth(),
+    y:now.getFullYear(), m:now.getMonth(), day:now.getDate(), week:0,
+    q:'', pane:'grid'
+  });
+}
+// Not cleared by _navRender, unlike _tlMo: the dashboard's month arrows must not yank you
+// out of an entry you are part-way through reading. In memory only, so a card left on some
+// far month opens on today next session rather than somewhere unexplained.
+function jrRepaint(id){
+  const el=document.querySelector(`.jrcard[data-cardid="${id}"]`);
+  if(el){ el.innerHTML=journalCardBody(id); jrAfter(id); }
+}
+// Save what is in the editor before anything replaces it. Every entry switch goes through
+// here, so nothing you typed can be discarded by a click somewhere else in the card.
+function jrFlush(id){
+  const ed=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`);
+  if(!ed) return;
+  const y=+ed.dataset.y,m=+ed.dataset.m,html=ed.innerHTML.trim();
+  if(ed.dataset.week) saveWeekAAREntryAt(y,m,+ed.dataset.week,html);
+  else saveAAREntryAt(y,m,+ed.dataset.day,html);
+  jrIndicators(y,m);
+}
+// The day-cell ✎ dots belong to the month on screen. Refreshing them from a journal write
+// to some other month would ask the DOM for ids that are not there.
+function jrIndicators(y,m){
+  if(y===CY&&m===CM){ updateAARIndicators(); updateWeekAARIndicators(); }
+}
+// Only the grid moves. Whatever entry is open stays open, and the writing pane with it.
+function jrStep(id,d){
+  const s=jrState(id), b=new Date(s.gy,s.gm+d,1);
+  s.gy=b.getFullYear(); s.gm=b.getMonth();
+  // Just the picker: repainting the card would rebuild the editor and take the caret out
+  // of an entry you never asked to leave.
+  const el=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-list`);
+  if(el) el.innerHTML=jrPicker(id); else jrRepaint(id);
+}
+function jrToday(id){
+  jrFlush(id);
+  const s=jrState(id);
+  s.gy=s.y=now.getFullYear(); s.gm=s.m=now.getMonth(); s.day=now.getDate(); s.week=0; s.q='';
+  jrRepaint(id);
+}
+// Picking an entry brings the grid with it, so a hit from a search in another month leaves
+// the calendar showing the month you landed in rather than the one you searched from.
+function jrOpen(id,y,m,day,week){
+  jrFlush(id);
+  const s=jrState(id);
+  s.y=s.gy=y; s.m=s.gm=m; s.day=day||0; s.week=week||0; s.pane='entry';
+  jrRepaint(id);
+}
+function jrSearch(id,v){
+  const s=jrState(id);
+  s.q=v;
+  // Only the picker pane is rebuilt: repainting the card would take the caret out of the
+  // search box on the first keystroke.
+  const el=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-list`);
+  if(el) el.innerHTML=jrPicker(id);
+}
+function jrPane(id,p){ jrState(id).pane=p; jrRepaint(id); }
+// Every entry that exists, newest first. Derived on demand — the entries are the source of
+// truth and there is nothing here to keep in step with them.
+function aarIndex(){
+  const out=[];
+  for(const key in D.months){
+    const [ys,ms]=key.split('-'); const y=+ys, m=+ms-1, mo=D.months[key];
+    for(const d in (mo.aar||{}))     out.push({y,m,day:+d,  html:mo.aar[d]});
+    for(const w in (mo.weekAar||{})) out.push({y,m,week:+w, html:mo.weekAar[w]});
+  }
+  return out.sort((a,b)=>b.y-a.y||b.m-a.m||(b.day||0)-(a.day||0)||(b.week||0)-(a.week||0));
+}
+function aarText(html){ const d=document.createElement('div'); d.innerHTML=html||''; return (d.textContent||'').replace(/\s+/g,' ').trim() }
+function jrLabel(e){
+  if(e.week){
+    const sp=getWeekSpans(e.y,e.m).find(s=>s.week===e.week);
+    return `Week ${e.week}${sp?` · ${MON[e.m].slice(0,3)} ${sp.start}–${sp.end}`:''}`;
+  }
+  return `${DOW[new Date(e.y,e.m,e.day).getDay()]} ${MON[e.m].slice(0,3)} ${e.day}`;
+}
+// The picker: a month grid normally, matching entries while you are searching. A grid cannot
+// answer "where did I write about Notion", and a list cannot show you a month at a glance,
+// so the search box is what swaps between the two.
+function jrPicker(id){
+  const s=jrState(id);
+  if(s.q.trim()){
+    const q=s.q.trim().toLowerCase();
+    const hits=aarIndex().filter(e=>{
+      const lbl=`${jrLabel(e)} ${MON[e.m]} ${e.y}`.toLowerCase();
+      return lbl.includes(q)||aarText(e.html).toLowerCase().includes(q);
+    });
+    if(!hits.length) return `<div class="jr-empty">No entries match “${_esc(s.q)}”.</div>`;
+    return hits.map(e=>{
+      const on=e.y===s.y&&e.m===s.m&&(e.week?e.week===s.week:e.day===s.day&&!s.week);
+      const snip=aarText(e.html).slice(0,70);
+      return `<button class="jr-hit${on?' on':''}" onclick="jrOpen('${id}',${e.y},${e.m},${e.day||0},${e.week||0})">
+          <span class="jr-hd">${jrLabel(e)}<i>${e.y}</i></span>
+          <span class="jr-hs">${_esc(snip)}</span>
+        </button>`;
+    }).join('');
+  }
+  const y=s.gy,m=s.gm;
+  const isThisMonth=y===now.getFullYear()&&m===now.getMonth();
+  const today=isThisMonth?now.getDate():0;
+  // The open entry is only a selection on the month it is actually in — otherwise browsing
+  // to September would highlight the 13th there because August's 13th is open.
+  const onEntry=y===s.y&&m===s.m;
+  const hd=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(n=>`<div class="tl-h">${n}</div>`).join('');
+  const rows=monthGridRows(y,m,n=>{
+    const cls=['tl-d'];
+    if(getAARAt(y,m,n)) cls.push('has');
+    if(n===today) cls.push('now');
+    if(onEntry&&!s.week&&n===s.day) cls.push('sel');
+    return `<button class="${cls.join(' ')}" title="${DOW[new Date(y,m,n).getDay()]}, ${MON[m]} ${n}"
+        onclick="jrOpen('${id}',${y},${m},${n},0)">${n}</button>`;
+  },sp=>{
+    // The weekly review lives on the week number, which is where the rest of the app
+    // already puts it — so both kinds of entry are reachable from the one grid.
+    const has=!!getWeekAARAt(y,m,sp.week);
+    const on=onEntry&&s.week===sp.week;
+    return `<button class="tl-wn jr-wn${has?' has':''}${on?' sel':''}" title="Weekly review · week ${sp.week}"
+        onclick="jrOpen('${id}',${y},${m},0,${sp.week})">W${sp.week}</button>`;
+  });
+  const lbl=`${MON[m]} ${y}`;
+  const home=!(y===now.getFullYear()&&m===now.getMonth());
+  return `<div class="tl-nav">
+      <button class="tl-nb" onclick="jrStep('${id}',-1)" title="Previous month">&#8249;</button>
+      <button class="tl-ml${home?' off':''}" onclick="jrToday('${id}')"
+        title="${home?'Back to this month':lbl}">${lbl}</button>
+      <button class="tl-nb" onclick="jrStep('${id}',1)" title="Next month">&#8250;</button>
+    </div>
+    <div class="tl-grid jr-grid"><div class="tl-hd">${hd}</div>${rows}</div>`;
+}
+function journalCardBody(id){
+  const s=jrState(id);
+  const e={y:s.y,m:s.m,day:s.day,week:s.week};
+  const html=s.week?getWeekAARAt(s.y,s.m,s.week):getAARAt(s.y,s.m,s.day);
+  const cap=s.week
+    ? `Weekly review · ${jrLabel(e)}, ${s.y}`
+    : `${DOW[new Date(s.y,s.m,s.day).getDay()]}, ${MON[s.m]} ${s.day} ${s.y}`;
+  // Which pane the ▦ button offers is the one you cannot currently see. It only does
+  // anything on a card too narrow for both, where CSS hides the other side.
+  const other=s.pane==='grid'?'entry':'grid';
+  return `<div class="jr" data-pane="${s.pane}">
+      <div class="jr-side">
+        <div class="jr-list">${jrPicker(id)}</div>
+        <div class="jr-srch">
+          <input class="jr-q" type="text" placeholder="Search entries…" value="${_esc(s.q)}"
+            oninput="jrSearch('${id}',this.value)"/>
+        </div>
+      </div>
+      <div class="jr-main">
+        <div class="jr-cap">
+          <button class="jr-pane" onclick="jrPane('${id}','${other}')"
+            title="${other==='grid'?'Show the calendar':'Show the entry'}">&#9638;</button>
+          <span>${cap}</span>
+        </div>
+        <div class="jr-ed" contenteditable="true" data-cardid="${id}"
+          data-y="${s.y}" data-m="${s.m}" data-day="${s.day}" data-week="${s.week||''}"
+          onfocus="_jrLastEd=this" onkeydown="richtextKD(event)"
+          oninput="jrInput(this)" onblur="jrBlur('${id}')">${html||''}</div>
+      </div>
+    </div>`;
+}
+// Saving on every keystroke is what the text cards do, but a journal cannot repaint with it:
+// emptying an entry deletes its key, and the card would rebuild itself — grid, caret and all
+// — while you were still holding backspace. The picker catches up on blur instead.
+function jrInput(ed){
+  const y=+ed.dataset.y,m=+ed.dataset.m,html=rtOnInput(ed);
+  if(ed.dataset.week) saveWeekAAREntryAt(y,m,+ed.dataset.week,html);
+  else saveAAREntryAt(y,m,+ed.dataset.day,html);
+}
+function jrBlur(id){
+  const ed=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`);
+  if(!ed) return;
+  jrIndicators(+ed.dataset.y,+ed.dataset.m);
+  // Only the picker, so the click that took focus away lands where it was aimed.
+  const el=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-list`);
+  if(el) el.innerHTML=jrPicker(id);
+}
+// Tables need freezing and the undo stack needs seeding after any repaint, exactly as the
+// canvas and text cards do on restore.
+function jrAfter(id){
+  setTimeout(()=>{
+    const ed=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`);
+    if(ed){ rtFreezeTables(); rtSeedUndo(ed); }
+    jrFit(id);
+  },0);
+}
+// 214px of calendar plus something worth calling a page needs about this much card. Below
+// it the two panes become one, switched by the ▦ button.
+const JR_MIN2=430;
+function jrFit(id){
+  const el=document.querySelector(`.jrcard[data-cardid="${id}"]`);
+  const card=el&&el.closest('.pcard');
+  if(card) card.classList.toggle('jr-narrow',el.clientWidth<JR_MIN2);
+}
+// Cards are resized by dragging, and the window by the window, so the fit is re-checked
+// rather than decided once at render.
+addEventListener('resize',()=>{ for(const id in _jr) jrFit(id) });
 
 // ─── CANVAS CARD ─────────────────────────────────────────────────
 // A card you place things on rather than write down. Every box is an ordinary
@@ -2378,8 +2657,8 @@ function mkPlannerCard(def,ix){
            onpointerdown="_cardGrabStart(event,'${def.id}')">
          <span class="pgrab">⠿</span>
          <input class="pcard-lblin" value="${_esc(def.label)}" oninput="setCardLabel('${def.id}',this.value)"/>
-         ${(def.type==='timeline'||def.type==='canvas')?`<span class="chart-color-dot"
-             title="${def.type==='canvas'?'Canvas colour':'Timeline colour'}"
+         ${(def.type==='timeline'||def.type==='canvas'||def.type==='journal')?`<span class="chart-color-dot"
+             title="${def.type==='canvas'?'Canvas colour':def.type==='journal'?'Journal colour':'Timeline colour'}"
              style="background:${timelineAccent(def.id)}"
              onpointerdown="event.stopPropagation()"
              onclick="openChartColorPop(event,'tl_${def.id}')"></span>`:''}
@@ -2435,6 +2714,21 @@ function mkPlannerCard(def,ix){
     // it up from one place instead of each button carrying its own inline style.
     body=`<div class="pcard-bd tlcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
     foot='';
+  }else if(def.type==='journal'){
+    // Content is emitted inline rather than restored on a timer — journalCardBody reads the
+    // entry itself — but the editor still needs the post-render pass every rich-text host
+    // gets: freeze the tables, seed the undo stack.
+    // Same --tlc the timeline rides in on: the grid is the same grid, so the dot on a day
+    // you wrote and the chip on the day you are reading take the card's colour, not a
+    // second hard-coded one.
+    body=`<div class="pcard-bd jrcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${journalCardBody(def.id)}</div>`;
+    // Only a tall enough card gets the template chips; on a short one they would be half of it.
+    foot=(!def.minH||def.minH>=360)?`<div class="jr-ft" data-cardid="${def.id}"></div>`:'';
+    setTimeout(()=>{
+      jrAfter(def.id);
+      const ft=document.querySelector(`.jr-ft[data-cardid="${def.id}"]`);
+      if(ft&&!ft.firstChild) ft.appendChild(buildAARTemplateSection());
+    },0);
   }else if(def.type==='canvas'){
     // The surface is restored from the card's own slot like any other content — the
     // positions came back with it, because they never left it.
@@ -2538,6 +2832,7 @@ function addPlannerCard(type){
   : type==='clock'  ? clockCardDef(id)
   : type==='timeline' ? {id,type:'timeline',label:'TIMELINE',span:1,minH:0,cadence:'none'}
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2,minH:320,cadence:'none'}
+  : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2,minH:420,cadence:'none'}
   : {id,type:'text',label:'New card',span:1,minH:0,cadence:'none'}));
   _paddOpen=false;
   _cardsDirty(); render();
@@ -4519,7 +4814,7 @@ function openChartColorPop(e,key){
   customIn.addEventListener('input',ev=>{ev.stopPropagation();if(!D.chartColors)D.chartColors={};D.chartColors[key]=ev.target.value;if(key==='sePath')applyGradeAccent();
     // A timeline card is styled off one custom property, so it can follow the
     // picker live without a re-render — which would close the popup mid-drag.
-    if(key.startsWith('tl_')){document.querySelectorAll('.tlcard').forEach(el=>el.style.setProperty('--tlc',ev.target.value));return;}
+    if(key.startsWith('tl_')){document.querySelectorAll('.tlcard,.jrcard').forEach(el=>el.style.setProperty('--tlc',ev.target.value));return;}
     buildSlightEdgeChart('se-all-time');});
   customIn.addEventListener('change',ev=>{ev.stopPropagation();save();render();pop.remove();chartColorPopKey=null;});
   customSw.appendChild(customIn);customSw.onclick=ev=>ev.stopPropagation();
@@ -5516,7 +5811,7 @@ document.addEventListener('keydown',e=>{
 // .cv-bd is a canvas box's body. Listing it here is the whole of what makes tables,
 // lists, checkboxes, toggles and the slash menu work inside a box — one editor,
 // used in a second place, rather than a second editor to keep in step.
-const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd';
+const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd,.jr-ed';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
 let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 // Whether the "split into how many" popover is open. Like _rtMenu, it is state rather
@@ -7864,18 +8159,20 @@ function rtSlashRun(i){
 // ─────────────────────────────────────────
 //  AFTER ACTION REVIEW
 // ─────────────────────────────────────────
-function getAAR(day){
-  const mo=D.months[mk(CY,CM)];
-  return mo?.aar?.[day]||'';
-}
-
-function saveAAREntry(day,html){
-  const mo=md(CY,CM);
+// Entries are addressed by an explicit month. The ✎ button on a day cell always means the
+// month on screen, but the journal card browses months of its own, and a save that assumed
+// CY/CM would write the entry into whichever month the dashboard happened to be showing.
+// md() creates the month record, so only the write path may use it.
+function getAARAt(y,m,day){ return D.months[mk(y,m)]?.aar?.[day]||'' }
+function saveAAREntryAt(y,m,day,html){
+  const mo=md(y,m);
   if(!mo.aar) mo.aar={};
   if(html&&html!=='<br>') mo.aar[day]=html;
   else delete mo.aar[day];
   save();
 }
+function getAAR(day){ return getAARAt(CY,CM,day) }
+function saveAAREntry(day,html){ saveAAREntryAt(CY,CM,day,html) }
 
 function updateAARIndicators(){
   const days=dim(CY,CM);
@@ -7956,16 +8253,16 @@ function closeAAR(){
   updateWeekAARIndicators();
 }
 
-function getWeekAAR(wn){
-  return D.months[mk(CY,CM)]?.weekAar?.[wn]||'';
-}
-function saveWeekAAREntry(wn,html){
-  const mo=md(CY,CM);
+function getWeekAARAt(y,m,wn){ return D.months[mk(y,m)]?.weekAar?.[wn]||'' }
+function saveWeekAAREntryAt(y,m,wn,html){
+  const mo=md(y,m);
   if(!mo.weekAar) mo.weekAar={};
   if(html&&html!=='<br>') mo.weekAar[wn]=html;
   else delete mo.weekAar[wn];
   save();
 }
+function getWeekAAR(wn){ return getWeekAARAt(CY,CM,wn) }
+function saveWeekAAREntry(wn,html){ saveWeekAAREntryAt(CY,CM,wn,html) }
 function updateWeekAARIndicators(){
   getWeekSpans(CY,CM).forEach(s=>{
     const btn=document.getElementById(`week-aar-btn-${s.week}`);
@@ -8033,9 +8330,11 @@ function openWeekAAR(wn){
   },50);
 }
 
+// The same chips serve the ✎ modal and every journal card, so the section can exist several
+// times over and cannot own an id. It is refreshed by class instead — see _aarTmplRefresh.
 function buildAARTemplateSection(){
   const div=document.createElement('div');
-  div.id='aar-tmpl-section';
+  div.className='aar-tmpl-section';
   div.style.cssText='border-top:1px solid var(--border);padding:12px 20px;flex-shrink:0;background:var(--surface)';
   const hdrRow=document.createElement('div');
   hdrRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
@@ -8074,16 +8373,31 @@ function buildAARTemplateSection(){
   return div;
 }
 
+// Which editor the template buttons act on. The ✎ modal owns #aar-editor while it is open;
+// otherwise it is the journal card you were last writing in.
+function _aarEditorEl(){
+  return document.getElementById('aar-editor')||(_jrLastEd&&_jrLastEd.isConnected?_jrLastEd:null);
+}
+// A journal card saves as you type; the modal saves on close. So a template loaded into a
+// card has to be committed here, or it would vanish on the next repaint.
+function _aarEditorCommit(editor){
+  if(editor&&editor.classList.contains('jr-ed')) jrInput(editor);
+}
+function _aarTmplRefresh(){
+  document.querySelectorAll('.aar-tmpl-section').forEach(n=>n.replaceWith(buildAARTemplateSection()));
+}
+
 function clearAAREditor(){
-  const editor=document.getElementById('aar-editor');
+  const editor=_aarEditorEl();
   if(!editor) return;
   if(!confirm('Clear all content in this entry?')) return;
   editor.innerHTML='';
+  _aarEditorCommit(editor);
   editor.focus();
 }
 
 function saveAsAARTemplate(){
-  const editor=document.getElementById('aar-editor');
+  const editor=_aarEditorEl();
   if(!editor) return;
   const content=editor.innerHTML.trim();
   if(!content||content==='<br>'){alert('Write something in the editor first.');return}
@@ -8091,18 +8405,19 @@ function saveAsAARTemplate(){
   if(!name||!name.trim()) return;
   D.aarTemplates.push({id:uid(),name:name.trim(),content});
   save();
-  document.getElementById('aar-tmpl-section')?.replaceWith(buildAARTemplateSection());
+  _aarTmplRefresh();
 }
 
 function loadAARTemplate(tid){
   const t=D.aarTemplates.find(t=>t.id===tid);
   if(!t) return;
-  const editor=document.getElementById('aar-editor');
+  const editor=_aarEditorEl();
   if(!editor) return;
   const cur=editor.innerHTML.trim();
   if(cur&&cur!=='<br>'&&!confirm('Load template? This replaces your current entry.')) return;
   editor.innerHTML=t.content;
   rtFreezeTables();
+  _aarEditorCommit(editor);
   editor.focus();
 }
 
@@ -8110,7 +8425,7 @@ function deleteAARTemplate(tid){
   if(!confirm('Delete this template?')) return;
   D.aarTemplates=D.aarTemplates.filter(t=>t.id!==tid);
   save();
-  document.getElementById('aar-tmpl-section')?.replaceWith(buildAARTemplateSection());
+  _aarTmplRefresh();
 }
 
 function addGroup(){
@@ -8213,7 +8528,7 @@ function _dropTemplate(targetTid,insertBefore=true){
   if(ti===-1) return;
   D.aarTemplates.splice(insertBefore?ti:ti+1,0,tmpl);
   save();
-  document.getElementById('aar-tmpl-section')?.replaceWith(buildAARTemplateSection());
+  _aarTmplRefresh();
 }
 
 function deleteGroup(gid){
