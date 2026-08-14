@@ -208,13 +208,10 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .jr-narrow .jr[data-pane="grid"] .jr-main{display:none}
 .jr-narrow .jr[data-pane="grid"] .jr-side{width:auto;flex:1}
 .jr-narrow .jr[data-pane="entry"] .jr-side{display:none}
-/* Edit cards, under the grid rather than in the header. */
-.pcard-bar{display:flex;justify-content:flex-start;margin-bottom:14px}
 /* min-width:0 because a grid item's automatic minimum is its content: a card
    holding a table wider than its column would otherwise refuse to shrink and push
    the whole grid sideways, instead of letting the table scroll inside .rt-tw. */
 .pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative;min-width:0}
-.pcard.editing{border-color:var(--edit-line)}
 /* position:relative so the grab handle can hang in the left padding. In flow the handle
    plus its gap pushed the title to ~32px while the body starts at 16px — a title indented
    past the content it labels, and at rest the handle is transparent, so the gap read as
@@ -241,12 +238,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    a table inserted first lines up identically on every card. */
 .pcard-bd>*:first-child,#aar-editor>*:first-child,.jr-ed>*:first-child{margin-top:0}
 .pcard-bd>*:last-child,#aar-editor>*:last-child,.jr-ed>*:last-child{margin-bottom:0}
-.pcard-ft{border-top:1px solid var(--border2);padding:5px 11px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .pcard-lnk{background:none;border:none;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px}
 .pcard-lnk:hover{color:var(--accent);background:var(--surface2)}
 .pcard-lnk.on{color:var(--accent);background:var(--today-bg)}
-.pcard-lblin{flex:1;min-width:0;font-family:var(--font);font-size:10px;font-weight:600;letter-spacing:.07em;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 7px;outline:none}
-.pcard-lblin:focus{border-color:var(--accent)}
+/* Still used by the lever chooser inside a habits card. Card deletion moved to the ⋯
+   menu: sitting next to the title, this read as "delete the title". */
 .pcard-x{background:none;border:none;color:var(--text3);font-size:17px;line-height:1;cursor:pointer;padding:0 4px;border-radius:4px;font-family:var(--font);flex-shrink:0}
 .pcard-x:hover{background:var(--border);color:var(--red)}
 /* Clock card: dial + today's schedule. */
@@ -295,7 +291,39 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard .pgrip-q{opacity:0;transition:opacity .12s}
 .pcard:hover .pgrip-q,.pcard.rz .pgrip,.pcard.rzx .pgrip-x{opacity:1}
 .pcard.rz,.pcard.rzx{user-select:none}
-.pcard.rzx{outline:1px solid var(--edit-line);outline-offset:-1px}
+/* Lifted while it is being widened: the preview overhangs its grid area rather than
+   pushing anything, so it has to paint over the card it is reaching across. */
+.pcard.rzx{outline:1px solid var(--edit-line);outline-offset:-1px;z-index:5}
+/* ⋯ carries everything a card can have done to it. Hidden until you hover the card — the
+   same rule the resize grips use — so a card at rest is a title and its content, nothing
+   else. It stays lit while its own menu is open, or it would vanish under the pointer. */
+.pcard-more{margin-left:auto;background:none;border:none;color:var(--text3);font-size:15px;line-height:1;
+  cursor:pointer;padding:1px 5px;border-radius:4px;font-family:var(--font);flex-shrink:0;
+  opacity:0;transition:opacity .12s,background .12s,color .12s}
+.pcard:hover .pcard-more,.pcard-more.on,.pcard-more:focus-visible{opacity:1}
+.pcard-more:hover,.pcard-more.on{background:var(--surface2);color:var(--text1)}
+/* Anchored to the header, which is position:relative for the grab handle already. */
+.pcard-menu{position:absolute;top:100%;right:6px;z-index:40;min-width:158px;
+  border:1px solid var(--border);border-radius:var(--r);background:var(--surface);
+  box-shadow:var(--shadow-md);padding:5px;display:flex;flex-direction:column;gap:1px}
+.pm-i{font-size:12px;padding:6px 9px;display:flex;align-items:center;gap:7px}
+.pm-sep{height:1px;background:var(--border);margin:4px 2px}
+.pm-del{color:var(--red)}
+.pm-del:hover{background:var(--red);color:#fff}
+/* Add a card here: an insert point sits in the 14px gap below each card, so a new card
+   lands in the column you pointed at and directly after the card you pointed below —
+   rather than always at the end of the page. Nothing until you reach for it.
+   It is not a grid row of its own: the grid packs cards into 4px rows by explicit column,
+   and a full-width row between two of them would cut every column in half. */
+.pins{position:absolute;left:0;right:0;bottom:-14px;height:14px;z-index:6;display:flex;
+  align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .12s}
+.pcard:hover .pins,.pins:hover,.pins.on{opacity:1}
+.pins::before{content:'';position:absolute;left:2px;right:2px;height:1px;background:var(--edit-line);opacity:.5}
+.pins i{position:relative;width:16px;height:16px;border-radius:50%;background:var(--surface);
+  border:1px solid var(--edit-line);color:var(--edit-line);font-size:12px;line-height:14px;
+  text-align:center;font-style:normal}
+.pins-menu{position:absolute;top:15px;left:50%;transform:translateX(-50%);z-index:40;width:236px;
+  cursor:default;text-align:left}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
 .paddcard:hover{border-color:var(--edit-line);color:var(--edit-line)}
 /* The add picker: one button, and the choice explained where you make it rather
@@ -1662,8 +1690,9 @@ function render(){
   if(view==='today'){
     // The card grid is the whole page. The clock is a card in it like anything
     // else, so there is nothing on this view that sits outside the grid.
+    // No card bar: there is no edit mode to enter or leave here any more. Every card
+    // carries its own ⋯, and the ⊕ in a card's bottom gap adds the next one.
     app.appendChild(mkCardGrid());
-    app.appendChild(mkCardBar());
   } else if(view==='year'){
     const seCard=document.createElement('div');
     seCard.className='chart-card';
@@ -1825,22 +1854,18 @@ document.addEventListener('keydown',e=>{ if(_paddOpen&&e.key==='Escape'){ _paddO
 function mkCardGrid(){
   const wrap=document.createElement('div');
   wrap.className='pgrid';
-  cardDefs().forEach((def,ix)=>wrap.appendChild(mkPlannerCard(def,ix)));
-  if(editMode){
-    const add=document.createElement('div');
-    add.style.cssText='display:flex;flex-direction:column;gap:8px';
-    // One button and a picker that says what each type is. Three buttons named
-    // after the types told you nothing you didn't already have to guess.
-    const hasClock=cardDefs().some(c=>c.type==='clock');
-    add.innerHTML=_paddOpen
-      ? `<div class="padd-menu">
-           ${CARD_TYPES.filter(t=>!(t.id==='clock'&&hasClock)).map(t=>
-             `<button class="padd-item" onclick="addPlannerCard('${t.id}')"><b>${t.name}</b><span>${t.blurb}</span></button>`).join('')}
-           ${hasClock?`<div class="padd-note">The clock is already on the page — one dial per view.</div>`:''}
-         </div>`
-      : `<button class="paddcard" onclick="_paddToggle()">+ Add a card</button>`;
-    wrap.appendChild(add);
-  }
+  const defs=cardDefs();
+  defs.forEach((def,ix)=>wrap.appendChild(mkPlannerCard(def,ix)));
+  // The end of the grid keeps a picker, because an empty page has no card to hover for a
+  // ⊕ and because "add one more at the end" is still the common case. It is the only
+  // permanent piece of chrome left on this view, and it is the last cell rather than a
+  // bar under the page.
+  const add=document.createElement('div');
+  add.style.cssText='display:flex;flex-direction:column;gap:8px';
+  add.innerHTML=_paddOpen
+    ? _cardTypeMenu('',t=>`addPlannerCard('${t}')`)
+    : `<button class="paddcard" onclick="_paddToggle()">+ Add a card</button>`;
+  wrap.appendChild(add);
   return wrap;
 }
 
@@ -2634,48 +2659,29 @@ function convertCardTo(id,type){
   _cardsDirty(); render();
 }
 
-// Edit lives under the grid, not in the header: it is about the cards, and the two
-// things you reach for together — Done and + Add a card — are now in one place
-// instead of at opposite ends of the page.
-function mkCardBar(){
-  const d=document.createElement('div');
-  d.className='pcard-bar';
-  d.innerHTML=`<button class="btn${editMode?' btn-on':''}" onclick="toggleEdit()">${editMode?'&#10003; Done':'&#9998; Edit cards'}</button>`;
-  return d;
-}
-
 function mkPlannerCard(def,ix){
   const d=document.createElement('div');
-  d.className='pcard'+(editMode?' editing':'');
+  d.className='pcard';
+  d.dataset.cardid=def.id;
   d.dataset.span=def.span||1;
   d.style.gridColumn=`${cardCol(def)} / span ${cardSpan(def)}`;
   d.draggable=false;
 
-  // The header is the drag handle in both modes — see _cardGrabStart.
-  const head = editMode
-    ? `<div class="pcard-hd pcard-grab" style="align-items:center;gap:6px"
-           onpointerdown="_cardGrabStart(event,'${def.id}')">
-         <span class="pgrab">⠿</span>
-         <input class="pcard-lblin" value="${_esc(def.label)}" oninput="setCardLabel('${def.id}',this.value)"/>
-         ${(def.type==='timeline'||def.type==='canvas'||def.type==='journal')?`<span class="chart-color-dot"
-             title="${def.type==='canvas'?'Canvas colour':def.type==='journal'?'Journal colour':'Timeline colour'}"
-             style="background:${timelineAccent(def.id)}"
-             onpointerdown="event.stopPropagation()"
-             onclick="openChartColorPop(event,'tl_${def.id}')"></span>`:''}
-         ${(def.type==='text'||def.type==='canvas')?`<button class="pcard-lnk"
-             title="${def.type==='canvas'?'Stack the boxes back into one column':'Move what is here into a box you can place'}"
-             onpointerdown="event.stopPropagation()"
-             onclick="convertCardTo('${def.id}','${def.type==='canvas'?'text':'canvas'}')"
-             >${def.type==='canvas'?'Convert to text':'Convert to canvas'}</button>`:''}
-         <button class="pcard-x" title="Remove card" onclick="removePlannerCard('${def.id}')">×</button>
-       </div>`
-    : `<div class="pcard-hd pcard-grab" title="Drag to reorder"
+  // One header, no modes. The title has always been renameable in place and the header has
+  // always been the drag handle (see _cardGrabStart) — everything else a card can do now
+  // lives behind the ⋯, which is invisible until you hover the card, so a page you are only
+  // reading carries no chrome at all.
+  const head = `<div class="pcard-hd pcard-grab" title="Drag to reorder"
            onpointerdown="_cardGrabStart(event,'${def.id}')">
          <span class="pgrab">⠿</span>
          <span class="pcard-lbl pcard-lbled" contenteditable="plaintext-only"
                spellcheck="false" title="Click to rename"
                onfocus="_cardLblFocus(this)" onblur="_cardLblCommit(this,'${def.id}')"
                onkeydown="_cardLblKD(event,this)">${_esc(def.label)}</span>
+         <button class="pcard-more${_cardMenu===def.id?' on':''}" title="Card options"
+             onpointerdown="event.stopPropagation()"
+             onclick="_cardMenuToggle(event,'${def.id}')">&#8943;</button>
+         ${_cardMenu===def.id?_cardMenuHTML(def):''}
        </div>`;
 
   // A canvas takes its height rather than a floor for it. The surface grows a
@@ -2754,12 +2760,9 @@ function mkPlannerCard(def,ix){
     },0);
   }else if(def.type==='habits'){
     body=`<div class="pcard-bd" style="${mh}" id="hcard-${def.id}">${habitCardBody(def)}</div>`;
-    // Renaming and removing levers is configuration and stays behind the global
-    // edit toggle. Choosing which levers this card shows is not — the chooser
-    // carries its own Done button, so the footer only has to open it.
-    foot=(editMode&&!def.editing)?`<div class="pcard-ft">
-        <button class="pcard-lnk" onclick="toggleHabitCardEdit('${def.id}')">Edit habits</button>
-      </div>`:'';
+    // The chooser is reached from the card's ⋯ menu now, so the footer button that used to
+    // be the only way in is gone with the edit mode that gated it.
+    foot='';
   }else{
     const html=cardHTML(def.id);
     body=`<div class="pcard-bd notes-ta" style="${mh}" id="card-${def.id}" contenteditable="true"
@@ -2775,20 +2778,110 @@ function mkPlannerCard(def,ix){
     },0);
   }
 
-  // Resizing is no longer edit-mode only — it is as everyday as dragging a card
-  // to reorder it, which already works outside edit mode. Outside edit mode the
-  // grips are invisible until you hover the card (the pgrip-q class), so a page
+  // Resizing is as everyday as dragging a card to reorder it, so the grips are always
+  // wired; they are just invisible until you hover the card (the pgrip-q class), so a page
   // you are only reading isn't ringed with handles.
-  const gq=editMode?'':' pgrip-q';
-  d.innerHTML=head+body+foot+`<div class="pgrip${gq}" title="Drag to set height · double-click to reset"
+  d.innerHTML=head+body+foot+`<div class="pgrip pgrip-q" title="Drag to set height · double-click to reset"
     onmousedown="_cardRzStart(event,'${def.id}')" ondblclick="setCardHeight('${def.id}',0)"></div>
-    <div class="pgrip-x${gq}" title="Drag to set width · double-click to reset"
-    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>`;
+    <div class="pgrip-x pgrip-q" title="Drag to set width · double-click to reset"
+    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>`
+    +_cardInsHTML(def,ix);
 
   return d;
 }
 
+// ── Adding a card where you point ──
+// Which insert point is open, by the index it would insert at. A card is added after the
+// card whose gap you clicked and in that card's column, instead of only ever at the end.
+let _pinsAt=null;
+function _pinsToggle(e,ix){
+  e.stopPropagation();
+  _pinsAt=_pinsAt===ix?null:ix;
+  _paddOpen=false; _cardMenu=null;
+  render();
+}
+function _pinsClose(){ if(_pinsAt!=null){ _pinsAt=null; render(); } }
+document.addEventListener('mousedown',e=>{
+  if(_pinsAt==null) return;
+  if(e.target.closest&&e.target.closest('.pins')) return;
+  _pinsClose();
+});
+document.addEventListener('keydown',e=>{ if(_pinsAt!=null&&e.key==='Escape') _pinsClose(); });
+// The same picker the page has always used to add a card, opened from a gap rather than
+// from a cell at the end of the grid.
+function _cardTypeMenu(cls,onpick){
+  const hasClock=cardDefs().some(c=>c.type==='clock');
+  return `<div class="padd-menu ${cls}" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()">
+      ${CARD_TYPES.filter(t=>!(t.id==='clock'&&hasClock)).map(t=>
+        `<button class="padd-item" onclick="${onpick(t.id)}"><b>${t.name}</b><span>${t.blurb}</span></button>`).join('')}
+      ${hasClock?`<div class="padd-note">The clock is already on the page — one dial per view.</div>`:''}
+    </div>`;
+}
+function _cardInsHTML(def,ix){
+  const at=ix+1;
+  return `<div class="pins${_pinsAt===at?' on':''}" title="Add a card here"
+      onpointerdown="event.stopPropagation()" onclick="_pinsToggle(event,${at})"><i>+</i>${
+    _pinsAt===at?_cardTypeMenu('pins-menu',t=>`addPlannerCard('${t}',${at})`):''
+  }</div>`;
+}
+
 // ── Card configuration ──
+// Everything a card can have done to it, in one menu per card, opened from the ⋯ in its
+// header. This replaced the edit mode: a second header with a boxed name field, a colour
+// dot, a convert link and a × in it, shown on every card at once the moment you entered the
+// mode. The menu holds the same actions and shows none of them until you ask.
+let _cardMenu=null;
+function _cardMenuToggle(e,id){
+  e.stopPropagation();
+  _cardMenu=_cardMenu===id?null:id;
+  render();
+}
+function _cardMenuClose(){ if(_cardMenu){ _cardMenu=null; render(); } }
+// Anywhere outside the open menu closes it, the same as the add-card picker above.
+document.addEventListener('mousedown',e=>{
+  if(!_cardMenu) return;
+  // The colour popup lives in <body>, outside the menu that opened it — closing on a click
+  // into it would tear down the anchor the popup was positioned against.
+  if(e.target.closest&&e.target.closest('.pcard-menu,.pcard-more,.color-popup')) return;
+  _cardMenuClose();
+});
+document.addEventListener('keydown',e=>{ if(_cardMenu&&e.key==='Escape') _cardMenuClose(); });
+function _cardMenuHTML(def){
+  const id=def.id, it=[];
+  it.push(`<button class="padd-item pm-i" onclick="_cardRename('${id}')">Rename</button>`);
+  if(def.type==='timeline'||def.type==='canvas'||def.type==='journal'){
+    it.push(`<button class="padd-item pm-i" onclick="_cardColour(event,'${id}')">
+      <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span>Colour</button>`);
+  }
+  // Text and canvas only: those two carry the same content in two shapes, so the trip is
+  // lossless in both directions. There is nothing to carry into a habits or journal card.
+  if(def.type==='text'||def.type==='canvas'){
+    const to=def.type==='canvas'?'text':'canvas';
+    it.push(`<button class="padd-item pm-i" onclick="_cardConvert('${id}','${to}')"
+      >Convert to ${to}</button>`);
+  }
+  if(def.type==='habits'&&!def.editing){
+    it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">Choose levers</button>`);
+  }
+  it.push(`<div class="pm-sep"></div>`);
+  it.push(`<button class="padd-item pm-i pm-del" onclick="_cardDelete('${id}')">Delete card</button>`);
+  return `<div class="pcard-menu" onpointerdown="event.stopPropagation()">${it.join('')}</div>`;
+}
+// Each item closes the menu first, so the render its action triggers is the only one.
+function _cardRename(id){
+  _cardMenu=null; render();
+  const el=document.querySelector(`.pcard[data-cardid="${id}"] .pcard-lbled`);
+  if(!el) return;
+  el.focus();
+  const r=document.createRange(); r.selectNodeContents(el);
+  const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
+function _cardColour(e,id){ e.stopPropagation(); _cardMenu=null; openChartColorPop(e,'tl_'+id); }
+function _cardConvert(id,type){ _cardMenu=null; convertCardTo(id,type); }
+function _cardLevers(id){ _cardMenu=null; toggleHabitCardEdit(id); }
+// removePlannerCard renders when it removes something, but it also has a confirm you can
+// decline — and then the menu is closed in state and still on screen. Render for that case.
+function _cardDelete(id){ _cardMenu=null; removePlannerCard(id); if(cardDef(id)) render(); }
 function setCardLabel(id,v){ const c=cardDef(id); if(c){ c.label=v; _cardsDirty(); } }
 // Renaming a card is not configuration — it is the one thing you do to a card
 // constantly — so the title is editable where it sits, with no mode to enter.
@@ -2819,23 +2912,27 @@ function setCardSpan(id,v,card){
   else render();
 }
 function setCardHeight(id,px){ const c=cardDef(id); if(c){ c.minH=Math.max(0,Math.round(px)); _cardsDirty(); render(); } }
-function addPlannerCard(type){
+// `at` is where in the list the card goes — from the ⊕ in a card's bottom gap. Left out,
+// it appends, which is what the picker at the end of the grid always did.
+function addPlannerCard(type,at){
   // A second clock cannot render — the dial is looked up by a single id — so it is
   // not offered, and this guard means it cannot be added by any other route either.
-  if(type==='clock'&&cardDefs().some(c=>c.type==='clock')){ _paddOpen=false; render(); return; }
+  if(type==='clock'&&cardDefs().some(c=>c.type==='clock')){ _paddOpen=false; _pinsAt=null; render(); return; }
   const id='c'+Math.random().toString(36).slice(2,9);
   const defs=cardDefs();
-  // A new card starts in the column after the last one, wrapping to the left when
-  // it won't fit — where plain flow would have put it, which is where you expect
-  // a card you just added to appear.
-  const last=defs[defs.length-1];
+  const ix=(at==null||at>defs.length)?defs.length:Math.max(0,at);
+  // Inserted after a card, the new one shares that card's column — you asked for a card
+  // *there*. Appended, it starts in the column after the last one, wrapping to the left
+  // when it won't fit: where plain flow would have put it.
+  const prev=defs[ix-1];
   const nextCol=(def,sp)=>{
     if(!def) return 1;
+    if(at!=null) return Math.min(PGRID_COLS-sp+1,cardCol(def));
     const c=cardCol(def)+cardSpan(def);
     return c+sp-1>PGRID_COLS?1:c;
   };
-  const withCol=d=>Object.assign(d,{col:nextCol(last,cardSpan(d))});
-  defs.push(withCol(
+  const withCol=d=>Object.assign(d,{col:nextCol(prev,cardSpan(d))});
+  defs.splice(ix,0,withCol(
     // hidden:[] and not undefined — an empty array means "showing everything",
     // where a missing key means "inherit the old global hideToday flags".
     type==='habits' ? {id,type:'habits',label:'Habits',span:2,minH:0,cadence:'none',hidden:[]}
@@ -2844,7 +2941,7 @@ function addPlannerCard(type){
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2,minH:320,cadence:'none'}
   : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2,minH:420,cadence:'none'}
   : {id,type:'text',label:'New card',span:1,minH:0,cadence:'none'}));
-  _paddOpen=false;
+  _paddOpen=false; _pinsAt=null;
   _cardsDirty(); render();
 }
 // Removal keeps the stored content, so a card taken off the page can come back.
@@ -3057,8 +3154,12 @@ document.addEventListener('mouseup',()=>{
   const c=cardDef(id); if(c){ c.minH=px; _cardsDirty(); }
 });
 
-// Width by dragging the right edge, snapping to whole columns so the grid stays
-// a grid. Previewed live on the element, committed once on mouseup.
+// Width by dragging the right edge. The height drag is the model: one inline property
+// follows the pointer continuously, a dashed guide shows where it will land, and the grid
+// is only relaid out once, on release. Stepping the real layout through four states as you
+// dragged is what made this feel static — the card can only be four widths, but the
+// *preview* doesn't have to be, so the card grows in pixels over the space to its right
+// while every neighbour stays exactly where it is.
 let _cardRzx=null;
 // One place decides how a width is applied, so the live drag, the commit that follows it
 // and the double-click reset can't disagree — the same reason _cardApplyH exists for heights.
@@ -3078,9 +3179,13 @@ function _cardRzxStart(e,id){
   const tracks=cs.gridTemplateColumns.split(' ').filter(Boolean);
   const cols=tracks.length||PGRID_COLS, colW=parseFloat(tracks[0])||1;
   const gap=parseFloat(cs.columnGap)||14;
-  _cardRzx={id,card,cols,colW,gap,left:card.getBoundingClientRect().left,span:def_span(id)};
+  const r=card.getBoundingClientRect();
+  _cardRzx={id,card,grid,cols,colW,gap,left:r.left,w:r.width,span:def_span(id),start:def_span(id)};
   card.classList.add('rzx');
 }
+// Where a span's right edge sits, measured from the card's left. Used for both the live
+// width and the guide, so the line and the card can't disagree about where a column ends.
+function _cardRzxW(span,s){ return span*s.colW+(span-1)*s.gap }
 // PGRID_COLS is declared once, up with the column helpers.
 function def_span(id){ return cardSpan(cardDef(id)||{}) }
 // The span the pointer is asking for, with a dead zone around the boundary. Rounding flips
@@ -3098,19 +3203,29 @@ document.addEventListener('mousemove',e=>{
   const s=_cardRzx, card=s.card;
   const col=cardCol(cardDef(s.id)||{});
   // A card can't grow past the right edge from where it starts.
-  const span=Math.min(s.cols-col+1,Math.max(1,_cardRzxSpan(e.clientX,s)));
-  if(span!==s.span){
-    s.span=span;
-    _cardApplySpan(card,col,span);
-    // Repack as you drag, the same as the height drag: the cards around it settle into the
-    // new width while you're still holding it, not after you let go.
-    packCards();
-  }
+  const max=Math.max(1,s.cols-col+1);
+  const span=Math.min(max,Math.max(1,_cardRzxSpan(e.clientX,s)));
+  s.span=span;
+  // The card follows the pointer in pixels, floored at one column and capped at the edge.
+  // Its grid area is untouched, so nothing reflows and nothing repacks: the card simply
+  // overhangs the space it is about to claim.
+  const w=Math.min(_cardRzxW(max,s),Math.max(_cardRzxW(1,s),e.clientX-s.left));
+  card.style.width=Math.round(w)+'px';
+  // The same dashed guide the height drag draws against a neighbour's bottom edge, turned
+  // on its side: this is the column boundary the card will snap back to when you let go.
+  const gr=s.grid.getBoundingClientRect(), g=_cardGuide();
+  g.style.cssText=`position:fixed;pointer-events:none;z-index:60;width:0;`
+    +`border-left:1px dashed var(--edit);top:${gr.top}px;height:${gr.height}px;`
+    +`left:${s.left+_cardRzxW(span,s)}px;display:block`;
 });
 document.addEventListener('mouseup',()=>{
   if(!_cardRzx) return;
   const {id,span,card}=_cardRzx;
   card.classList.remove('rzx'); _cardRzx=null;
+  _cardGuideHide();
+  // Hand the width back to the grid before the span lands, or the inline pixel width from
+  // the preview would outlive the drag and pin the card off its column.
+  card.style.width='';
   const c=cardDef(id);
   if(c&&cardSpan(c)!==span){
     c.span=span;
@@ -3147,19 +3262,19 @@ function habitCardBody(def){
   const rows=[];
   groups.forEach(g=>g.habits.forEach(h=>rows.push({h,g})));
   const hid=_cardHidden(def);
-  // The chooser opens from the footer in edit mode and from the empty state at
-  // rest, so a card can never end up with nothing on it and no way back.
+  // The chooser opens from the card's ⋯ menu and from the empty state, so a card can never
+  // end up with nothing on it and no way back. Renaming and removing a lever live inside
+  // the chooser rather than behind a global mode: opening it is already the explicit "I am
+  // configuring this card" that the mode used to stand for.
   if(def.editing){
     return `<div class="hlist">${rows.map(({h,g})=>{
       const off=hid.includes(h.id);
       return `<div class="hlist-row">
         <i style="background:${g.color}"></i>
-        ${editMode
-          ? `<input class="nm" value="${_esc(h.name)}" onchange="renameHabitInline('${h.id}',this.value)"/>`
-          : `<span class="nm" style="padding:3px 0">${_esc(h.name)}</span>`}
+        <input class="nm" value="${_esc(h.name)}" onchange="renameHabitInline('${h.id}',this.value)"/>
         <button class="hlist-eye${off?'':' on'}" title="${off?'Tracked, but hidden on this card':'Showing on this card'}"
           onclick="toggleHabitShowHere('${def.id}','${h.id}')">${off?'○':'◉'}</button>
-        ${editMode?`<button class="pcard-x" title="Remove lever" onclick="removeHabitInline('${h.id}')">×</button>`:''}
+        <button class="pcard-x" title="Remove lever" onclick="removeHabitInline('${h.id}')">×</button>
       </div>`;}).join('')}
       <button class="pcard-lnk on" style="margin-top:6px" onclick="toggleHabitCardEdit('${def.id}')">Done</button>
     </div>`;
@@ -4996,7 +5111,9 @@ function setView(v){
 function toggleView(){ setView(view==='year'?'month':'year') }
 function toggleEdit(){if(isMonthArchived()&&view!=='today')return;editMode=!editMode;if(editMode)fathomEditMode=false;render();}
 function toggleFathomEdit(){fathomEditMode=!fathomEditMode;if(fathomEditMode)editMode=false;render();}
-function _updEditBar(){const b=document.getElementById('edit-bar');if(!b)return;const on=editMode||fathomEditMode;b.style.display=on?'flex':'none';b.textContent=(editMode?'✎ Editing Levers':fathomEditMode?'✎ Editing Fathom':'✎ Editing')+' · ✓ Done';}
+// Never on the card view: there is no edit mode there any more, and the pill sat at
+// bottom-right on top of the add-card picker, which is the last cell of the grid.
+function _updEditBar(){const b=document.getElementById('edit-bar');if(!b)return;const on=(editMode||fathomEditMode)&&view!=='today';b.style.display=on?'flex':'none';b.textContent=(editMode?'✎ Editing Levers':fathomEditMode?'✎ Editing Fathom':'✎ Editing')+' · ✓ Done';}
 function _exitCurrentEditMode(){if(editMode)editMode=false;else if(fathomEditMode)fathomEditMode=false;render();}
 function hasHabitHistory(hid){return Object.values(D.months).some(m=>m?.completions?.[hid]&&Object.values(m.completions[hid]).some(v=>v));}
 function archiveHabit(gid,hid){const g=D.groups.find(g=>g.id===gid);const h=g?.habits.find(h=>h.id===hid);if(h){h.archived=true;_lastArchived={type:'habit',gid,hid};save();_showArchiveToast('Lever archived');render();}}
@@ -8380,7 +8497,7 @@ function buildAARTemplateSection(){
   div.style.cssText='border-top:1px solid var(--border);padding:12px 20px;flex-shrink:0;background:var(--surface)';
   const hdrRow=document.createElement('div');
   hdrRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
-  hdrRow.innerHTML=`<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Templates</span><div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end"><button class="btn" style="font-size:11px;padding:3px 10px" onclick="saveAsAARTemplate()">+ Save as Template</button><button class="btn" style="font-size:11px;padding:3px 10px;background:var(--red);border-color:var(--red);color:#fff" onclick="clearAAREditor()">Clear All</button></div>`;
+  hdrRow.innerHTML=`<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Templates</span><div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end"><button class="btn" style="font-size:11px;padding:3px 10px" onclick="saveAsAARTemplate(this)">+ Save as Template</button><button class="btn" style="font-size:11px;padding:3px 10px;background:var(--red);border-color:var(--red);color:#fff" onclick="clearAAREditor(this)">Clear All</button></div>`;
   const list=document.createElement('div');
   list.style.cssText='display:flex;gap:6px;flex-wrap:wrap;min-height:22px;align-items:center';
   if(!D.aarTemplates.length){
@@ -8389,7 +8506,7 @@ function buildAARTemplateSection(){
     D.aarTemplates.forEach(t=>{
       const chip=document.createElement('div');
       chip.style.cssText='display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 6px 3px 8px;font-size:12px;cursor:grab';
-      chip.innerHTML=`<span class="dnd-grip" style="font-size:11px">⠿</span><span style="cursor:pointer;font-weight:500;color:var(--text1)" onclick="loadAARTemplate('${t.id}')" title="Load">${esc(t.name)}</span><button onclick="deleteAARTemplate('${t.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px;line-height:1" title="Delete">&#10005;</button>`;
+      chip.innerHTML=`<span class="dnd-grip" style="font-size:11px">⠿</span><span style="cursor:pointer;font-weight:500;color:var(--text1)" onclick="loadAARTemplate('${t.id}',this)" title="Load">${esc(t.name)}</span><button onclick="deleteAARTemplate('${t.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px;line-height:1" title="Delete">&#10005;</button>`;
       chip.draggable=true;
       chip.ondragstart=e=>{_dg={type:'template',tid:t.id};chip.classList.add('dnd-drag');e.dataTransfer.effectAllowed='move'};
       chip.ondragend=()=>{chip.classList.remove('dnd-drag');_dg=null};
@@ -8416,9 +8533,15 @@ function buildAARTemplateSection(){
 }
 
 // Which editor the template buttons act on. The ✎ modal owns #aar-editor while it is open;
-// otherwise it is the journal card you were last writing in.
-function _aarEditorEl(){
-  return document.getElementById('aar-editor')||(_jrLastEd&&_jrLastEd.isConnected?_jrLastEd:null);
+// otherwise it is the editor in the card the button itself is sitting in — asked of the DOM
+// each time it is pressed. Resolving it from a global set on focus is what broke this: every
+// render() rebuilds the card, so _jrLastEd pointed at a detached node and the buttons became
+// silent no-ops. It stays only as a fallback for a caller with no button to go on.
+function _aarEditorEl(btn){
+  const modal=document.getElementById('aar-editor');
+  if(modal) return modal;
+  const card=btn&&btn.closest?btn.closest('.pcard'):null;
+  return (card&&card.querySelector('.jr-ed'))||(_jrLastEd&&_jrLastEd.isConnected?_jrLastEd:null);
 }
 // A journal card saves as you type; the modal saves on close. So a template loaded into a
 // card has to be committed here, or it would vanish on the next repaint.
@@ -8429,18 +8552,21 @@ function _aarTmplRefresh(){
   document.querySelectorAll('.aar-tmpl-section').forEach(n=>n.replaceWith(buildAARTemplateSection()));
 }
 
-function clearAAREditor(){
-  const editor=_aarEditorEl();
-  if(!editor) return;
+// A button that does nothing is indistinguishable from a broken app, which is exactly how
+// this read when the editor lookup failed. Say so instead of returning quietly.
+function _aarNoEditor(){ alert('Open an entry first — these buttons act on the entry you have open.') }
+function clearAAREditor(btn){
+  const editor=_aarEditorEl(btn);
+  if(!editor) return _aarNoEditor();
   if(!confirm('Clear all content in this entry?')) return;
   editor.innerHTML='';
   _aarEditorCommit(editor);
   editor.focus();
 }
 
-function saveAsAARTemplate(){
-  const editor=_aarEditorEl();
-  if(!editor) return;
+function saveAsAARTemplate(btn){
+  const editor=_aarEditorEl(btn);
+  if(!editor) return _aarNoEditor();
   const content=editor.innerHTML.trim();
   if(!content||content==='<br>'){alert('Write something in the editor first.');return}
   const name=prompt('Name this template:');
@@ -8450,11 +8576,11 @@ function saveAsAARTemplate(){
   _aarTmplRefresh();
 }
 
-function loadAARTemplate(tid){
+function loadAARTemplate(tid,btn){
   const t=D.aarTemplates.find(t=>t.id===tid);
   if(!t) return;
-  const editor=_aarEditorEl();
-  if(!editor) return;
+  const editor=_aarEditorEl(btn);
+  if(!editor) return _aarNoEditor();
   const cur=editor.innerHTML.trim();
   if(cur&&cur!=='<br>'&&!confirm('Load template? This replaces your current entry.')) return;
   editor.innerHTML=t.content;
