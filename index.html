@@ -1764,8 +1764,15 @@ window.addEventListener('resize',packCards);
 // card spills past its box and is painted over by the one below instead of pushing
 // it down. So the spans follow the real heights rather than the heights at render.
 let _packRAF=0;
+// A width drag previews by setting an inline pixel width, which the ResizeObserver sees as a
+// resize like any other. Repacking from that is both pointless and harmful: the drag relays
+// out once on release by design, and packCards measures each card against a grid it is
+// halfway through resetting — so a span measured mid-drag can be wrong, and the next frame
+// measures that card inside its newly wrong box, which is how a neighbour ends up shrunk and
+// stays shrunk. Hold packing for the gesture; mouseup packs once, correctly.
+let _packHold=0;
 function _packSoon(){
-  if(_packRAF) return;
+  if(_packHold||_packRAF) return;
   _packRAF=requestAnimationFrame(()=>{ _packRAF=0; packCards(); });
 }
 const _packRO=typeof ResizeObserver!=='undefined'?new ResizeObserver(_packSoon):null;
@@ -2847,8 +2854,9 @@ document.addEventListener('mousedown',e=>{
 });
 document.addEventListener('keydown',e=>{ if(_cardMenu&&e.key==='Escape') _cardMenuClose(); });
 function _cardMenuHTML(def){
+  // No Rename here: the header label is contenteditable at rest, so clicking the title
+  // already renames the card. A menu item for it is a second door to the same room.
   const id=def.id, it=[];
-  it.push(`<button class="padd-item pm-i" onclick="_cardRename('${id}')">Rename</button>`);
   if(def.type==='timeline'||def.type==='canvas'||def.type==='journal'){
     it.push(`<button class="padd-item pm-i" onclick="_cardColour(event,'${id}')">
       <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span>Colour</button>`);
@@ -2863,19 +2871,12 @@ function _cardMenuHTML(def){
   if(def.type==='habits'&&!def.editing){
     it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">Choose levers</button>`);
   }
-  it.push(`<div class="pm-sep"></div>`);
+  // A clock card has no options at all, so it would open with a rule above its only item.
+  if(it.length) it.push(`<div class="pm-sep"></div>`);
   it.push(`<button class="padd-item pm-i pm-del" onclick="_cardDelete('${id}')">Delete card</button>`);
   return `<div class="pcard-menu" onpointerdown="event.stopPropagation()">${it.join('')}</div>`;
 }
 // Each item closes the menu first, so the render its action triggers is the only one.
-function _cardRename(id){
-  _cardMenu=null; render();
-  const el=document.querySelector(`.pcard[data-cardid="${id}"] .pcard-lbled`);
-  if(!el) return;
-  el.focus();
-  const r=document.createRange(); r.selectNodeContents(el);
-  const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
-}
 function _cardColour(e,id){ e.stopPropagation(); _cardMenu=null; openChartColorPop(e,'tl_'+id); }
 function _cardConvert(id,type){ _cardMenu=null; convertCardTo(id,type); }
 function _cardLevers(id){ _cardMenu=null; toggleHabitCardEdit(id); }
@@ -3182,6 +3183,14 @@ function _cardRzxStart(e,id){
   const r=card.getBoundingClientRect();
   _cardRzx={id,card,grid,cols,colW,gap,left:r.left,w:r.width,span:def_span(id),start:def_span(id)};
   card.classList.add('rzx');
+  // Nothing repacks until you let go — see _packHold.
+  _packHold=1;
+  // The card's own content still reflows at the preview width, and wider usually means
+  // shorter, so without this the box jumps as you drag. min-height rather than height: if
+  // something ever reflows taller it grows instead of clipping, and .rzx is above its
+  // neighbours anyway. _cardApplyH writes minHeight on .pcard-bd, not the card, so these
+  // two never collide.
+  card.style.minHeight=r.height+'px';
 }
 // Where a span's right edge sits, measured from the card's left. Used for both the live
 // width and the guide, so the line and the card can't disagree about where a column ends.
@@ -3225,7 +3234,8 @@ document.addEventListener('mouseup',()=>{
   _cardGuideHide();
   // Hand the width back to the grid before the span lands, or the inline pixel width from
   // the preview would outlive the drag and pin the card off its column.
-  card.style.width='';
+  card.style.width=''; card.style.minHeight='';
+  _packHold=0;
   const c=cardDef(id);
   if(c&&cardSpan(c)!==span){
     c.span=span;
