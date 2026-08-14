@@ -117,6 +117,22 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .tl-hd,.tl-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;flex:1}
 .tl-hd{margin-left:26px}
 .tl-h{font-size:9px;font-weight:600;letter-spacing:.06em;color:var(--text3);text-align:center}
+/* The weekday strip is also the control for which day a week starts on: the setting is
+   changed where its effect is visible, rather than from a panel elsewhere. Kept quiet until
+   hovered so it reads as a header first and a button second. */
+.tl-hd{cursor:pointer;border-radius:5px;transition:background .12s}
+.tl-hd:hover{background:var(--hover,rgba(127,127,127,.10))}
+.tl-hd:hover .tl-h{color:var(--text2)}
+#ws-pop{position:fixed;z-index:9990;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:10px 12px}
+#ws-pop .ws-t{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text3);margin-bottom:7px;white-space:nowrap}
+#ws-pop .ws-days{display:flex;gap:3px}
+#ws-pop .ws-d{width:30px;height:26px;border:1px solid var(--border);background:transparent;
+  border-radius:6px;font-family:var(--font);font-size:10px;font-weight:600;color:var(--text2);
+  cursor:pointer;padding:0}
+#ws-pop .ws-d:hover{border-color:var(--text3)}
+#ws-pop .ws-d.on{background:var(--text1);color:var(--bg);border-color:var(--text1)}
 .tl-wk{display:flex;align-items:center;gap:6px}
 .tl-wn{width:20px;flex:none;font-size:9px;font-weight:600;color:var(--text3);text-align:right;font-variant-numeric:tabular-nums}
 .tl-d{height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;
@@ -991,7 +1007,7 @@ html.dark .dnd-grip:hover{color:var(--text2)}
 <div id="app"></div>
 <div id="sel-bar"><span id="sel-count"></span><span class="sel-hint">Space to cycle &nbsp;·&nbsp; Esc to clear</span></div>
 <div id="edit-bar" onclick="_exitCurrentEditMode()">✎ Editing · ✓ Done</div>
-<div id="arch-toast"><span id="arch-toast-msg">Lever archived</span><button onclick="undoArchive()">Undo</button></div>
+<div id="arch-toast"><span id="arch-toast-msg">Lever archived</span><button onclick="_toastUndo()">Undo</button></div>
 
 <script>
 // ─────────────────────────────────────────
@@ -1031,6 +1047,8 @@ function defaultData(){
     aarTemplates:[],
     fathom:{items:[]},
     priority:'',
+    weekStart:1,   // 0=Sun … 6=Sat. Part of D, not localStorage: it decides which days a stored
+                   // week number covers, so two devices must never disagree about it.
     chartColors:{overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null},
   };
 }
@@ -1038,7 +1056,7 @@ function defaultData(){
 // ─────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────
-let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(d.cards&&!d.cards.data)d.cards.data={};if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
+let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(typeof d.weekStart!=='number'||d.weekStart<0||d.weekStart>6)d.weekStart=1;if(d.cards&&!d.cards.data)d.cards.data={};if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
 let darkMode = localStorage.getItem('tide_dark')==='1';
 if(darkMode) document.documentElement.classList.add('dark');
 const now = new Date();
@@ -1050,6 +1068,8 @@ let editMode = false;
 let fathomEditMode = false;
 let _lastArchived = null;
 let _toastTimer = null;
+let _weekStartUndo = null;   // one slot, so a mistaken week-start switch can be taken back
+let _undoAction = null;      // what the toast's Undo button does; null means "restore an archive"
 // View and chart mode are remembered per device, the same way darkMode is above —
 // localStorage only, deliberately not part of D so they don't sync across devices.
 // Defaults to Today on a fresh install, but an existing stored choice is honoured
@@ -1431,10 +1451,17 @@ function md(y,m){
 function dim(y,m){ return new Date(y,m+1,0).getDate() }
 function fdow(y,m){ return new Date(y,m,1).getDay() }
 
+// Which day a week starts on, and the three things everything else needs from it. Spelled out
+// once here so no call site has to remember the arithmetic: getting one of them wrong would
+// slide a grid out of step with the spans it is drawing.
+function WS(){ const v=D.weekStart; return (typeof v==='number'&&v>=0&&v<=6)?v:1 }
+function dowOff(dow){ return (dow-WS()+7)%7 }                       // position of a JS day in the week
+function dowOrder(){ return [0,1,2,3,4,5,6].map(i=>(WS()+i)%7) }    // header/picker render order
+
 // Returns [{week:N, start:d, end:d}, ...] for the current month
 function getWeekSpans(y,m){
   const days=dim(y,m);
-  const fd=(new Date(y,m,1).getDay()+6)%7; // 0=Mon
+  const fd=dowOff(new Date(y,m,1).getDay()); // days of the first week that fall before the 1st
   const spans=[];
   let curWeek=0,wStart=1;
   for(let d=1;d<=days;d++){
@@ -1942,15 +1969,137 @@ function tlRepaint(id){
   const el=document.querySelector(`.tlcard[data-cardid="${id}"]`);
   if(el) el.innerHTML=timelineCardBody(id);
 }
-// Weeks as rows, Monday-led, with the W-number gutter: the one place the shape of a month is
+// The weekday header, in the order the week actually runs, and the control that sets that
+// order. Both grids draw the same strip, so it is built here rather than twice.
+function weekHeadStrip(){
+  const hd=dowOrder().map(i=>`<div class="tl-h">${DOW[i].slice(0,3)}</div>`).join('');
+  return `<div class="tl-hd" title="Week starts on ${DOW[WS()]} — click to change"
+    onclick="event.stopPropagation();openWeekStartMenu(this)">${hd}</div>`;
+}
+function closeWeekStartMenu(){ const el=document.getElementById('ws-pop'); if(el) el.remove(); }
+function openWeekStartMenu(anchor){
+  if(document.getElementById('ws-pop')){ closeWeekStartMenu(); return; }
+  const pop=document.createElement('div');
+  pop.id='ws-pop';
+  pop.onclick=e=>e.stopPropagation();
+  pop.innerHTML=`<div class="ws-t">Week starts on</div><div class="ws-days">`+
+    [0,1,2,3,4,5,6].map(i=>`<button class="ws-d${i===WS()?' on':''}" onclick="setWeekStart(${i})"
+      title="${DOW[i]}">${DOW[i].slice(0,2)}</button>`).join('')+`</div>`;
+  document.body.appendChild(pop);
+  const r=anchor.getBoundingClientRect(),pr=pop.getBoundingClientRect();
+  pop.style.top=Math.min(r.bottom+6,innerHeight-pr.height-8)+'px';
+  pop.style.left=Math.max(8,Math.min(r.left,innerWidth-pr.width-8))+'px';
+  const away=()=>{ closeWeekStartMenu(); document.removeEventListener('click',away); };
+  setTimeout(()=>document.addEventListener('click',away),0);
+}
+
+// Week numbers are storage keys — mo.weekAar[3], mo.weekSnapshots[3], and the "-W3" suffix on
+// weekly card content — so moving the start day changes which days each stored number covers.
+// These three functions work out where every stored week lands under the new start and carry
+// the content across, rather than leaving it filed against days it was never about.
+
+// Spans for a month as they would be cut under a given start day.
+function _spansUnder(y,m,ws){
+  const prev=D.weekStart; D.weekStart=ws;
+  try{ return getWeekSpans(y,m) } finally{ D.weekStart=prev }
+}
+// old week number → new week number, by which new span contains the old span's middle day.
+// The middle and not the first day: spans of different lengths sit off-centre from each other,
+// so keying on the first day walks an entry steadily earlier every time the setting is changed,
+// while the middle lands back where it started when you switch back.
+function _weekRemap(y,m,oldWS,newWS){
+  const oldS=_spansUnder(y,m,oldWS),newS=_spansUnder(y,m,newWS),map={};
+  oldS.forEach(sp=>{
+    const mid=Math.floor((sp.start+sp.end)/2);
+    const t=newS.find(n=>mid>=n.start&&mid<=n.end);
+    map[sp.week]=t?t.week:newS[newS.length-1].week;
+  });
+  return map;
+}
+// Rekey everything filed by week. Returns {moved,merged} so the confirmation can say what it did.
+// Two old weeks can land on one new one: HTML is joined rather than dropped, so nothing written
+// is ever lost, and the snapshot of the earlier week wins.
+function _applyWeekRemap(oldWS,newWS,dryRun){
+  const KEY=/^(\d{4})-(\d{2})-W(\d+)$/;
+  let moved=0,merged=0;
+  const put=(bag,k,v)=>{
+    if(bag[k]===undefined){ bag[k]=v; return }
+    merged++;
+    bag[k]=String(bag[k])+'<hr>'+String(v);
+  };
+  Object.keys(D.months||{}).forEach(mkey=>{
+    const mm=/^(\d{4})-(\d{2})$/.exec(mkey); if(!mm) return;
+    const y=+mm[1],m=+mm[2]-1,mo=D.months[mkey];
+    const map=_weekRemap(y,m,oldWS,newWS);
+    if(mo.weekAar){
+      const src=mo.weekAar,out={};
+      Object.keys(src).map(Number).sort((a,b)=>a-b).forEach(w=>{
+        const t=map[w]??w; if(t!==w) moved++;
+        put(out,t,src[w]);
+      });
+      if(!dryRun) mo.weekAar=out;
+    }
+    if(mo.weekSnapshots||mo.weekArchived){
+      const snaps=mo.weekSnapshots||{},arch=mo.weekArchived||{},oS={},oA={};
+      [...new Set([...Object.keys(snaps),...Object.keys(arch)])].map(Number).sort((a,b)=>a-b).forEach(w=>{
+        const t=map[w]??w;
+        if(snaps[w]!==undefined&&oS[t]===undefined) oS[t]=snaps[w];
+        if(arch[w]) oA[t]=true;
+      });
+      if(!dryRun){ if(mo.weekSnapshots) mo.weekSnapshots=oS; if(mo.weekArchived) mo.weekArchived=oA; }
+    }
+  });
+  const data=(D.cards&&D.cards.data)||{};
+  Object.keys(data).forEach(cid=>{
+    const bag=data[cid]; if(!bag||typeof bag!=='object') return;
+    const out={},weekKeys=[];
+    Object.keys(bag).forEach(k=>{ if(KEY.test(k)) weekKeys.push(k); else out[k]=bag[k]; });
+    weekKeys.sort().forEach(k=>{
+      const g=KEY.exec(k),y=+g[1],m=+g[2]-1,w=+g[3];
+      const t=_weekRemap(y,m,oldWS,newWS)[w]??w;
+      if(t!==w) moved++;
+      put(out,`${g[1]}-${g[2]}-W${t}`,bag[k]);
+    });
+    if(!dryRun) data[cid]=out;
+  });
+  return {moved,merged};
+}
+function setWeekStart(ws){
+  closeWeekStartMenu();
+  const old=WS();
+  if(ws===old){ return }
+  const n=_applyWeekRemap(old,ws,true);
+  if(n.moved||n.merged){
+    const bits=[`${n.moved} weekly ${n.moved===1?'entry moves':'entries move'} to the week that now covers ${n.moved===1?'its':'their'} days`];
+    if(n.merged) bits.push(`${n.merged} ${n.merged===1?'entry lands':'entries land'} on a week that already has one — those are joined, nothing is deleted`);
+    if(!confirm(`Weeks will start on ${DOW[ws]}.\n\n`+bits.join('.\n')+`.\n\nYou can undo this from the toast.`)) return;
+  }
+  // One undo slot, overwritten each change: enough to take back a switch you did not mean.
+  _weekStartUndo={ws:old,months:JSON.parse(JSON.stringify(D.months||{})),
+    cards:JSON.parse(JSON.stringify((D.cards&&D.cards.data)||{}))};
+  _applyWeekRemap(old,ws,false);
+  D.weekStart=ws;
+  save(); render();
+  _showUndoToast(`Weeks now start on ${DOW[ws]}`,()=>{
+    const u=_weekStartUndo; if(!u) return;
+    _weekStartUndo=null;
+    D.months=u.months;
+    if(D.cards) D.cards.data=u.cards;
+    D.weekStart=u.ws;
+    save(); render();
+  });
+}
+
+// Weeks as rows, led by whichever day WS() names, with the W-number gutter: the one place the shape of a month is
 // built. The Timeline and the Journal draw the same grid and disagree only about what a day
 // means, so the day cell — and the gutter, which the Journal makes clickable — are the
 // caller's to render.
 function monthGridRows(y,m,cell,wk){
   return getWeekSpans(y,m).map(sp=>{
     const cells=[];
-    // Mon=0, so the first row is padded out to the weekday the month starts on.
-    const lead=(new Date(y,m,sp.start).getDay()+6)%7;
+    // The first row is padded out to the weekday the span starts on, measured from whichever
+    // day the week starts on — the same offset getWeekSpans cut the span with.
+    const lead=dowOff(new Date(y,m,sp.start).getDay());
     for(let i=0;i<lead;i++) cells.push('<div class="tl-d tl-pad"></div>');
     for(let n=sp.start;n<=sp.end;n++) cells.push(cell(n,sp));
     while(cells.length<7) cells.push('<div class="tl-d tl-pad"></div>');
@@ -1973,7 +2122,7 @@ function timelineCardBody(id){
   const sel=onPD?PD.getDate():0;
   // A month wholly behind us is spent, the same as the elapsed days of this one.
   const isPastMo=y<now.getFullYear()||(y===now.getFullYear()&&m<now.getMonth());
-  const hd=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(n=>`<div class="tl-h">${n}</div>`).join('');
+  const hd=weekHeadStrip();
   const rows=monthGridRows(y,m,n=>{
     const cls=['tl-d'];
     if(isPastMo||(today&&n<today)) cls.push('past');
@@ -2004,7 +2153,7 @@ function timelineCardBody(id){
   const pos=onPD
     ? `<div class="tl-day"><span class="tl-dl">Day</span><b>${sel}</b><span class="tl-dt">/ ${days}</span></div>`
     : `<div class="tl-day"><b>${days}</b><span class="tl-dt">days</span></div>`;
-  return `${nav}<div class="tl-grid"><div class="tl-hd">${hd}</div>${rows}</div>
+  return `${nav}<div class="tl-grid">${hd}${rows}</div>
     <div class="tl-foot">
       <div class="tl-pos">
         ${pos}${
@@ -2133,7 +2282,7 @@ function jrPicker(id){
   // The open entry is only a selection on the month it is actually in — otherwise browsing
   // to September would highlight the 13th there because August's 13th is open.
   const onEntry=y===s.y&&m===s.m;
-  const hd=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(n=>`<div class="tl-h">${n}</div>`).join('');
+  const hd=weekHeadStrip();
   const rows=monthGridRows(y,m,n=>{
     const cls=['tl-d'];
     if(getAARAt(y,m,n)) cls.push('has');
@@ -2157,7 +2306,7 @@ function jrPicker(id){
         title="${home?'Back to this month':lbl}">${lbl}</button>
       <button class="tl-nb" onclick="jrStep('${id}',1)" title="Next month">&#8250;</button>
     </div>
-    <div class="tl-grid jr-grid"><div class="tl-hd">${hd}</div>${rows}</div>`;
+    <div class="tl-grid jr-grid">${hd}${rows}</div>`;
 }
 function journalCardBody(id){
   const s=jrState(id);
@@ -3757,8 +3906,8 @@ function openTimeBlockModal(block){
   const isEdit=!!block&&!!(D.timeBlocks||[]).find(b=>b.id===block.id);
   const b=block||{id:_tbUuid(),name:'',startMin:480,endMin:540,color:TB_COLORS[0],days:[]};
   const toTime=m=>`${String(Math.floor((m%1440)/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
-  const dayLabels=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const dayBtns=dayLabels.map((l,i)=>{const on=(b.days||[]).includes(i);return `<button type="button" class="tb-day-btn" data-day="${i}" onclick="tbToggleDay(this)" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border2);background:${on?'var(--text1)':'var(--surface2)'};color:${on?'var(--bg)':'var(--text3)'};cursor:pointer;font-family:var(--font)">${l}</button>`;}).join('');
+  // Rendered in week order, but `i` stays the JS day index — the stored days array is untouched.
+  const dayBtns=dowOrder().map(i=>{const l=DOW[i],on=(b.days||[]).includes(i);return `<button type="button" class="tb-day-btn" data-day="${i}" onclick="tbToggleDay(this)" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border2);background:${on?'var(--text1)':'var(--surface2)'};color:${on?'var(--bg)':'var(--text3)'};cursor:pointer;font-family:var(--font)">${l}</button>`;}).join('');
   const swatches=TB_COLORS.map(c=>`<button type="button" onclick="tbPickColor(this)" data-color="${c}" style="width:20px;height:20px;border-radius:50%;background:${c};border:2.5px solid ${b.color===c?'var(--text1)':'transparent'};cursor:pointer;outline:none;flex-shrink:0"></button>`).join('');
   const grps=(activeGroups()||[]).filter(g=>!g._default);
   const groupChips=grps.map(g=>`<button type="button" onclick="tbSelectGroup('${g.name.replace(/'/g,"\\'")}','${g.color}','${g.id}')" style="font-size:9px;padding:2px 9px;border-radius:12px;border:1.5px solid ${g.color};background:${g.color}22;color:${g.color};cursor:pointer;font-family:var(--font);font-weight:600">${g.name}</button>`).join('');
@@ -4270,7 +4419,7 @@ function buildHabitHeaderRow(groups,editable,weekIndex){
       th.id=`hth-${h.id}`;
       if(editable){
         const freq=h.freq&&h.freq.length<7?h.freq:[0,1,2,3,4,5,6];
-        const freqBtns=['S','M','T','W','T','F','S'].map((lbl,i)=>`<button class="freq-day-btn${freq.includes(i)?' freq-on':''}" onclick="event.stopPropagation();toggleHabitFreqDay('${h.id}',${i})" title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}">${lbl}</button>`).join('');
+        const freqBtns=dowOrder().map(i=>`<button class="freq-day-btn${freq.includes(i)?' freq-on':''}" onclick="event.stopPropagation();toggleHabitFreqDay('${h.id}',${i})" title="${DOW[i]}">${DOW[i][0]}</button>`).join('');
         th.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;padding:2px 4px">
           <div style="display:flex;align-items:center;gap:3px">
             <span class="dnd-grip">⠿</span>
@@ -5192,7 +5341,11 @@ function confirmDeleteHabit(gid,hid){
   }
   if(confirm(msg))purgeHabit(gid,hid);
 }
-function _showArchiveToast(msg='Lever archived'){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
+function _showArchiveToast(msg='Lever archived'){_undoAction=null;const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';},4000);}
+// The same toast, with its own undo. Longer-lived than the archive one: undoing a week-start
+// switch is a bigger decision than undoing an archive, and there is more to look at first.
+function _showUndoToast(msg,fn){const t=document.getElementById('arch-toast');const m=document.getElementById('arch-toast-msg');_undoAction=fn;if(!t)return;if(m)m.textContent=msg;t.style.display='flex';clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.display='none';_undoAction=null;},12000);}
+function _toastUndo(){const t=document.getElementById('arch-toast');if(_undoAction){const f=_undoAction;_undoAction=null;clearTimeout(_toastTimer);if(t)t.style.display='none';f();return;}undoArchive();}
 function undoArchive(){if(!_lastArchived)return;const a=_lastArchived;_lastArchived=null;clearTimeout(_toastTimer);const t=document.getElementById('arch-toast');if(t)t.style.display='none';if(a.type==='fathom')restoreFathomItem(a.id);else restoreHabit(a.gid,a.hid);}
 
 
@@ -9391,7 +9544,7 @@ function buildHzTable(){
     const dow=new Date(CY,CM,d).getDay();
     const isToday=d===todayD;
     const isFuture=false;
-    const isWeekStart=dow===1&&d>1;
+    const isWeekStart=dow===WS()&&d>1;
     const td=document.createElement('td');
     td.id=`hzdp-${d}`;
     td.className='st hz-chk-c'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
@@ -9450,7 +9603,7 @@ function buildHzTable(){
   for(let d=1;d<=days;d++){
     const dow=new Date(CY,CM,d).getDay();
     const isToday=d===todayD;
-    const isWeekStart=dow===1&&d>1;
+    const isWeekStart=dow===WS()&&d>1;
     const isFutureDay=false;
     const th=document.createElement('th');
     th.className='st hz-day-th'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
@@ -9513,7 +9666,7 @@ function buildHzTable(){
       nameTd.className='sl hz-habit-td';
       if(editMode){
         const hfreq=h.freq&&h.freq.length<7?h.freq:[0,1,2,3,4,5,6];
-        const hfreqBtns=['S','M','T','W','T','F','S'].map((lbl,i)=>`<button class="freq-day-btn${hfreq.includes(i)?' freq-on':''}" onclick="event.stopPropagation();toggleHabitFreqDay('${h.id}',${i})" title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}">${lbl}</button>`).join('');
+        const hfreqBtns=dowOrder().map(i=>`<button class="freq-day-btn${hfreq.includes(i)?' freq-on':''}" onclick="event.stopPropagation();toggleHabitFreqDay('${h.id}',${i})" title="${DOW[i]}">${DOW[i][0]}</button>`).join('');
         nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;overflow:hidden">
           <div style="display:flex;align-items:center;gap:2px">
             <span class="dnd-grip" style="margin-right:1px">⠿</span>
@@ -9578,7 +9731,7 @@ function buildHzTable(){
         const dow=new Date(CY,CM,d).getDay();
         const isToday=d===todayD;
         const isFuture=isCurMo&&d>todayD;
-        const isWeekStart=dow===1&&d>1;
+        const isWeekStart=dow===WS()&&d>1;
         const cnt=chkCount(h.id,d);
         const tgt=Math.max(1,h.dailyTarget||1);
         const frac=Math.min(cnt,tgt)/tgt;
@@ -9820,7 +9973,7 @@ function mkFathomGrid(){
   rA.appendChild(cornerA);
   for(let d=1;d<=days;d++){
     const dow=new Date(CY,CM,d).getDay();
-    const isToday=d===todayD,isFuture=false,isWeekStart=dow===1&&d>1;
+    const isToday=d===todayD,isFuture=false,isWeekStart=dow===WS()&&d>1;
     const td=document.createElement('td');
     td.id=`fdp-${d}`;
     td.className='st hz-chk-c'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
@@ -9858,7 +10011,7 @@ function mkFathomGrid(){
   const rC=document.createElement('tr');
   for(let d=1;d<=days;d++){
     const dow=new Date(CY,CM,d).getDay();
-    const isToday=d===todayD,isWeekStart=dow===1&&d>1;
+    const isToday=d===todayD,isWeekStart=dow===WS()&&d>1;
     const th=document.createElement('th');
     th.className='st hz-day-th'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
     th.innerHTML=`<span class="hd-num">${d}</span><span class="hd-dow">${DOW[dow]}</span>`;
@@ -9875,7 +10028,7 @@ function mkFathomGrid(){
     nameTd.className='sl hz-habit-td';
     if(fathomEditMode){
       const ifreq=item.freq&&item.freq.length<7?item.freq:[0,1,2,3,4,5,6];
-      const ifreqBtns=['S','M','T','W','T','F','S'].map((lbl,i)=>`<button class="freq-day-btn${ifreq.includes(i)?' freq-on-fathom':''}" onclick="event.stopPropagation();toggleFathomFreqDay('${item.id}',${i})" title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}">${lbl}</button>`).join('');
+      const ifreqBtns=dowOrder().map(i=>`<button class="freq-day-btn${ifreq.includes(i)?' freq-on-fathom':''}" onclick="event.stopPropagation();toggleFathomFreqDay('${item.id}',${i})" title="${DOW[i]}">${DOW[i][0]}</button>`).join('');
       nameTd.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px;">
         <div style="display:flex;align-items:center;gap:2px;">
           <span class="dnd-grip" style="margin-right:1px">⠿</span>
@@ -9914,7 +10067,7 @@ function mkFathomGrid(){
     let rowDone=0,rowTotal=0;
     for(let d=1;d<=days;d++){
       const dow=new Date(CY,CM,d).getDay();
-      const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===1&&d>1;
+      const isToday=d===todayD,isFuture=isCurMo&&d>todayD,isWeekStart=dow===WS()&&d>1;
       const chk=isChkFathom(item.id,d);
       const skp=isSkipFathom(item.id,d);
       const foff=item.freq&&item.freq.length<7&&!item.freq.includes(dow);
