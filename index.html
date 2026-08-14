@@ -5410,7 +5410,8 @@ function richtextKD(e){
       const li=ln&&ln.closest?ln.closest('li'):null;
       if(li&&td.contains(li)){
         e.preventDefault();
-        document.execCommand(e.shiftKey?'outdent':'indent');
+        if(e.shiftKey){ if(!rtOutdentLi()) document.execCommand('outdent'); }
+        else document.execCommand('indent');
         return;
       }
       e.preventDefault();
@@ -5561,10 +5562,24 @@ function richtextKD(e){
       rtFire(nl.closest(RT_HOSTS));
     },0);
   }
+  // Enter on an empty sub-item leaves the sub-list — the ordinary way to stop making
+  // sub-bullets. The browser's own outdent promotes it but not into the list above it, so a
+  // bullet under a numbered item came back out as a bullet and the numbering was stranded.
+  // Only nested items are taken; at the top level Enter still leaves the list as before.
+  if(e.key==='Enter'&&!e.shiftKey){
+    const li=rtCaretLi();
+    if(li&&!li.textContent.trim()&&!li.querySelector('ul,ol')){
+      const l=li.parentElement,up=l&&l.parentElement;
+      if(up&&(up.tagName==='UL'||up.tagName==='OL'||(up.closest&&up.closest('li')))){
+        if(rtOutdentLi()){ e.preventDefault(); return; }
+      }
+    }
+  }
   // Tab / Shift+Tab → indent / outdent
   if(e.key==='Tab'){
     e.preventDefault();
-    document.execCommand(e.shiftKey?'outdent':'indent');
+    if(e.shiftKey){ if(!rtOutdentLi()) document.execCommand('outdent'); }
+    else document.execCommand('indent');
     return;
   }
   // Backspace inside the empty run above a table that opens a card takes a line off it.
@@ -5617,7 +5632,7 @@ function richtextKD(e){
             root.dispatchEvent(new Event('input',{bubbles:true}));
             return;
           }
-          document.execCommand('outdent');
+          if(!rtOutdentLi()) document.execCommand('outdent');
           return;
         }
         // Caret at the true start of the <li>'s content (offset 0, no preceding text/inline sibling within this <li>)
@@ -5645,7 +5660,7 @@ function richtextKD(e){
             return;
           }
           e.preventDefault();
-          document.execCommand('outdent');
+          if(!rtOutdentLi()) document.execCommand('outdent');
           return;
         }
       }
@@ -5744,6 +5759,62 @@ function rtConvertList(kind){
   rtPlaceCaretAtEnd(li); // moving the node dropped the selection
   return nl;
 }
+// Promote the caret's item one level, into the list its parent item belongs to.
+// execCommand('outdent') can't do this: it knows where the item came from but not which list
+// it should rejoin, so a bullet nested under a numbered item came back out as a bullet — and
+// once a <ul> sat between two <ol>s neither could be talked back into continuing the count.
+// Here the item simply becomes a child of the outer list, so it renders as whatever that list
+// is with no retagging at all. Returns false when there is no outer list to rejoin, leaving
+// the caller to fall back on the browser (leaving a list entirely is unchanged).
+function rtOutdentLi(){
+  const li=rtCaretLi();
+  const list=li&&li.parentElement;
+  if(!list||(list.tagName!=='UL'&&list.tagName!=='OL')) return false;
+  // Two nestings to recognise. A sub-list usually sits inside the item it belongs to, but
+  // execCommand('indent') sometimes leaves it as a direct child of the outer list instead,
+  // beside the items rather than within one. Both mean the same thing on screen, so both
+  // have to come home the same way.
+  const up=list.parentElement;
+  let outer=null,after=null;
+  if(up&&(up.tagName==='UL'||up.tagName==='OL')){
+    // Beside the items: the promoted one lands after the whole sub-list, so it still follows
+    // the items that were above it.
+    outer=up; after=list;
+  }else{
+    const parentLi=up&&up.closest?up.closest('li'):null;
+    if(parentLi){ outer=parentLi.parentElement; after=parentLi; }
+  }
+  if(!outer||(outer.tagName!=='UL'&&outer.tagName!=='OL')) return false;
+  // Items below this one follow it up, as children — the same thing Docs and Word do. Leaving
+  // them behind would put them under the item above, silently changing what they belong to.
+  if(li.nextElementSibling){
+    const tail=document.createElement(list.tagName);
+    // Assigned only when there is something to assign: setting them unconditionally writes
+    // class="" into the saved HTML of every plain list that goes through here.
+    if(list.className) tail.className=list.className;
+    if(list.style.listStyleType) tail.style.listStyleType=list.style.listStyleType;
+    while(li.nextSibling) tail.appendChild(li.nextSibling);
+    li.appendChild(tail);
+  }
+  outer.insertBefore(li,after.nextSibling);
+  // Same rule rtConvertList applies: a marker the new list can't draw is dropped rather than
+  // carried into a place where it would show nothing, or show under a checkbox.
+  const kind=rtListKind(outer);
+  if(kind!=='todo') li.removeAttribute('data-done');
+  if(kind!=='bullet') li.removeAttribute('data-st');
+  if(!list.querySelector('li')) list.remove();
+  // The caret belongs in the item's own text, not inside the sub-list it just adopted.
+  const sub=[...li.children].find(n=>n.tagName==='UL'||n.tagName==='OL');
+  if(sub){
+    const r=document.createRange();
+    r.setStartBefore(sub); r.collapse(true);
+    const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }else rtPlaceCaretAtEnd(li); // moving the node dropped the selection
+  // Raw DOM moves are invisible to the browser's own input event, so nothing would save or
+  // reach the undo stack without this — the same reason rtConvertList's callers fire one.
+  rtFire(rtHost(li));
+  return true;
+}
 // Every entry point goes through here. With no list yet, let the browser make a plain one
 // and then convert that — going through the single-item path either way, so nothing can
 // restyle a whole list wholesale.
@@ -5835,8 +5906,25 @@ function rtNormalizeLists(root){
       nx.remove(); changed=true;
     });
   }
-  // Lists are contiguous again, so natural numbering is correct.
-  root.querySelectorAll('ol[start]').forEach(l=>l.removeAttribute('start'));
+  // Adjacent lists are merged, but a sub-list between two numbered ones can't be merged away —
+  // and it used to end the count, because every `start` was stripped here on the grounds that
+  // contiguous lists number themselves. Contiguity is exactly what a sub-list breaks: the
+  // second <ol> began again at 1 and no amount of pressing the numbered-list button could
+  // move it, since this line removed the only attribute that says otherwise.
+  // A list bridges the gap; anything else doesn't. Two numbered lists with a paragraph between
+  // them are two lists and still both start at 1 — the rule is that a sub-list doesn't
+  // interrupt a count, not that numbering never restarts.
+  root.querySelectorAll('ol').forEach(l=>{
+    let prev=null;
+    for(let p=l.previousElementSibling;p;p=p.previousElementSibling){
+      if(p.tagName==='OL'&&styleOf(p)===styleOf(l)){ prev=p; break; }
+      if(p.tagName!=='OL'&&p.tagName!=='UL') break; // prose ends the sequence
+    }
+    // Document order, so prev's own start is already settled and chains accumulate.
+    const n=prev?(parseInt(prev.getAttribute('start'),10)||1)
+      +[...prev.children].filter(c=>c.tagName==='LI').length:1;
+    if(n>1) l.setAttribute('start',n); else l.removeAttribute('start');
+  });
 }
 function rtPlaceCaretAtEnd(el){
   const r=document.createRange();r.selectNodeContents(el);r.collapse(false);
