@@ -99,6 +99,10 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    needs — see packCards — and the 14px gap is carried in the span. */
 .pgrid{display:grid;grid-template-columns:repeat(4,1fr);column-gap:14px;row-gap:0;
   grid-auto-rows:4px;align-items:start;margin-bottom:14px;
+  /* Room for the top insert point of the first card in each column. The vertical gap between
+     cards comes from packCards' span arithmetic, not from row-gap, so above the topmost card
+     there is no gap at all and its .pins-t would hang outside the grid. */
+  padding:14px 14px 0;
   /* A card's grid-column-start is written inline by mkCard, so a start of 3 or 4
      inside a narrowed 2-column grid used to conjure implicit columns and crush the
      row. The narrow breakpoints below reset every start to auto, and this makes a
@@ -310,20 +314,43 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pm-sep{height:1px;background:var(--border);margin:4px 2px}
 .pm-del{color:var(--red)}
 .pm-del:hover{background:var(--red);color:#fff}
-/* Add a card here: an insert point sits in the 14px gap below each card, so a new card
-   lands in the column you pointed at and directly after the card you pointed below —
+/* Add a card here: an insert point sits in the 14px gap around each card, so a new card
+   lands in the column you pointed at and next to the card you pointed at —
    rather than always at the end of the page. Nothing until you reach for it.
    It is not a grid row of its own: the grid packs cards into 4px rows by explicit column,
-   and a full-width row between two of them would cut every column in half. */
-.pins{position:absolute;left:0;right:0;bottom:-14px;height:14px;z-index:6;display:flex;
-  align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .12s}
+   and a full-width row between two of them would cut every column in half.
+
+   One sits on each side, in the 14px gap the grid leaves. Deliberately NOT the grey circled
+   + the tables use for "add row/column": that is a button you press, this is a place a card
+   lands, and the two were indistinguishable when they shared a glyph. So at rest it is a
+   blue hairline with rounded caps — an insertion mark, not a control — and only under the
+   pointer does it thicken and grow a small capsule with a + in it. */
+.pins{position:absolute;z-index:6;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;opacity:0;transition:opacity .12s}
 .pcard:hover .pins,.pins:hover,.pins.on{opacity:1}
-.pins::before{content:'';position:absolute;left:2px;right:2px;height:1px;background:var(--edit-line);opacity:.5}
-.pins i{position:relative;width:16px;height:16px;border-radius:50%;background:var(--surface);
-  border:1px solid var(--edit-line);color:var(--edit-line);font-size:12px;line-height:14px;
-  text-align:center;font-style:normal}
-.pins-menu{position:absolute;top:15px;left:50%;transform:translateX(-50%);z-index:40;width:236px;
-  cursor:default;text-align:left}
+.pins-t{left:0;right:0;top:-14px;height:14px}
+.pins-b{left:0;right:0;bottom:-14px;height:14px}
+.pins-l{top:0;bottom:0;left:-14px;width:14px;flex-direction:column}
+.pins-r{top:0;bottom:0;right:-14px;width:14px;flex-direction:column}
+/* The rule itself. Horizontal points draw it across, vertical ones down. */
+.pins::before{content:'';position:absolute;background:#3B82F6;border-radius:2px;opacity:.35;
+  transition:opacity .12s,height .12s,width .12s}
+.pins-t::before,.pins-b::before{left:3px;right:3px;height:1px}
+.pins-l::before,.pins-r::before{top:3px;bottom:3px;width:1px}
+.pins:hover::before,.pins.on::before{opacity:1}
+.pins-t:hover::before,.pins-t.on::before,.pins-b:hover::before,.pins-b.on::before{height:2px}
+.pins-l:hover::before,.pins-l.on::before,.pins-r:hover::before,.pins-r.on::before{width:2px}
+/* The capsule. Zero-sized until wanted, so the resting state stays a bare line. */
+.pins i{position:relative;display:flex;align-items:center;justify-content:center;
+  width:0;height:0;overflow:hidden;border-radius:7px;background:#3B82F6;color:#fff;
+  font-size:11px;line-height:1;font-style:normal;transition:width .12s,height .12s}
+.pins i::before{content:'+'}
+.pins:hover i,.pins.on i{width:18px;height:14px}
+.pins-l:hover i,.pins-l.on i,.pins-r:hover i,.pins-r.on i{width:14px;height:18px}
+.pins-menu{position:absolute;z-index:40;width:236px;cursor:default;text-align:left}
+.pins-t .pins-menu,.pins-b .pins-menu{top:15px;left:50%;transform:translateX(-50%)}
+.pins-l .pins-menu{top:50%;left:15px;transform:translateY(-50%)}
+.pins-r .pins-menu{top:50%;right:15px;transform:translateY(-50%)}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
 .paddcard:hover{border-color:var(--edit-line);color:var(--edit-line)}
 /* The add picker: one button, and the choice explained where you make it rather
@@ -567,6 +594,13 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-ctl .rt-rz{position:fixed;pointer-events:auto;cursor:col-resize;width:7px}
 #rt-ctl .rt-rz::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:1px;background:transparent}
 #rt-ctl .rt-rz:hover::after,#rt-ctl .rt-rz.rt-rz-on::after{background:#3B82F6}
+/* A boundary that a highlighted selection has armed. An ordinary handle is invisible until
+   hovered, which is fine when the gesture is the obvious one — but "this drag moves only the
+   rows you highlighted" is not something a tooltip can carry, and the whole feature reads as
+   broken if you cannot tell it is on before you commit to the drag. So this one shows itself
+   at rest and only brightens under the pointer. */
+#rt-ctl .rt-rz.rt-rz-sel::after{background:#3B82F6;opacity:.5}
+#rt-ctl .rt-rz.rt-rz-sel:hover::after,#rt-ctl .rt-rz.rt-rz-sel.rt-rz-on::after{opacity:1;left:2px;width:2px}
 /* Drop indicator while reordering a row/column */
 #rt-ctl .rt-ins{position:fixed;background:#3B82F6;pointer-events:none;border-radius:1px}
 /* Resize guides: alignment line, width badge, matched-column highlight */
@@ -2803,9 +2837,9 @@ function mkPlannerCard(def,ix){
 // Which insert point is open, by the index it would insert at. A card is added after the
 // card whose gap you clicked and in that card's column, instead of only ever at the end.
 let _pinsAt=null;
-function _pinsToggle(e,ix){
+function _pinsToggle(e,key){
   e.stopPropagation();
-  _pinsAt=_pinsAt===ix?null:ix;
+  _pinsAt=_pinsAt===key?null:key;
   _paddOpen=false; _cardMenu=null;
   render();
 }
@@ -2826,12 +2860,21 @@ function _cardTypeMenu(cls,onpick){
       ${hasClock?`<div class="padd-note">The clock is already on the page — one dial per view.</div>`:''}
     </div>`;
 }
+// An insert point on each side of the card, so "put one here" can be pointed at rather than
+// only meant. Top and left land the new card before this one, bottom and right after it —
+// in a four-column grid those are the same ordinal insert, but you should be able to aim at
+// the side you have in mind instead of translating it into a position first.
+// The open state is keyed on side *and* index, because a card's top point and the one above
+// it share a target index and a bare number would spring both open at once.
 function _cardInsHTML(def,ix){
-  const at=ix+1;
-  return `<div class="pins${_pinsAt===at?' on':''}" title="Add a card here"
-      onpointerdown="event.stopPropagation()" onclick="_pinsToggle(event,${at})"><i>+</i>${
-    _pinsAt===at?_cardTypeMenu('pins-menu',t=>`addPlannerCard('${t}',${at})`):''
-  }</div>`;
+  const sides=[['t',ix],['b',ix+1],['l',ix],['r',ix+1]];
+  return sides.map(([s,at])=>{
+    const k=s+':'+at, on=_pinsAt===k;
+    return `<div class="pins pins-${s}${on?' on':''}" title="Add a card here"
+        onpointerdown="event.stopPropagation()" onclick="_pinsToggle(event,'${k}')"><i></i>${
+      on?_cardTypeMenu('pins-menu',t=>`addPlannerCard('${t}',${at})`):''
+    }</div>`;
+  }).join('');
 }
 
 // ── Card configuration ──
@@ -7398,7 +7441,7 @@ function rtShowCtl(t){
         top=Math.min(...rs.map(x=>x.top));
         hgt=Math.max(...rs.map(x=>x.bottom))-top;
       }
-      const rz=mk('rt-rz'+(sp.length?' rt-rz-row':''),`left:${bx-3}px;top:${top}px;height:${hgt}px`);
+      const rz=mk('rt-rz'+(sp.length?' rt-rz-row rt-rz-sel':''),`left:${bx-3}px;top:${top}px;height:${hgt}px`);
       rz.title=sp.length?`Drag to resize ${sp.length===1?'the selected cell':'the selected rows'} only`
                         :'Drag to resize · double-click to distribute evenly';
       if(_rtRz&&_rtRz.ci===ci) rz.classList.add('rt-rz-on');
@@ -7425,6 +7468,40 @@ function rtShowCtl(t){
       }
     }
   });
+  // Boundaries the selection touches that no full-height handle covers. The loop above only
+  // reaches edges every row shares, so highlighting cells either side of a split row's own
+  // border used to leave nothing to grab but the per-row handles below — and those move one
+  // row each, which is the opposite of what highlighting several cells asks for.
+  // A handle is drawn on *each* selected pair's own border rather than one handle for the
+  // set, because rows can hold that boundary at different x positions; you should be able to
+  // grab the edge of the cell you are actually looking at. All of them start the same drag,
+  // so whichever you take, every highlighted row moves together.
+  const scopedAt=new Set();
+  for(let c=1;c<gr0.cols;c++){
+    if(rtShared(c)) continue; // already drawn full-height above, selection and all
+    const sp=rtSelPairsAt(t,c);
+    if(!sp.length) continue;
+    scopedAt.add(c);
+    sp.forEach(pair=>{
+      const cr=pair[0].getBoundingClientRect();
+      const bx=cr.right;
+      if(bx<wr.left||bx>wr.right+1) return;
+      const rz=mk('rt-rz rt-rz-row rt-rz-sel',`left:${bx-3}px;top:${cr.top}px;height:${cr.height}px`);
+      rz.title=`Drag to resize ${sp.length===1?'the selected cell':`the ${sp.length} selected rows`} only`;
+      const on=_rtRz&&_rtRz.t===t&&_rtRz.rowb&&_rtRz.tdA===pair[0];
+      if(on) rz.classList.add('rt-rz-on');
+      rz.onmousedown=e=>rtRowRzStart(e,t,sp,rz);
+      if(on){
+        if(_rtRz.aligned) mk('rt-guide rt-guide-a',`left:${bx}px;top:${tb.top-8}px;height:${tb.height+16}px`);
+        else mk('rt-guide',`left:${bx}px;top:${cr.top-8}px;height:${cr.height+16}px`);
+        const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${cr.top-10}px`);
+        const scope=sp.length===1?'this cell':`these ${sp.length} rows`;
+        b.innerHTML='<span></span><span class="rt-snap"></span>';
+        b.firstElementChild.textContent=Math.round(_rtRz.w)+'px';
+        b.lastElementChild.textContent=[_rtRz.label,scope].filter(Boolean).join(' · ');
+      }
+    });
+  }
   // Boundaries that belong to one row alone. Splitting a cell gives that row a border
   // the rows above and below do not have, and until now there was no handle on it —
   // the only handles were the full-height ones above, which move the whole column.
@@ -7437,7 +7514,8 @@ function rtShowCtl(t){
   for(let ri=0;ri<gr0.rows;ri++){
     const tr=trs[ri]; if(!tr) continue;
     rowEdges[ri].forEach(c=>{
-      if(rtShared(c)) return; // a full-height handle already stands here
+      if(rtShared(c)) return;   // a full-height handle already stands here
+      if(scopedAt.has(c)) return; // a selection-scoped handle already stands here
       const tdA=gr0.g[ri][c-1],tdB=gr0.g[ri][c];
       if(!tdA||!tdB) return;
       const cr=tdA.getBoundingClientRect(),rr=tr.getBoundingClientRect();
@@ -7667,6 +7745,19 @@ function rtScheduleHide(){
 // inside a collapsed toggle, or a card that has not been laid out yet. Both measure
 // zero, and normalising percentages against zero would turn every column to dust.
 const RT_MINW=56,RT_MAXW=720,RT_SNAP=7,RT_NOMW=640;
+// The per-column floor while a boundary is being dragged. A flat 56px is right in a wide
+// table and wrong in a narrow one: a text card in the four-column grid is about 270px inside
+// its padding, so three columns there start with barely 100px of slack between them and the
+// push model has nowhere to go — the drag bottoms out almost at once and reads as if nothing
+// happened at all. Scale the floor to the room actually available, capped at RT_MINW so a
+// wide table is unchanged, and never below 24px so a cell can still hold a character.
+// This is the drag floor only. rtMinTableWidth still charges a full RT_MINW per column for
+// the table's inline min-width, which is a different question — it decides when .rt-tw
+// starts scrolling, and loosening that would change the shrink-then-scroll rule.
+function rtDragFloor(t){
+  const inner=rtInnerWidth(t)||RT_NOMW,n=Math.max(1,rtBands(t).length);
+  return Math.max(24,Math.min(RT_MINW,Math.floor(inner/(n*3))));
+}
 // The width a wrapper's percentage resolves against: the host's CONTENT box, not
 // its clientWidth, which still carries the host's own padding. Getting this wrong
 // makes the last-boundary drag land short of the table's min-width, so the table
@@ -7730,14 +7821,17 @@ function rtBandCells(t,c0,cn){
 // the caller normalises once at the end.
 function rtSetBandWidth(t,c0,cn,w){
   const cols=rtCols(t);
+  // Same floor the drag arithmetic uses. Clamping to a flat RT_MINW here would quietly
+  // undo a push that the drag had already decided was legal, and the column would stick.
+  const fl=rtDragFloor(t);
   const cur=[];
-  for(let i=0;i<cn;i++) cur.push(cols[c0+i]?rtColWidth(cols[c0+i]):RT_MINW);
+  for(let i=0;i<cn;i++) cur.push(cols[c0+i]?rtColWidth(cols[c0+i]):fl);
   const tot=cur.reduce((a,b)=>a+b,0)||cn;
   let left=w;
   for(let i=0;i<cn;i++){
     if(!cols[c0+i]) continue;
-    const px=i===cn-1?left:Math.max(RT_MINW,Math.round(w*cur[i]/tot));
-    rtSetColWidth(t,cols[c0+i],Math.max(RT_MINW,px));
+    const px=i===cn-1?left:Math.max(fl,Math.round(w*cur[i]/tot));
+    rtSetColWidth(t,cols[c0+i],Math.max(fl,px));
     left-=px;
   }
 }
@@ -7775,9 +7869,11 @@ function rtSelPairsAt(t,bnd){
     if(pairs.some(q=>q[0]===a)) continue; // a row-spanning cell contributes once
     pairs.push([a,z]);
   }
-  // Every row selected is just the column again, and the band path does that better —
-  // it is what Distribute and Fit share.
-  return pairs.length>=gr.rows?[]:pairs;
+  // No bail when the selection covers every row. The widths come out the same as the
+  // whole-column path would give, so nothing looks different — but a two-row table used to
+  // fall through to a different branch for no reason a user could see, and "highlighted
+  // cells move together" is easier to trust when it has no exceptions.
+  return pairs;
 }
 function rtRzStart(e,t,ci,handle,cn){
   e.preventDefault(); e.stopPropagation();
@@ -7795,9 +7891,12 @@ function rtRzStart(e,t,ci,handle,cn){
   // built on the previous frame could not retrace its own steps back out again.
   const right=bi<0?[]:bands.slice(bi+1);
   const rw0=right.map(b=>b.w);
-  const rmin=right.reduce((a,b)=>a+RT_MINW*(b.cs||1),0);
+  // Read once, at the start: the floor depends on the table's width, and reading it again
+  // mid-drag would let it drift under a gesture that is already in flight.
+  const floor=rtDragFloor(t);
+  const rmin=right.reduce((a,b)=>a+floor*(b.cs||1),0);
   const wrap=t.closest('.rt-tw'),host=wrap&&wrap.parentElement;
-  _rtRz={t,ci,cn,x0:e.clientX,w0,w:w0,label:'',unit:'px',
+  _rtRz={t,ci,cn,x0:e.clientX,w0,w:w0,label:'',unit:'px',floor,
     right,rw0,rmin,budget:w0+rw0.reduce((a,b)=>a+b,0),
     last,wrap,
     tw0:wrap?wrap.getBoundingClientRect().width:0,
@@ -7837,7 +7936,7 @@ function rtRowRzStart(e,t,pairs,handle){
   ps.forEach(p=>{ moving.add(p[0].parentElement); moving.add(p[1].parentElement); });
   const align=new Set();
   b.forEach((v,td)=>{ if(!moving.has(td.parentElement)){ align.add(v.l); align.add(v.r); } });
-  _rtRz={t,rowb:true,tdA,tdB,pairs:ps,snap,inner,lo:A.l,x0:e.clientX,w0,w:w0,
+  _rtRz={t,rowb:true,tdA,tdB,pairs:ps,snap,inner,lo:A.l,x0:e.clientX,w0,w:w0,floor:rtDragFloor(t),
     align:[...align],aligned:false,
     label:'',unit:'px',last:false,pair:(B.r-A.l)/100*inner,
     ci:-1,cn:1,wrap:null,tw0:0,hostW:0};
@@ -7863,7 +7962,7 @@ function rtRzMove(e){
     // spans this boundary — or merely happens to share its old position — cannot tell
     // it moved. The pair either side of it is the whole budget, which is why the table's
     // own width is unchanged by construction rather than by correction afterwards.
-    const lo=RT_MINW,hi=Math.max(lo,r.pair-RT_MINW);
+    const lo=r.floor,hi=Math.max(lo,r.pair-r.floor);
     const raw=Math.max(lo,Math.min(hi,r.w0+dx));
     // Alt drags straight through, for a boundary meant to be unique to its row.
     const s=e.altKey?{w:Math.round(raw),aligned:false}
@@ -7890,7 +7989,7 @@ function rtRzMove(e){
     rtReposition(); return;
   }
   const cn=r.cn||1;
-  const p=rtPush(r.w0+dx,RT_MINW*cn,r.budget,r.rw0,r.right.map(b=>RT_MINW*(b.cs||1)));
+  const p=rtPush(r.w0+dx,r.floor*cn,r.budget,r.rw0,r.right.map(b=>r.floor*(b.cs||1)));
   r.w=p.w; r.unit='px'; r.label='';
   rtSetBandWidth(r.t,r.ci,cn,r.w);
   r.right.forEach((b,i)=>rtSetBandWidth(r.t,b.c,b.cs,p.right[i]));
