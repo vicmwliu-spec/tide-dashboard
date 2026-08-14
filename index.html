@@ -571,9 +571,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-ctl .rt-ins{position:fixed;background:#3B82F6;pointer-events:none;border-radius:1px}
 /* Resize guides: alignment line, width badge, matched-column highlight */
 #rt-ctl .rt-guide{position:fixed;pointer-events:none;width:0;border-left:1px dashed #3B82F6;opacity:.9}
+/* Locked onto a boundary another row already has. Solid rather than dashed, and the full
+   height of the table, so "this now lines up" reads at a glance instead of being measured. */
+#rt-ctl .rt-guide-a{border-left-style:solid;opacity:1}
 #rt-ctl .rt-badge{position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-md);border-radius:var(--r2);padding:3px 7px;font-family:var(--font);font-size:11px;line-height:1.45;color:var(--text1);white-space:nowrap;text-align:center}
 #rt-ctl .rt-badge .rt-snap{display:block;color:#3B82F6;font-size:10px}
-#rt-ctl .rt-grip.rt-eq{opacity:1;background:#3B82F6}
 #rt-ctl .rt-menu .rt-sep{height:1px;background:var(--border);margin:4px 6px}
 /* Table options menu (header row/column) */
 #rt-ctl .rt-menu{position:fixed;pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow-md);padding:4px;min-width:158px;font-family:var(--font)}
@@ -7382,7 +7384,6 @@ function rtShowCtl(t){
     const g=mk('rt-grip',`left:${left}px;top:${tb.top-7}px;width:${width}px;height:4px`);
     g.title='Drag to move column, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='col'&&_rtMv.from===ci) g.classList.add('rt-mv');
-    if(_rtRz&&_rtRz.t===t&&_rtRz.matches&&_rtRz.matches.indexOf(ci)>=0) g.classList.add('rt-eq');
     g.onmousedown=e=>rtMvStart(e,t,'col',ci,g);
     g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtBandCells(t,ci,cn),true); };
     // Resize handle on this column's right boundary.
@@ -7409,7 +7410,11 @@ function rtShowCtl(t){
       const mine=_rtRz&&_rtRz.t===t&&(_rtRz.ci===ci
         ||(_rtRz.rowb&&sp.length&&_rtRz.pairs&&_rtRz.pairs[0][0]===sp[0][0]));
       if(mine){
-        mk('rt-guide',`left:${bx}px;top:${top-8}px;height:${hgt+16}px`);
+        // Aligned to another row's boundary: run the line the full height of the table so
+        // you can see what it has locked onto. A row-height line proves nothing — the whole
+        // question is whether this edge matches the rows above and below it.
+        if(_rtRz.aligned) mk('rt-guide rt-guide-a',`left:${bx}px;top:${tb.top-8}px;height:${tb.height+16}px`);
+        else mk('rt-guide',`left:${bx}px;top:${top-8}px;height:${hgt+16}px`);
         const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${top-10}px`);
         // The number alone cannot distinguish "this column" from "these two rows", and the
         // gesture is identical, so the scope is spelled out whenever it is not the default.
@@ -7444,7 +7449,8 @@ function rtShowCtl(t){
       if(on) rz.classList.add('rt-rz-on');
       rz.onmousedown=e=>rtRowRzStart(e,t,[[tdA,tdB]],rz);
       if(on){
-        mk('rt-guide',`left:${bx}px;top:${rr.top}px;height:${rr.height}px`);
+        if(_rtRz.aligned) mk('rt-guide rt-guide-a',`left:${bx}px;top:${tb.top-8}px;height:${tb.height+16}px`);
+        else mk('rt-guide',`left:${bx}px;top:${rr.top}px;height:${rr.height}px`);
         const b=mk('rt-badge',`left:${Math.max(4,bx+8)}px;top:${rr.top-10}px`);
         b.innerHTML='<span></span>'+(_rtRz.label?'<span class="rt-snap"></span>':'');
         b.firstElementChild.textContent=Math.round(_rtRz.w)+'px';
@@ -7696,7 +7702,6 @@ function rtContentWidths(t){
   }finally{ probe.remove(); }
   return out;
 }
-const RT_FRAC=['','','½','⅓','¼','⅕','⅙'];
 // The columns as you actually see them: one band per cell of the top row, which may
 // cover more than one grid column once a cell somewhere below has been split.
 function rtBands(t){
@@ -7736,41 +7741,22 @@ function rtSetBandWidth(t,c0,cn,w){
     left-=px;
   }
 }
-// Pure: resolve a raw dragged width to the nearest meaningful width.
-function rtRzSnap(t,ci,raw,fitW){
-  const bands=rtBands(t),n=bands.length;
-  const cand=[];
-  bands.forEach(b=>{ if(b.c!==ci) cand.push({w:b.w,label:'Equal',col:b.c}); });
-  const inner=rtInnerWidth(t);
-  for(let k=1;k<=Math.max(n,4);k++) cand.push({w:inner/k,label:k===1?'Full width':(RT_FRAC[k]||('1/'+k))});
-  if(fitW) cand.push({w:fitW,label:'Fit content'});
-  let best=null;
-  cand.forEach(o=>{
-    const d=Math.abs(o.w-raw);
-    if(d<=RT_SNAP&&(!best||d<best.d)) best={d,o};
-  });
-  if(best){
-    const w=Math.round(best.o.w);
-    // Every other column landing on the same width gets highlighted too.
-    const matches=[];
-    bands.forEach(b=>{ if(b.c!==ci&&Math.abs(b.w-w)<=1) matches.push(b.c); });
-    let label=best.o.label;
-    if(label==='Equal') label=matches.length>1?'Equal to '+matches.length+' cols':'Equal width';
-    return {w,label,matches};
-  }
-  const grid=Math.round(raw/20)*20;
-  if(Math.abs(grid-raw)<=3) return {w:grid,label:'',matches:[]};
-  return {w:Math.round(raw),label:'',matches:[]};
-}
+// A column boundary does not snap: it lands exactly where you drop it, which is the whole
+// point of matching PowerPoint. What used to be here guessed at halves, thirds, "equal to
+// that column" and "fit the content", and the guess is what made a width you had chosen
+// deliberately jump to one you had not. The one snap left is rtAlignSnap, and it snaps to a
+// boundary that genuinely exists rather than to a fraction.
 // ci is the band's first grid column and cn how many it covers — the drag sizes the
 // column you can see, not the first hidden slice of it.
 //
-// Which boundary you grabbed decides what the drag means. An inner one has a column
-// on the far side of it, so widening this one narrows that one and the table itself
-// never changes width — which is the whole reason it can no longer be dragged into
-// overflowing its card. The last boundary has nothing on the far side to take from,
-// so it sizes the table instead, as a share of the card. Google Docs draws the same
-// distinction between a column boundary and the table's right edge.
+// Which boundary you grabbed decides what the drag means. An inner one pushes, the way
+// PowerPoint does: the column you are dragging takes the width, the columns beyond it keep
+// the widths they had and simply slide, and the squeeze is taken from the far end inward —
+// so the next column over holds its size until the one past it has nothing left to give.
+// Everything right of the boundary is the budget, which is why the table's own width never
+// changes and it can never be dragged into overflowing its card. The last boundary has
+// nothing on the far side to push into, so it sizes the table instead, as a share of the
+// card — that one stays a whole-table scale.
 // Which rows a highlighted selection would scope this boundary drag to — Word's rule, where
 // the selection is the switch: nothing highlighted, the boundary moves for the whole column;
 // highlight cells first and it moves for those alone. Empty when the drag is whole-column.
@@ -7802,13 +7788,18 @@ function rtRzStart(e,t,ci,handle,cn){
   if(scoped.length){ rtRowRzStart(e,t,scoped,handle); return; }
   const bands=rtBands(t),bi=bands.findIndex(b=>b.c===ci);
   const last=bi<0||bi===bands.length-1;
-  const nb=last?null:bands[bi+1];
   let w0=0; for(let i=ci;i<ci+cn;i++) if(cols[i]) w0+=rtColWidth(cols[i]);
-  const fit=rtContentWidths(t);
-  let f=0; for(let i=ci;i<ci+cn;i++) f+=fit[i]||0;
+  // The right-hand side as it stands when the drag begins. Every frame lays the bands out
+  // from this snapshot rather than from the frame before it, because compression is lossy:
+  // once a band bottoms out at RT_MINW it has forgotten how wide it used to be, and a drag
+  // built on the previous frame could not retrace its own steps back out again.
+  const right=bi<0?[]:bands.slice(bi+1);
+  const rw0=right.map(b=>b.w);
+  const rmin=right.reduce((a,b)=>a+RT_MINW*(b.cs||1),0);
   const wrap=t.closest('.rt-tw'),host=wrap&&wrap.parentElement;
-  _rtRz={t,ci,cn,x0:e.clientX,w0,w:w0,label:'',matches:[],fit:f,unit:'px',
-    last,nb,pair:last?0:w0+nb.w,wrap,
+  _rtRz={t,ci,cn,x0:e.clientX,w0,w:w0,label:'',unit:'px',
+    right,rw0,rmin,budget:w0+rw0.reduce((a,b)=>a+b,0),
+    last,wrap,
     tw0:wrap?wrap.getBoundingClientRect().width:0,
     hostW:rtHostWidth(host)};
   handle.classList.add('rt-rz-on');
@@ -7837,20 +7828,33 @@ function rtRowRzStart(e,t,pairs,handle){
   const snap=[]; b.forEach((v,td)=>snap.push([td,v.l,v.r]));
   const inner=rtInnerWidth(t)||RT_NOMW;
   const w0=(A.r-A.l)/100*inner;
+  // Where the other rows already have a boundary. A row-scoped drag is the one gesture that
+  // can leave a border out of line with the rest of the table, so it is the one gesture that
+  // needs somewhere to line up to — and the honest targets are the edges that actually exist
+  // elsewhere in this table, not fractions of it. The rows being dragged are excluded: their
+  // own edges are what is moving, and an edge cannot align to itself.
+  const moving=new Set();
+  ps.forEach(p=>{ moving.add(p[0].parentElement); moving.add(p[1].parentElement); });
+  const align=new Set();
+  b.forEach((v,td)=>{ if(!moving.has(td.parentElement)){ align.add(v.l); align.add(v.r); } });
   _rtRz={t,rowb:true,tdA,tdB,pairs:ps,snap,inner,lo:A.l,x0:e.clientX,w0,w:w0,
-    label:'',matches:[],fit:0,unit:'px',last:false,pair:(B.r-A.l)/100*inner,
-    ci:-1,cn:1,nb:null,wrap:null,tw0:0,hostW:0};
+    align:[...align],aligned:false,
+    label:'',unit:'px',last:false,pair:(B.r-A.l)/100*inner,
+    ci:-1,cn:1,wrap:null,tw0:0,hostW:0};
   handle.classList.add('rt-rz-on');
   document.body.style.userSelect='none';
 }
-function rtRzSnapPair(pair,raw){
+// Pull a row-scoped boundary onto a boundary another row already has, when it comes within
+// RT_SNAP pixels of one. `edges` and `lo` are percentages of the table, `raw` a width in
+// pixels from `lo`; the comparison happens in pixels so the pull feels the same distance
+// whatever the table's width. Pure, so it can be checked without a table.
+function rtAlignSnap(raw,lo,edges,inner,tol){
   let best=null;
-  for(let k=2;k<=4;k++) for(let j=1;j<k;j++){
-    const w=pair*j/k,d=Math.abs(w-raw);
-    if(d<=RT_SNAP&&(!best||d<best.d)) best={d,w,label:j===1&&k===2?'Half':j+'/'+k};
-  }
-  if(best) return {w:Math.round(best.w),label:best.label,matches:[]};
-  return {w:Math.round(raw),label:'',matches:[]};
+  edges.forEach(e=>{
+    const w=(e-lo)/100*inner,d=Math.abs(w-raw);
+    if(d<=tol&&(!best||d<best.d)) best={d,w};
+  });
+  return best?{w:Math.round(best.w),aligned:true}:{w:Math.round(raw),aligned:false};
 }
 function rtRzMove(e){
   const r=_rtRz,dx=e.clientX-r.x0;
@@ -7861,8 +7865,11 @@ function rtRzMove(e){
     // own width is unchanged by construction rather than by correction afterwards.
     const lo=RT_MINW,hi=Math.max(lo,r.pair-RT_MINW);
     const raw=Math.max(lo,Math.min(hi,r.w0+dx));
-    const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}:rtRzSnapPair(r.pair,raw);
-    r.w=Math.max(lo,Math.min(hi,s.w)); r.unit='px'; r.label=s.label; r.matches=[];
+    // Alt drags straight through, for a boundary meant to be unique to its row.
+    const s=e.altKey?{w:Math.round(raw),aligned:false}
+                    :rtAlignSnap(raw,r.lo,r.align,r.inner,RT_SNAP);
+    r.w=Math.max(lo,Math.min(hi,s.w)); r.unit='px';
+    r.aligned=s.aligned; r.label=s.aligned?'Aligned':'';
     const edge=rtQ(r.lo+r.w/r.inner*100);
     const m=new Map(r.snap.map(([td,l,rr])=>[td,{l,r:rr}]));
     r.pairs.forEach(([a,z])=>{ const ma=m.get(a),mz=m.get(z); if(ma&&mz){ ma.r=edge; mz.l=edge; } });
@@ -7883,18 +7890,38 @@ function rtRzMove(e){
     rtReposition(); return;
   }
   const cn=r.cn||1;
-  // The pair's total is the budget: this column can grow until the next one is down
-  // to the minimum, and no further.
-  const lo=RT_MINW*cn,hi=Math.max(lo,r.pair-RT_MINW*(r.nb.cs||1));
-  const raw=Math.max(lo,Math.min(hi,r.w0+dx));
-  // Alt bypasses snapping for a freehand width.
-  const s=e.altKey?{w:Math.round(raw),label:'',matches:[]}:rtRzSnap(r.t,r.ci,raw,r.fit);
-  r.w=Math.max(lo,Math.min(hi,s.w)); r.unit='px';
-  r.label=s.label; r.matches=s.matches;
+  const p=rtPush(r.w0+dx,RT_MINW*cn,r.budget,r.rw0,r.right.map(b=>RT_MINW*(b.cs||1)));
+  r.w=p.w; r.unit='px'; r.label='';
   rtSetBandWidth(r.t,r.ci,cn,r.w);
-  rtSetBandWidth(r.t,r.nb.c,r.nb.cs,r.pair-r.w);
+  r.right.forEach((b,i)=>rtSetBandWidth(r.t,b.c,b.cs,p.right[i]));
   rtNormalizeCols(r.t);
   rtReposition();
+}
+// The push, on its own so the arithmetic can be checked without a table to hang it off.
+// `want` is where the pointer puts this column's right edge, `budget` everything from the
+// boundary to the table's right edge, `w0s` the right-hand columns as they were when the
+// drag started and `mins` their floors.
+//
+// The rule is PowerPoint's: the columns beyond the boundary keep the widths they had and
+// slide over, and only what will not fit is taken back — from the rightmost inward, so the
+// next column over is the last to give rather than the first. The budget is fixed, so the
+// table's width is invariant by construction and no clamp afterwards can be needed.
+function rtPush(want,lo,budget,w0s,mins){
+  const floor=mins.reduce((a,b)=>a+b,0);
+  const w=Math.max(lo,Math.min(Math.max(lo,budget-floor),Math.round(want)));
+  const right=w0s.slice();
+  let over=w+w0s.reduce((a,b)=>a+b,0)-budget; // >0 when the right-hand side must give way
+  for(let i=right.length-1;i>=0&&over>0;i--){
+    const give=Math.min(over,right[i]-mins[i]);
+    if(give>0){ right[i]-=give; over-=give; }
+  }
+  // Dragging the boundary left has to be the same rule read backwards, or shrinking would
+  // quietly go back to swapping with the neighbour. The boundary moving left slides the
+  // columns beyond it left as well, keeping their widths, so the room opens up at the far
+  // end — the same end the squeeze came out of. That is what makes "the next column over
+  // holds its size" true in both directions.
+  if(over<0&&right.length) right[right.length-1]-=over;
+  return {w,right:right.map(Math.round)};
 }
 // ── whole-table sizing commands ──
 function rtDistributeCols(t){
