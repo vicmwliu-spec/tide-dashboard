@@ -2783,7 +2783,7 @@ function mkPlannerCard(def,ix){
   d.innerHTML=head+body+foot+`<div class="pgrip${gq}" title="Drag to set height · double-click to reset"
     onmousedown="_cardRzStart(event,'${def.id}')" ondblclick="setCardHeight('${def.id}',0)"></div>
     <div class="pgrip-x${gq}" title="Drag to set width · double-click to reset"
-    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1)"></div>`;
+    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>`;
 
   return d;
 }
@@ -2807,7 +2807,17 @@ function _cardLblKD(e,el){
   else if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); el.textContent=el.dataset.prev||''; el.blur(); }
 }
 function setCardFlag(id,k,v){ const c=cardDef(id); if(c){ c[k]=v; _cardsDirty(); render(); } }
-function setCardSpan(id,v){ const c=cardDef(id); if(c){ c.span=Math.min(4,Math.max(1,Number(v)||1)); _cardsDirty(); render(); } }
+// Given the card element, a width change is applied the way the drag applies it and the
+// grid repacks — no render(). A full rebuild for one grid-column was the flash you saw at
+// the end of every resize, and the double-click reset had it too. Without an element (no
+// caller does that today) it falls back to a render so the change still lands.
+function setCardSpan(id,v,card){
+  const c=cardDef(id); if(!c) return;
+  c.span=Math.min(PGRID_COLS,Math.max(1,Number(v)||1));
+  _cardsDirty();
+  if(card){ _cardApplySpan(card,cardCol(c),cardSpan(c)); packCards(); }
+  else render();
+}
 function setCardHeight(id,px){ const c=cardDef(id); if(c){ c.minH=Math.max(0,Math.round(px)); _cardsDirty(); render(); } }
 function addPlannerCard(type){
   // A second clock cannot render — the dial is looked up by a single id — so it is
@@ -3050,34 +3060,66 @@ document.addEventListener('mouseup',()=>{
 // Width by dragging the right edge, snapping to whole columns so the grid stays
 // a grid. Previewed live on the element, committed once on mouseup.
 let _cardRzx=null;
+// One place decides how a width is applied, so the live drag, the commit that follows it
+// and the double-click reset can't disagree — the same reason _cardApplyH exists for heights.
+function _cardApplySpan(card,col,span){
+  card.style.gridColumn=`${col} / span ${span}`;
+  card.dataset.span=span;
+}
 function _cardRzxStart(e,id){
   e.preventDefault();
   const card=e.target.closest('.pcard'), grid=card.closest('.pgrid');
   if(!grid) return;
-  const gw=grid.getBoundingClientRect().width, gap=14;
-  _cardRzx={id,card,colW:(gw-gap*(PGRID_COLS-1))/PGRID_COLS,gap,left:card.getBoundingClientRect().left,span:def_span(id)};
+  // The grid drops to 3 columns under 1500px and 2 under 1180px, with a smaller gap under
+  // 680px, so the drag asks the layout how wide a column actually is right now. Assuming
+  // four 14px-gapped columns is what made the card jump in increments that had nothing to
+  // do with where the mouse was.
+  const cs=getComputedStyle(grid);
+  const tracks=cs.gridTemplateColumns.split(' ').filter(Boolean);
+  const cols=tracks.length||PGRID_COLS, colW=parseFloat(tracks[0])||1;
+  const gap=parseFloat(cs.columnGap)||14;
+  _cardRzx={id,card,cols,colW,gap,left:card.getBoundingClientRect().left,span:def_span(id)};
   card.classList.add('rzx');
 }
 // PGRID_COLS is declared once, up with the column helpers.
 function def_span(id){ return cardSpan(cardDef(id)||{}) }
+// The span the pointer is asking for, with a dead zone around the boundary. Rounding flips
+// dead on the midpoint, so a pixel of hand jitter there toggled the span on every mousemove
+// and relaid out the whole grid each time. Pure, so the arithmetic is testable without layout.
+function _cardRzxSpan(x,s){
+  const f=(x-s.left+s.gap)/(s.colW+s.gap);
+  let span=s.span;
+  if(f>s.span+0.6) span=Math.floor(f+0.4);
+  else if(f<s.span-0.4) span=Math.ceil(f-0.4);
+  return span;
+}
 document.addEventListener('mousemove',e=>{
   if(!_cardRzx) return;
-  const {colW,gap,left,card}=_cardRzx;
-  const want=Math.round((e.clientX-left+gap)/(colW+gap));
-  const col=cardCol(cardDef(_cardRzx.id)||{});
+  const s=_cardRzx, card=s.card;
+  const col=cardCol(cardDef(s.id)||{});
   // A card can't grow past the right edge from where it starts.
-  const span=Math.min(PGRID_COLS-col+1,Math.max(1,want||1));
-  if(span!==_cardRzx.span){
-    _cardRzx.span=span;
-    card.style.gridColumn=`${col} / span ${span}`;
-    card.dataset.span=span;
+  const span=Math.min(s.cols-col+1,Math.max(1,_cardRzxSpan(e.clientX,s)));
+  if(span!==s.span){
+    s.span=span;
+    _cardApplySpan(card,col,span);
+    // Repack as you drag, the same as the height drag: the cards around it settle into the
+    // new width while you're still holding it, not after you let go.
+    packCards();
   }
 });
 document.addEventListener('mouseup',()=>{
   if(!_cardRzx) return;
   const {id,span,card}=_cardRzx;
   card.classList.remove('rzx'); _cardRzx=null;
-  setCardSpan(id,span);
+  const c=cardDef(id);
+  if(c&&cardSpan(c)!==span){
+    c.span=span;
+    // Growing a card can push its start column past the right edge; cardCol clamps for that,
+    // so re-apply the start the next render will give it rather than leaving the drag's.
+    _cardApplySpan(card,cardCol(c),span);
+    _cardsDirty();
+  }
+  packCards();
 });
 
 // ── Carrying forward ──
