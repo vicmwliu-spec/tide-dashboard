@@ -6789,32 +6789,31 @@ function rtPos(td){
   const p=t?rtGridPos(rtGrid(t),td):null;
   return p||{r:0,c:0,rs:1,cs:1};
 }
-// The selected rectangle grows until it contains every merged cell it touches
-// whole — a half-covered merge would make merge, unmerge and delete all lie.
+// The rectangle spans exactly the two cells you dragged between, and no further.
+// It used to grow until every cell it touched sat inside it whole, so that a
+// half-covered merge could never make merge/unmerge/delete lie. But rows here may
+// hold their own boundaries, so one row's cell routinely straddles another row's
+// edge with no merge involved: the growth then cascaded across the whole table and
+// selected cells the drag never crossed. rtCellsInRect keeps the guarantee instead,
+// by dropping straddlers rather than swallowing them.
 function rtSelRect(gr,a,b){
   const p1=rtGridPos(gr,a),p2=rtGridPos(gr,b);
   if(!p1||!p2) return null;
-  let r1=Math.min(p1.r,p2.r),r2=Math.max(p1.r+p1.rs,p2.r+p2.rs)-1;
-  let c1=Math.min(p1.c,p2.c),c2=Math.max(p1.c+p1.cs,p2.c+p2.cs)-1;
-  for(let pass=0;pass<gr.rows*gr.cols+2;pass++){
-    let grew=false;
-    for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){
-      const td=gr.g[r][c]; if(!td) continue;
-      const p=rtGridPos(gr,td);
-      if(p.r<r1){ r1=p.r; grew=true; }
-      if(p.c<c1){ c1=p.c; grew=true; }
-      if(p.r+p.rs-1>r2){ r2=p.r+p.rs-1; grew=true; }
-      if(p.c+p.cs-1>c2){ c2=p.c+p.cs-1; grew=true; }
-    }
-    if(!grew) break;
-  }
-  return {r1,r2,c1,c2};
+  return {
+    r1:Math.min(p1.r,p2.r), r2:Math.max(p1.r+p1.rs,p2.r+p2.rs)-1,
+    c1:Math.min(p1.c,p2.c), c2:Math.max(p1.c+p1.cs,p2.c+p2.cs)-1
+  };
 }
+// Only cells lying wholly inside the rect. A cell hanging over an edge is left out,
+// so the selection never covers part of one.
 function rtCellsInRect(gr,rect){
   const out=[],seen=new Set();
   for(let r=rect.r1;r<=rect.r2;r++) for(let c=rect.c1;c<=rect.c2;c++){
     const td=gr.g[r][c];
-    if(td&&!seen.has(td)){ seen.add(td); out.push(td); }
+    if(!td||seen.has(td)) continue;
+    const p=rtGridPos(gr,td);
+    if(!p||p.r<rect.r1||p.r+p.rs-1>rect.r2||p.c<rect.c1||p.c+p.cs-1>rect.c2) continue;
+    seen.add(td); out.push(td);
   }
   return out;
 }
@@ -7085,31 +7084,41 @@ function rtCommonEdges(t,rowSet,bounds){
   });
   return out;
 }
-// Would Align do anything? Used to decide whether the button is worth showing: a control
-// that cannot act is worse than no control, because you press it and learn nothing.
-function rtAlignable(){
-  if(!_rtSel.length) return false;
-  const s=rtSelShape(),t=s.t,rows=rtRows(t),set=new Set(s.rows);
-  if(set.size>=rows.length) return false; // no row left outside to align to
+// Who moves and what they move onto. Normally the selected rows move and every other row
+// supplies the target edges. When the selection covers the whole table there is no outside
+// row, but "align these two rows" is still an obvious request — so the topmost selected row
+// becomes the anchor: it holds still and the rest come to it. Picking the top row rather
+// than, say, the widest agreement makes the result predictable before you press the button.
+function rtAlignCtx(){
+  if(!_rtSel.length) return null;
+  const s=rtSelShape(),t=s.t,rows=rtRows(t);
+  let set=new Set(s.rows);
+  if(!set.size) return null;
+  if(set.size>=rows.length){
+    const anchor=Math.min(...set);
+    set=new Set([...set].filter(r=>r!==anchor));
+    if(!set.size) return null; // one row on its own has nothing to align to
+  }
   const b=rtCellBounds(t),es=rtCommonEdges(t,set,b);
-  if(!es.size) return false;
-  return rows.some((tr,ri)=>{
-    if(!set.has(ri)) return false;
-    const cs=[...tr.cells].filter(td=>b.has(td));
-    return cs.slice(0,-1).some(td=>!es.has(b.get(td).r));
-  });
+  return es.size?{t,rows,set,b,es}:null;
 }
-// Pull the selected rows' column borders onto the borders the other rows already have.
-// Unlike the drag, this has no tolerance: asking for it *is* the intent, so each boundary
-// goes to its nearest neighbour however far away that is. What it will not do is collapse a
-// cell — a boundary that would cross one of its own neighbours is left where it was.
-function rtAlignSelRows(){
-  if(!_rtSel.length) return false;
-  const s=rtSelShape(),t=s.t,rows=rtRows(t),set=new Set(s.rows);
-  if(set.size>=rows.length) return false;
-  const b=rtCellBounds(t),es=[...rtCommonEdges(t,set,b)].sort((x,y)=>x-y);
-  if(!es.length) return false;
-  const near=v=>{ let best=v,d=Infinity; es.forEach(e=>{ const dd=Math.abs(e-v); if(dd<d){ d=dd; best=e; } }); return best; };
+// Work out the aligned bounds without touching the table. Both the button's enabled state and
+// the button's action come from here, so the bar can never offer an Align that turns out to do
+// nothing — the old test asked a weaker question (is any edge unshared?) and could say yes
+// where every candidate snap was illegal.
+function rtAlignPlan(){
+  const cx=rtAlignCtx();
+  if(!cx) return null;
+  const {t,rows,set}=cx,es=[...cx.es].sort((x,y)=>x-y);
+  const b=new Map(); cx.b.forEach((v,td)=>b.set(td,{l:v.l,r:v.r}));
+  // Nearest edge that this boundary may legally take: one strictly inside the two cells it
+  // divides. Searching all edges and rejecting afterwards threw away good snaps, because the
+  // closest edge is often outside the pair and its rejection ended the boundary's chances.
+  const near=(v,lo,hi)=>{
+    let best=v,d=Infinity;
+    es.forEach(e=>{ if(e<=lo||e>=hi) return; const dd=Math.abs(e-v); if(dd<d){ d=dd; best=e; } });
+    return best;
+  };
   let moved=false;
   rows.forEach((tr,ri)=>{
     if(!set.has(ri)) return;
@@ -7119,14 +7128,23 @@ function rtAlignSelRows(){
     // Left to right, so each boundary is checked against neighbours that have already
     // settled rather than against positions that are about to change under it.
     for(let i=1;i<cells.length;i++){
-      const cur=bs[i-1].r,snap=near(cur);
-      if(snap===cur||snap<=bs[i-1].l||snap>=bs[i].r) continue;
+      const cur=bs[i-1].r,snap=near(cur,bs[i-1].l,bs[i].r);
+      if(snap===cur) continue;
       bs[i-1].r=snap; bs[i].l=snap; moved=true;
     }
   });
-  if(!moved) return false;
-  rtApplyBounds(t,b);
-  rtFire(rtHost(t)); rtShowCtl(t);
+  return moved?{t,b}:null;
+}
+function rtAlignable(){ return !!rtAlignPlan(); }
+// Pull the selected rows' column borders onto the borders the other rows already have.
+// Unlike the drag, this has no tolerance: asking for it *is* the intent, so each boundary
+// goes to its nearest legal neighbour however far away that is. What it will not do is
+// collapse a cell — a snap that would cross one of its own neighbours is never taken.
+function rtAlignSelRows(){
+  const plan=rtAlignPlan();
+  if(!plan) return false;
+  rtApplyBounds(plan.t,plan.b);
+  rtFire(rtHost(plan.t)); rtShowCtl(plan.t);
   return true;
 }
 function rtDeleteSelection(){
@@ -7846,14 +7864,16 @@ function rtShowCtl(t){
     // table. Splitting a cell is the one gesture that can leave a border out of line, and
     // until now the only way back was to drag it until the 7px snap caught — findable by
     // accident at best. rtAlignable does the whole test, so the bar stays quiet otherwise.
-    if(s&&rtAlignable()) btns.push(['Align',rtAlignSelRows]);
+    if(s&&rtAlignable()) btns.push(['Align',rtAlignSelRows,
+      'Snap the highlighted rows’ borders onto the other rows’. Highlight the whole table and the top row holds still.']);
     // Shading a whole column or row needs nothing else: the grips already select one.
     btns.push([rtSelShaded()?'Unshade':'Shade',rtShadeSel]);
     if(btns.length){
       const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
-      btns.forEach(([label,fn])=>{
+      btns.forEach(([label,fn,tip])=>{
         const b=document.createElement('button');
         b.className='rt-selbtn';b.textContent=label;
+        if(tip) b.title=tip;
         b.onmousedown=e=>e.preventDefault(); // keep the selection through the click
         b.onclick=()=>fn();
         bar.appendChild(b);
