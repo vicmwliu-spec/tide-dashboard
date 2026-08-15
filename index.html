@@ -506,9 +506,6 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .grp-sep{border-left:2px solid var(--border) !important}
 
 /* ── AAR ── */
-.aar-btn{display:block;background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:500;padding:2px 5px;border-radius:3px;line-height:1.4;margin-top:3px;font-family:var(--font);letter-spacing:.03em;white-space:nowrap}
-.aar-btn:hover{background:var(--border2);color:var(--text1)}
-.aar-btn.aar-has{color:var(--accent);font-weight:600}
 .wk-arc-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:none;border:none;cursor:pointer;color:var(--text3);padding:0;border-radius:4px;transition:all .12s;flex-shrink:0}
 .wk-arc-btn:hover{background:var(--border2);color:var(--text1)}
 .wk-arc-btn.wk-arc-on{color:var(--accent)}
@@ -865,7 +862,7 @@ html.dark .chk-c.sel,html.dark .hz-chk-c.sel{background:rgba(59,130,246,.18)!imp
 .notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
 
 /* ── Touch: apply to all devices ── */
-button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card,.aar-btn{
+button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card{
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
@@ -1084,8 +1081,6 @@ let chartSoloState = localStorage.getItem('tide_chart_solo')||null;
 let chartUnit = localStorage.getItem('tide_chart_unit')==='habit'?'habit':'group'; // 'group'|'habit' — chart lines per group or per habit
 let colorPopTarget = null; // {groupId, x, y}
 let _dg = null; // drag state: {type:'group'|'habit'|'template', gid?, hid?, tid?}
-let _aarDay = null; // currently open AAR day
-let _aarWeek = null; // currently open weekly AAR week number
 let _sel = new Set();        // selected cell IDs
 let _selMD = false;          // mousedown held on a cell
 let _selDrag = false;        // drag selection active
@@ -2169,14 +2164,14 @@ function timelineCardBody(id){
 }
 
 // ─── JOURNAL CARD ────────────────────────────────────────────────
-// The same entries the ✎ button on a day cell writes — the card is a way through them,
+// The same entries stored per day and per week — the card is the way through them,
 // not a second store. A month grid picks the entry, dotted on the days you actually wrote,
 // because that dot is the thing a list cannot show: a month of your writing at a glance.
 // The grid does NOT navigate the dashboard the way the timeline's does; paging here is
 // reading, and it would be hostile to move the whole page because you looked something up.
 const _jr={};
-// The journal editor you were last writing in — what the template buttons act on when the
-// ✎ modal is not open. See _aarEditorEl.
+// The journal editor you were last writing in — the fallback for template buttons with no
+// card of their own to look in. See _aarEditorEl.
 let _jrLastEd=null;
 // gy/gm are the month the grid is showing; y/m/day/week are the entry that is open. They
 // start out the same and must not be merged: paging the calendar to September to see what
@@ -2203,12 +2198,6 @@ function jrFlush(id){
   const y=+ed.dataset.y,m=+ed.dataset.m,html=ed.innerHTML.trim();
   if(ed.dataset.week) saveWeekAAREntryAt(y,m,+ed.dataset.week,html);
   else saveAAREntryAt(y,m,+ed.dataset.day,html);
-  jrIndicators(y,m);
-}
-// The day-cell ✎ dots belong to the month on screen. Refreshing them from a journal write
-// to some other month would ask the DOM for ids that are not there.
-function jrIndicators(y,m){
-  if(y===CY&&m===CM){ updateAARIndicators(); updateWeekAARIndicators(); }
 }
 // Only the grid moves. Whatever entry is open stays open, and the writing pane with it.
 function jrStep(id,d){
@@ -2248,8 +2237,9 @@ function aarIndex(){
   const out=[];
   for(const key in D.months){
     const [ys,ms]=key.split('-'); const y=+ys, m=+ms-1, mo=D.months[key];
-    for(const d in (mo.aar||{}))     out.push({y,m,day:+d,  html:mo.aar[d]});
-    for(const w in (mo.weekAar||{})) out.push({y,m,week:+w, html:mo.weekAar[w]});
+    // An untouched template is not an entry, so it is not listed and cannot be searched into.
+    for(const d in (mo.aar||{}))     if(hasAAREntryAt(y,m,+d))     out.push({y,m,day:+d,  html:mo.aar[d]});
+    for(const w in (mo.weekAar||{})) if(hasWeekAAREntryAt(y,m,+w)) out.push({y,m,week:+w, html:mo.weekAar[w]});
   }
   return out.sort((a,b)=>b.y-a.y||b.m-a.m||(b.day||0)-(a.day||0)||(b.week||0)-(a.week||0));
 }
@@ -2291,7 +2281,7 @@ function jrPicker(id){
   const hd=weekHeadStrip();
   const rows=monthGridRows(y,m,n=>{
     const cls=['tl-d'];
-    if(getAARAt(y,m,n)) cls.push('has');
+    if(hasAAREntryAt(y,m,n)) cls.push('has');
     if(n===today) cls.push('now');
     if(onEntry&&!s.week&&n===s.day) cls.push('sel');
     return `<button class="${cls.join(' ')}" title="${DOW[new Date(y,m,n).getDay()]}, ${MON[m]} ${n}"
@@ -2299,7 +2289,7 @@ function jrPicker(id){
   },sp=>{
     // The weekly review lives on the week number, which is where the rest of the app
     // already puts it — so both kinds of entry are reachable from the one grid.
-    const has=!!getWeekAARAt(y,m,sp.week);
+    const has=hasWeekAAREntryAt(y,m,sp.week);
     const on=onEntry&&s.week===sp.week;
     return `<button class="tl-wn jr-wn${has?' has':''}${on?' sel':''}" title="Weekly review · week ${sp.week}"
         onclick="jrOpen('${id}',${y},${m},0,${sp.week})">W${sp.week}</button>`;
@@ -2356,7 +2346,6 @@ function jrInput(ed){
 function jrBlur(id){
   const ed=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`);
   if(!ed) return;
-  jrIndicators(+ed.dataset.y,+ed.dataset.m);
   // Only the picker, so the click that took focus away lands where it was aimed.
   const el=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-list`);
   if(el) el.innerHTML=jrPicker(id);
@@ -8908,98 +8897,54 @@ function rtSlashRun(i){
 // ─────────────────────────────────────────
 //  AFTER ACTION REVIEW
 // ─────────────────────────────────────────
-// Entries are addressed by an explicit month. The ✎ button on a day cell always means the
-// month on screen, but the journal card browses months of its own, and a save that assumed
-// CY/CM would write the entry into whichever month the dashboard happened to be showing.
+// Entries are addressed by an explicit month. The journal card browses months of its own, and
+// a save that assumed CY/CM would write the entry into whichever month the dashboard happened
+// to be showing.
 // md() creates the month record, so only the write path may use it.
 function getAARAt(y,m,day){ return D.months[mk(y,m)]?.aar?.[day]||'' }
 function saveAAREntryAt(y,m,day,html){
   const mo=md(y,m);
   if(!mo.aar) mo.aar={};
   if(html&&html!=='<br>') mo.aar[day]=html;
-  else delete mo.aar[day];
+  else { delete mo.aar[day]; if(mo.aarTmpl) delete mo.aarTmpl[day]; }
   save();
 }
-function getAAR(day){ return getAARAt(CY,CM,day) }
-function saveAAREntry(day,html){ saveAAREntryAt(CY,CM,day,html) }
 
-function updateAARIndicators(){
-  const days=dim(CY,CM);
-  for(let d=1;d<=days;d++){
-    const btn=document.getElementById(`aar-btn-${d}`);
-    if(btn) btn.classList.toggle('aar-has',!!getAAR(d));
-  }
+// ── Loading a template is not writing an entry ──────────────────────────────
+// A day you only scaffolded used to get the same dot as a day you wrote, because the test was
+// "any non-empty HTML" and a template is plenty of HTML. So the moment a template is applied we
+// record what it said, and a marker is drawn only while the entry says something else.
+//
+// Text and not markup: reopening an entry runs it back through the rich-text normalizer, which
+// renumbers lists and freezes tables. That rewrites the HTML without changing a word, and a
+// markup comparison would call the entry edited when nothing had been typed.
+function _aarPristine(html,stamp){
+  if(!html) return false;
+  const t=aarText(html);
+  if(stamp!==undefined) return t===stamp;
+  // No stamp: either the template predates this bookkeeping, or the entry was never a template.
+  // Fall back to the templates as they stand — without this, every day already scaffolded keeps
+  // its dot forever, which is the thing being complained about.
+  return !!t && (D.aarTemplates||[]).some(tp=>aarText(tp.content)===t);
 }
-
-function openAAR(day){
-  _aarDay=day;
-  const old=document.getElementById('aar-overlay');
-  if(old) old.remove();
-  const dow=new Date(CY,CM,day).getDay();
-  const dateStr=`${DOW[dow]}, ${MON[CM]} ${day}, ${CY}`;
-  const content=getAAR(day);
-
-  const overlay=document.createElement('div');
-  overlay.id='aar-overlay';
-  const isMobile=window.innerWidth<=768;
-  overlay.style.cssText=isMobile
-    ?'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box'
-    :'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
-  overlay.onclick=e=>{if(e.target===overlay)closeAAR()};
-
-  const modal=document.createElement('div');
-  modal.style.cssText=isMobile
-    ?'background:var(--surface);border-radius:var(--r) var(--r) 0 0;box-shadow:0 -8px 32px rgba(0,0,0,.22);width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden'
-    :'background:var(--surface);border-radius:var(--r);box-shadow:0 24px 56px rgba(0,0,0,.18);width:min(720px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden';
-  modal.onclick=e=>e.stopPropagation();
-
-  // Header
-  const hdr=document.createElement('div');
-  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0';
-  hdr.innerHTML=`<div>
-    <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:2px">After Action Review</div>
-    <div style="font-weight:600;font-size:15px;color:var(--text1)">${dateStr}</div>
-  </div>
-  <button onclick="closeAAR()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px 8px;border-radius:4px;line-height:1;font-family:var(--font)" title="Close — saves automatically">&#10005;</button>`;
-
-  // Editor
-  const editorWrap=document.createElement('div');
-  editorWrap.style.cssText='flex:1;overflow-y:auto;min-height:240px';
-  const editor=document.createElement('div');
-  editor.id='aar-editor';
-  editor.contentEditable='true';
-  editor.style.cssText='padding:20px 24px;outline:none;font-size:14px;line-height:1.85;color:var(--text1);min-height:240px;font-family:var(--font)';
-  editor.innerHTML=content||'';
-  editor.addEventListener('keydown',richtextKD);
-  editor.addEventListener('input',()=>rtOnInput(editor));
-  editorWrap.appendChild(editor);
-
-  // Templates
-  const tmplSection=buildAARTemplateSection();
-
-  modal.appendChild(hdr);
-  modal.appendChild(editorWrap);
-  modal.appendChild(tmplSection);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-
-  setTimeout(()=>{
-    rtFreezeTables();
-    editor.focus();
-    const range=document.createRange();
-    range.selectNodeContents(editor);range.collapse(false);
-    const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
-  },50);
+// Narrow on purpose: an entry counts as present unless it is demonstrably an untouched template.
+// One with no text but real content — a table, a rule — still counts, exactly as before.
+function hasAAREntryAt(y,m,day){
+  const mo=D.months[mk(y,m)],html=mo?.aar?.[day];
+  return !!html && !_aarPristine(html,mo.aarTmpl?.[day]);
 }
-
-function closeAAR(){
-  const editor=document.getElementById('aar-editor');
-  if(editor&&_aarDay!=null) saveAAREntry(_aarDay,editor.innerHTML.trim());
-  if(editor&&_aarWeek!=null) saveWeekAAREntry(_aarWeek,editor.innerHTML.trim());
-  document.getElementById('aar-overlay')?.remove();
-  _aarDay=null; _aarWeek=null;
-  updateAARIndicators();
-  updateWeekAARIndicators();
+function hasWeekAAREntryAt(y,m,wn){
+  const mo=D.months[mk(y,m)],html=mo?.weekAar?.[wn];
+  return !!html && !_aarPristine(html,mo.weekAarTmpl?.[wn]);
+}
+// Called when a template is applied, keyed the same way jrFlush keys its save.
+function _stampAARTemplate(editor,text){
+  const y=+editor.dataset.y,m=+editor.dataset.m;
+  if(!Number.isFinite(y)||!Number.isFinite(m)) return;
+  const mo=md(y,m);
+  if(editor.dataset.week){ (mo.weekAarTmpl||(mo.weekAarTmpl={}))[+editor.dataset.week]=text; }
+  else if(editor.dataset.day){ (mo.aarTmpl||(mo.aarTmpl={}))[+editor.dataset.day]=text; }
+  save();
 }
 
 function getWeekAARAt(y,m,wn){ return D.months[mk(y,m)]?.weekAar?.[wn]||'' }
@@ -9007,80 +8952,11 @@ function saveWeekAAREntryAt(y,m,wn,html){
   const mo=md(y,m);
   if(!mo.weekAar) mo.weekAar={};
   if(html&&html!=='<br>') mo.weekAar[wn]=html;
-  else delete mo.weekAar[wn];
+  else { delete mo.weekAar[wn]; if(mo.weekAarTmpl) delete mo.weekAarTmpl[wn]; }
   save();
 }
-function getWeekAAR(wn){ return getWeekAARAt(CY,CM,wn) }
-function saveWeekAAREntry(wn,html){ saveWeekAAREntryAt(CY,CM,wn,html) }
-function updateWeekAARIndicators(){
-  getWeekSpans(CY,CM).forEach(s=>{
-    const btn=document.getElementById(`week-aar-btn-${s.week}`);
-    if(btn) btn.classList.toggle('aar-has',!!getWeekAAR(s.week));
-  });
-}
-function closeWeekAAR(){
-  const editor=document.getElementById('aar-editor');
-  if(editor&&_aarWeek!=null) saveWeekAAREntry(_aarWeek,editor.innerHTML.trim());
-  document.getElementById('aar-overlay')?.remove();
-  _aarWeek=null;
-  updateWeekAARIndicators();
-}
-function openWeekAAR(wn){
-  document.getElementById('aar-overlay')?.remove();
-  _aarDay=null; _aarWeek=wn;
-  const span=getWeekSpans(CY,CM).find(s=>s.week===wn);
-  const dateStr=span?`${MON[CM]} ${span.start}–${span.end}, ${CY}`:`Week ${wn}`;
-  const content=getWeekAAR(wn);
-  const isMobile=window.innerWidth<=768;
-
-  const overlay=document.createElement('div');
-  overlay.id='aar-overlay';
-  overlay.style.cssText=isMobile
-    ?'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box'
-    :'position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
-  overlay.onclick=e=>{if(e.target===overlay)closeWeekAAR()};
-
-  const modal=document.createElement('div');
-  modal.style.cssText=isMobile
-    ?'background:var(--surface);border-radius:var(--r) var(--r) 0 0;box-shadow:0 -8px 32px rgba(0,0,0,.22);width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden'
-    :'background:var(--surface);border-radius:var(--r);box-shadow:0 24px 56px rgba(0,0,0,.18);width:min(720px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden';
-  modal.onclick=e=>e.stopPropagation();
-
-  const hdr=document.createElement('div');
-  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0';
-  hdr.innerHTML=`<div>
-    <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:2px">Weekly Review — Week ${wn}</div>
-    <div style="font-weight:600;font-size:15px;color:var(--text1)">${dateStr}</div>
-  </div>
-  <button onclick="closeWeekAAR()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px 8px;border-radius:4px;line-height:1;font-family:var(--font)" title="Close — saves automatically">&#10005;</button>`;
-
-  const editorWrap=document.createElement('div');
-  editorWrap.style.cssText='flex:1;overflow-y:auto;min-height:240px';
-  const editor=document.createElement('div');
-  editor.id='aar-editor';
-  editor.contentEditable='true';
-  editor.style.cssText='padding:20px 24px;outline:none;font-size:14px;line-height:1.85;color:var(--text1);min-height:240px;font-family:var(--font)';
-  editor.innerHTML=content||'';
-  editor.addEventListener('keydown',richtextKD);
-  editor.addEventListener('input',()=>rtOnInput(editor));
-  editorWrap.appendChild(editor);
-
-  const tmplSection=buildAARTemplateSection();
-  modal.appendChild(hdr);modal.appendChild(editorWrap);modal.appendChild(tmplSection);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-
-  setTimeout(()=>{
-    rtFreezeTables();
-    editor.focus();
-    const range=document.createRange();
-    range.selectNodeContents(editor);range.collapse(false);
-    const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
-  },50);
-}
-
-// The same chips serve the ✎ modal and every journal card, so the section can exist several
-// times over and cannot own an id. It is refreshed by class instead — see _aarTmplRefresh.
+// The same chips serve every journal card, so the section can exist several times over and
+// cannot own an id. It is refreshed by class instead — see _aarTmplRefresh.
 function buildAARTemplateSection(){
   const div=document.createElement('div');
   div.className='aar-tmpl-section';
@@ -9122,19 +8998,16 @@ function buildAARTemplateSection(){
   return div;
 }
 
-// Which editor the template buttons act on. The ✎ modal owns #aar-editor while it is open;
-// otherwise it is the editor in the card the button itself is sitting in — asked of the DOM
-// each time it is pressed. Resolving it from a global set on focus is what broke this: every
-// render() rebuilds the card, so _jrLastEd pointed at a detached node and the buttons became
-// silent no-ops. It stays only as a fallback for a caller with no button to go on.
+// Which editor the template buttons act on: the one in the card the button itself is sitting
+// in, asked of the DOM each time it is pressed. Resolving it from a global set on focus is what
+// broke this: every render() rebuilds the card, so _jrLastEd pointed at a detached node and the
+// buttons became silent no-ops. It stays only as a fallback for a caller with no button to go on.
 function _aarEditorEl(btn){
-  const modal=document.getElementById('aar-editor');
-  if(modal) return modal;
   const card=btn&&btn.closest?btn.closest('.pcard'):null;
   return (card&&card.querySelector('.jr-ed'))||(_jrLastEd&&_jrLastEd.isConnected?_jrLastEd:null);
 }
-// A journal card saves as you type; the modal saves on close. So a template loaded into a
-// card has to be committed here, or it would vanish on the next repaint.
+// A journal card saves as you type, so a template loaded into one has to be committed here or
+// it would vanish on the next repaint.
 function _aarEditorCommit(editor){
   if(editor&&editor.classList.contains('jr-ed')) jrInput(editor);
 }
@@ -9176,6 +9049,8 @@ function loadAARTemplate(tid,btn){
   editor.innerHTML=t.content;
   rtFreezeTables();
   _aarEditorCommit(editor);
+  // Remember what the template said, so the entry can be told apart from one you wrote in.
+  _stampAARTemplate(editor,aarText(t.content));
   editor.focus();
 }
 
@@ -9579,7 +9454,6 @@ function buildHzTable(){
     const bStyle=wg?`background:var(--surface2);color:var(--grade);border:1px solid var(--border2)`:`color:var(--text3);border:1px solid var(--border2)`;
     const hzWStats=hzWeekAllStats[ws.week];
     const hzGdJson=hzWStats?JSON.stringify(hzWStats.groups.map(g=>({name:g.name,color:g.color,gd:g.gd,gt:g.gt,pct:g.pct}))).replace(/"/g,'&quot;'):'[]';
-    const wAarHas=!!getWeekAAR(ws.week);
     const wArchived=isWeekArchived(ws.week);
     const wSnap=(()=>{const m=D.months[mk(CY,CM)];return m&&m.weekSnapshots&&m.weekSnapshots[ws.week];})();
     const wHasSnap=!!wSnap;
@@ -9599,7 +9473,7 @@ function buildHzTable(){
     const archBtns=!editMode?'':wArchived
       ?`<button class="wk-arc-btn wk-arc-on" onclick="event.stopPropagation();unarchiveWeek(${ws.week})" title="Archived — click to unlock this week's lever list">${ICO_LOCK}</button><button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the frozen list and use your current levers">${ICO_DISCARD}</button>`
       :`<button class="wk-arc-btn" onclick="event.stopPropagation();archiveWeek(${ws.week})" title="Archive Week — freeze this week's lever list so it keeps its own history">${ICO_LOCK}</button>${splitBtn}${wHasSnap?`<button class="wk-arc-btn" onclick="event.stopPropagation();useCurrentWeekHabits(${ws.week})" title="Discard the saved frozen list for this week">${ICO_DISCARD}</button>`:''}`;
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?Math.round(wd.done)+'/'+wd.total:'—'}</span>`:''}<button id="week-aar-btn-${ws.week}" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" id="wk-badge-${ws.week}" style="${bStyle};cursor:default" onmouseenter="openWeekGrpTip(event)" onmouseleave="closeWeekGrpTip()" data-groups="${hzGdJson}">${wg?Math.round(wd.done)+'/'+wd.total:'—'}</span>`:''}${archBtns?`<div style="margin-top:3px;display:flex;gap:3px;justify-content:center;flex-wrap:wrap">${archBtns}</div>`:''}`;
     rC.appendChild(th);
   });
   thead.appendChild(rC);
@@ -9610,10 +9484,9 @@ function buildHzTable(){
     const dow=new Date(CY,CM,d).getDay();
     const isToday=d===todayD;
     const isWeekStart=dow===WS()&&d>1;
-    const isFutureDay=false;
     const th=document.createElement('th');
     th.className='st hz-day-th'+(isToday?' today-col':'')+(isWeekStart?' hz-week-sep':'');
-    th.innerHTML=`<span class="hd-num">${d}</span><span class="hd-dow">${DOW[dow]}</span>${!isFutureDay?`<button id="aar-btn-${d}" class="aar-btn${getAAR(d)?' aar-has':''}" onclick="event.stopPropagation();openAAR(${d})" title="After Action Review">✎</button>`:''}`;
+    th.innerHTML=`<span class="hd-num">${d}</span><span class="hd-dow">${DOW[dow]}</span>`;
     rD.appendChild(th);
   }
   thead.appendChild(rD);
@@ -10007,8 +9880,7 @@ function mkFathomGrid(){
     const wg=!!wd; // "is there anything to show yet", not a grade
     const started=todayD<0||ws.start<=todayD;
     const bStyle=wg?`background:var(--surface2);color:var(--text2);border:1px solid var(--border2)`:`color:var(--text3);border:1px solid var(--border2)`;
-    const wAarHas=!!getWeekAAR(ws.week);
-    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wd.done+'/'+wd.total:'—'}</span>`:''}<button id="week-aar-btn-${ws.week}-f" class="aar-btn${wAarHas?' aar-has':''}" onclick="event.stopPropagation();openWeekAAR(${ws.week})" title="Weekly Review" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);margin:0;padding:1px 4px;display:block">✎</button>`;
+    th.innerHTML=`Week ${ws.week}${started?`<span class="wk-badge" style="${bStyle}">${wg?wd.done+'/'+wd.total:'—'}</span>`:''}`;
     rB.appendChild(th);
   });
   thead.appendChild(rB);
