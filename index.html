@@ -378,6 +378,31 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .padd-item b{display:block;font-size:12px;font-weight:600}
 .padd-item span{display:block;font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.4}
 .padd-note{padding:8px 9px;font-size:10.5px;color:var(--text3);line-height:1.4}
+/* Templates ▸ in a journal card's ⋯ menu. Below .padd-item on purpose: that rule sets
+   display:block at the same specificity, so anything relying on flex has to come after it.
+   The submenu hangs off the LEFT edge — the ⋯ menu is already pinned to the card's right, so
+   there is no room on that side — and overlaps its parent by a pixel, or the pointer falls
+   through the gap on the way in and the menu shuts under it. :focus-within opens it from the
+   keyboard, which hover alone cannot. */
+.pm-has-sub{display:flex;align-items:center;justify-content:space-between;position:relative;cursor:default}
+.pm-arw{color:var(--text3);font-size:10px}
+.pm-sub{display:none;position:absolute;right:calc(100% - 1px);top:-5px;z-index:41;min-width:196px;
+  border:1px solid var(--border);border-radius:var(--r);background:var(--surface);
+  box-shadow:var(--shadow-md);padding:5px;flex-direction:column;gap:1px}
+.pm-has-sub:hover .pm-sub,.pm-has-sub:focus-within .pm-sub{display:flex}
+.pm-sub-row{display:flex;align-items:center;gap:1px;border-radius:var(--r2)}
+.pm-sub-row:hover{background:var(--surface2)}
+.pm-sub-load{flex:1;min-width:0;text-align:left;background:none;border:none;cursor:pointer;
+  font-family:var(--font);font-size:12px;color:var(--text1);padding:6px 4px 6px 9px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pm-sub-b{background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;
+  font-family:var(--font);line-height:1;padding:5px;border-radius:4px;flex-shrink:0}
+.pm-sub-b:hover:not(:disabled){background:var(--border);color:var(--text1)}
+.pm-sub-b:disabled{opacity:.28;cursor:default}
+.pm-sub-x:hover:not(:disabled){background:var(--red);color:#fff}
+.pm-sub-empty{font-size:11.5px;color:var(--text3);font-style:italic;padding:6px 9px;line-height:1.45}
+/* The one setting a journal card wears in the open, beside the month arrows. */
+.jr-dot{margin-right:4px}
 /* Habits card — pills only. No streak, no count, no grade. */
 .hpills{display:flex;flex-wrap:wrap;gap:7px}
 .hpill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:5px 13px 5px 10px;font-size:12.5px;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all .12s}
@@ -2170,9 +2195,6 @@ function timelineCardBody(id){
 // The grid does NOT navigate the dashboard the way the timeline's does; paging here is
 // reading, and it would be hostile to move the whole page because you looked something up.
 const _jr={};
-// The journal editor you were last writing in — the fallback for template buttons with no
-// card of their own to look in. See _aarEditorEl.
-let _jrLastEd=null;
 // gy/gm are the month the grid is showing; y/m/day/week are the entry that is open. They
 // start out the same and must not be merged: paging the calendar to September to see what
 // is there cannot silently move you off the entry you were writing in August.
@@ -2296,7 +2318,12 @@ function jrPicker(id){
   });
   const lbl=`${MON[m]} ${y}`;
   const home=!(y===now.getFullYear()&&m===now.getMonth());
+  // The colour dot rides beside the arrows rather than sitting behind the ⋯: it is the one
+  // setting whose effect is entirely in this grid — the day dots, the chip on the entry you
+  // are reading — so it belongs where you can see what it does. --tlc is already on the card.
   return `<div class="tl-nav">
+      <button class="chart-color-dot jr-dot" style="background:var(--tlc)" title="Card colour"
+        onclick="event.stopPropagation();openChartColorPop(event,'tl_${id}')"></button>
       <button class="tl-nb" onclick="jrStep('${id}',-1)" title="Previous month">&#8249;</button>
       <button class="tl-ml${home?' off':''}" onclick="jrToday('${id}')"
         title="${home?'Back to this month':lbl}">${lbl}</button>
@@ -2330,7 +2357,7 @@ function journalCardBody(id){
         </div>
         <div class="jr-ed" contenteditable="true" data-cardid="${id}"
           data-y="${s.y}" data-m="${s.m}" data-day="${s.day}" data-week="${s.week||''}"
-          onfocus="_jrLastEd=this" onkeydown="richtextKD(event)"
+          onkeydown="richtextKD(event)"
           oninput="jrInput(this)" onblur="jrBlur('${id}')">${html||''}</div>
       </div>
     </div>`;
@@ -2370,6 +2397,49 @@ function jrFit(id){
 // Cards are resized by dragging, and the window by the window, so the fit is re-checked
 // rather than decided once at render.
 addEventListener('resize',()=>{ for(const id in _jr) jrFit(id) });
+
+// ── the journal section of a card's ⋯ menu ────────────────────────────────────────
+// These three used to be a strip across the bottom of every tall journal card: a TEMPLATES
+// heading, two buttons and a row of draggable chips, costing a fifth of the card's height to
+// show things you reach for a few times a month. Behind the ⋯ they cost nothing until asked for.
+function _jrMenuItems(id){
+  const ts=D.aarTemplates||[];
+  const rows=ts.length
+    ? ts.map((t,i)=>`<div class="pm-sub-row">
+        <button class="pm-sub-load" title="Load into the open entry"
+          onclick="_jrTmplLoad('${id}','${t.id}')">${esc(t.name)}</button>
+        <button class="pm-sub-b" title="Move up" ${i===0?'disabled':''}
+          onclick="_jrTmplMove('${t.id}',-1)">&#8593;</button>
+        <button class="pm-sub-b" title="Move down" ${i===ts.length-1?'disabled':''}
+          onclick="_jrTmplMove('${t.id}',1)">&#8595;</button>
+        <button class="pm-sub-b pm-sub-x" title="Delete template"
+          onclick="_jrTmplDelete('${t.id}')">&#10005;</button>
+      </div>`).join('')
+    : `<div class="pm-sub-empty">No templates yet — write an entry and save it as one.</div>`;
+  return `<button class="padd-item pm-i" onclick="_jrTmplSave('${id}')">Save as template</button>
+    <button class="padd-item pm-i" onclick="_jrTmplClear('${id}')">Clear all</button>
+    <div class="padd-item pm-i pm-has-sub" tabindex="0">Templates<span class="pm-arw">&#9656;</span>
+      <div class="pm-sub">${rows}</div>
+    </div>`;
+}
+// The editor these act on, found the way jrFlush and jrBlur already find it. Asking the DOM by
+// card id rather than walking up from the button matters now: the menu closes before the action
+// runs, and a detached button has no card to walk up to.
+function _jrEd(id){ return document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`) }
+function _jrTmplSave(id){ const ed=_jrEd(id); _cardMenuClose(); if(ed) saveAsAARTemplate(ed); }
+function _jrTmplClear(id){ const ed=_jrEd(id); _cardMenuClose(); if(ed) clearAAREditor(ed); }
+function _jrTmplLoad(id,tid){ const ed=_jrEd(id); _cardMenuClose(); if(ed) loadAARTemplate(tid,ed); }
+// Deleting and reordering leave the menu open — you rarely do just one — and repaint it so the
+// list on screen is the list in the data.
+function _jrTmplDelete(tid){ deleteAARTemplate(tid); }
+// What the chips' drag-and-drop did, one step at a time. Swapping neighbours is the whole of it.
+function _jrTmplMove(tid,d){
+  const ts=D.aarTemplates||[], i=ts.findIndex(t=>t.id===tid), j=i+d;
+  if(i<0||j<0||j>=ts.length) return;
+  [ts[i],ts[j]]=[ts[j],ts[i]];
+  save();
+  _cardMenuRepaint();
+}
 
 // ─── CANVAS CARD ─────────────────────────────────────────────────
 // A card you place things on rather than write down. Every box is an ordinary
@@ -2919,13 +2989,9 @@ function mkPlannerCard(def,ix){
     // you wrote and the chip on the day you are reading take the card's colour, not a
     // second hard-coded one.
     body=`<div class="pcard-bd jrcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${journalCardBody(def.id)}</div>`;
-    // Only a tall enough card gets the template chips; on a short one they would be half of it.
-    foot=(!def.minH||def.minH>=360)?`<div class="jr-ft" data-cardid="${def.id}"></div>`:'';
-    setTimeout(()=>{
-      jrAfter(def.id);
-      const ft=document.querySelector(`.jr-ft[data-cardid="${def.id}"]`);
-      if(ft&&!ft.firstChild) ft.appendChild(buildAARTemplateSection());
-    },0);
+    // No footer: templates live behind the ⋯ now, so the whole card is calendar and entry.
+    foot='';
+    setTimeout(()=>jrAfter(def.id),0);
   }else if(def.type==='canvas'){
     // The surface is restored from the card's own slot like any other content — the
     // positions came back with it, because they never left it.
@@ -2988,7 +3054,7 @@ let _pinsAt=null;
 function _pinsToggle(e,key){
   e.stopPropagation();
   _pinsAt=_pinsAt===key?null:key;
-  _paddOpen=false; _cardMenu=null;
+  _paddOpen=false; _cardMenuClose();
   render();
 }
 function _pinsClose(){ if(_pinsAt!=null){ _pinsAt=null; render(); } }
@@ -3031,12 +3097,29 @@ function _cardInsHTML(def,ix){
 // dot, a convert link and a × in it, shown on every card at once the moment you entered the
 // mode. The menu holds the same actions and shows none of them until you ask.
 let _cardMenu=null;
+// The menu is one node inside one card's header. Opening it used to call render(), which rebuilds
+// every card on the page and destroys and re-creates all three charts — a whole-page flash to add
+// a small element that changes nothing else. Paint it into the DOM instead. The header template
+// still emits the menu when _cardMenu matches (see mkCard), so a real render draws it correctly.
+function _cardMenuPaint(id){
+  document.querySelectorAll('.pcard-menu').forEach(n=>n.remove());
+  document.querySelectorAll('.pcard-more.on').forEach(b=>b.classList.remove('on'));
+  if(!id) return;
+  const def=cardDef(id); if(!def) return;
+  const hd=document.querySelector(`.pcard[data-cardid="${id}"] .pcard-hd`);
+  if(!hd) return;
+  hd.insertAdjacentHTML('beforeend',_cardMenuHTML(def));
+  hd.querySelector('.pcard-more')?.classList.add('on');
+}
+// Repaint in place after something the open menu is showing has changed — a template added,
+// deleted or moved — so the submenu agrees with the data without a page rebuild.
+function _cardMenuRepaint(){ if(_cardMenu) _cardMenuPaint(_cardMenu); }
 function _cardMenuToggle(e,id){
   e.stopPropagation();
   _cardMenu=_cardMenu===id?null:id;
-  render();
+  _cardMenuPaint(_cardMenu);
 }
-function _cardMenuClose(){ if(_cardMenu){ _cardMenu=null; render(); } }
+function _cardMenuClose(){ if(_cardMenu){ _cardMenu=null; _cardMenuPaint(null); } }
 // Anywhere outside the open menu closes it, the same as the add-card picker above.
 document.addEventListener('mousedown',e=>{
   if(!_cardMenu) return;
@@ -3050,10 +3133,13 @@ function _cardMenuHTML(def){
   // No Rename here: the header label is contenteditable at rest, so clicking the title
   // already renames the card. A menu item for it is a second door to the same room.
   const id=def.id, it=[];
-  if(def.type==='timeline'||def.type==='canvas'||def.type==='journal'){
+  // A journal card wears its colour dot on the month row instead, beside the ‹ — one press
+  // rather than two, and it sits next to the grid the colour actually paints.
+  if(def.type==='timeline'||def.type==='canvas'){
     it.push(`<button class="padd-item pm-i" onclick="_cardColour(event,'${id}')">
       <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span>Colour</button>`);
   }
+  if(def.type==='journal') it.push(_jrMenuItems(id));
   // Text and canvas only: those two carry the same content in two shapes, so the trip is
   // lossless in both directions. There is nothing to carry into a habits or journal card.
   if(def.type==='text'||def.type==='canvas'){
@@ -3069,13 +3155,14 @@ function _cardMenuHTML(def){
   it.push(`<button class="padd-item pm-i pm-del" onclick="_cardDelete('${id}')">Delete card</button>`);
   return `<div class="pcard-menu" onpointerdown="event.stopPropagation()">${it.join('')}</div>`;
 }
-// Each item closes the menu first, so the render its action triggers is the only one.
-function _cardColour(e,id){ e.stopPropagation(); _cardMenu=null; openChartColorPop(e,'tl_'+id); }
-function _cardConvert(id,type){ _cardMenu=null; convertCardTo(id,type); }
-function _cardLevers(id){ _cardMenu=null; toggleHabitCardEdit(id); }
+// Each item closes the menu first — through _cardMenuClose, which takes the node off the page.
+// Clearing _cardMenu alone used to be enough only because a render was coming to sweep it away.
+function _cardColour(e,id){ e.stopPropagation(); _cardMenuClose(); openChartColorPop(e,'tl_'+id); }
+function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
+function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
 // removePlannerCard renders when it removes something, but it also has a confirm you can
 // decline — and then the menu is closed in state and still on screen. Render for that case.
-function _cardDelete(id){ _cardMenu=null; removePlannerCard(id); if(cardDef(id)) render(); }
+function _cardDelete(id){ _cardMenuClose(); removePlannerCard(id); if(cardDef(id)) render(); }
 function setCardLabel(id,v){ const c=cardDef(id); if(c){ c.label=v; _cardsDirty(); } }
 // Renaming a card is not configuration — it is the one thing you do to a card
 // constantly — so the title is editable where it sits, with no mode to enter.
@@ -8976,95 +9063,36 @@ function saveWeekAAREntryAt(y,m,wn,html){
   else { delete mo.weekAar[wn]; if(mo.weekAarTmpl) delete mo.weekAarTmpl[wn]; }
   save();
 }
-// The same chips serve every journal card, so the section can exist several times over and
-// cannot own an id. It is refreshed by class instead — see _aarTmplRefresh.
-function buildAARTemplateSection(){
-  const div=document.createElement('div');
-  div.className='aar-tmpl-section';
-  div.style.cssText='border-top:1px solid var(--border);padding:12px 20px;flex-shrink:0;background:var(--surface)';
-  const hdrRow=document.createElement('div');
-  hdrRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
-  hdrRow.innerHTML=`<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Templates</span><div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end"><button class="btn" style="font-size:11px;padding:3px 10px" onclick="saveAsAARTemplate(this)">+ Save as Template</button><button class="btn" style="font-size:11px;padding:3px 10px;background:var(--red);border-color:var(--red);color:#fff" onclick="clearAAREditor(this)">Clear All</button></div>`;
-  const list=document.createElement('div');
-  list.style.cssText='display:flex;gap:6px;flex-wrap:wrap;min-height:22px;align-items:center';
-  if(!D.aarTemplates.length){
-    list.innerHTML=`<span style="font-size:12px;color:var(--text3);font-style:italic">No templates yet — write an entry and save it as a template.</span>`;
-  } else {
-    D.aarTemplates.forEach(t=>{
-      const chip=document.createElement('div');
-      chip.style.cssText='display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 6px 3px 8px;font-size:12px;cursor:grab';
-      chip.innerHTML=`<span class="dnd-grip" style="font-size:11px">⠿</span><span style="cursor:pointer;font-weight:500;color:var(--text1)" onclick="loadAARTemplate('${t.id}',this)" title="Load">${esc(t.name)}</span><button onclick="deleteAARTemplate('${t.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px;line-height:1" title="Delete">&#10005;</button>`;
-      chip.draggable=true;
-      chip.ondragstart=e=>{_dg={type:'template',tid:t.id};chip.classList.add('dnd-drag');e.dataTransfer.effectAllowed='move'};
-      chip.ondragend=()=>{chip.classList.remove('dnd-drag');_dg=null};
-      chip.ondragover=e=>{
-        if(_dg?.type==='template'&&_dg.tid!==t.id){
-          e.preventDefault();
-          const{left,width}=chip.getBoundingClientRect();
-          chip.classList.remove('dnd-ins-l','dnd-ins-r');
-          chip.classList.add(e.clientX<left+width/2?'dnd-ins-l':'dnd-ins-r');
-        }
-      };
-      chip.ondragleave=()=>{chip.classList.remove('dnd-ins-l','dnd-ins-r')};
-      chip.ondrop=e=>{
-        e.preventDefault();
-        const{left,width}=chip.getBoundingClientRect();
-        chip.classList.remove('dnd-ins-l','dnd-ins-r');
-        _dropTemplate(t.id,e.clientX<left+width/2);
-      };
-      list.appendChild(chip);
-    });
-  }
-  div.appendChild(hdrRow);div.appendChild(list);
-  return div;
-}
-
-// Which editor the template buttons act on: the one in the card the button itself is sitting
-// in, asked of the DOM each time it is pressed. Resolving it from a global set on focus is what
-// broke this: every render() rebuilds the card, so _jrLastEd pointed at a detached node and the
-// buttons became silent no-ops. It stays only as a fallback for a caller with no button to go on.
-function _aarEditorEl(btn){
-  const card=btn&&btn.closest?btn.closest('.pcard'):null;
-  return (card&&card.querySelector('.jr-ed'))||(_jrLastEd&&_jrLastEd.isConnected?_jrLastEd:null);
-}
 // A journal card saves as you type, so a template loaded into one has to be committed here or
 // it would vanish on the next repaint.
 function _aarEditorCommit(editor){
   if(editor&&editor.classList.contains('jr-ed')) jrInput(editor);
 }
-function _aarTmplRefresh(){
-  document.querySelectorAll('.aar-tmpl-section').forEach(n=>n.replaceWith(buildAARTemplateSection()));
-}
 
-// A button that does nothing is indistinguishable from a broken app, which is exactly how
-// this read when the editor lookup failed. Say so instead of returning quietly.
-function _aarNoEditor(){ alert('Open an entry first — these buttons act on the entry you have open.') }
-function clearAAREditor(btn){
-  const editor=_aarEditorEl(btn);
-  if(!editor) return _aarNoEditor();
+// These three take the editor itself. They used to take the button they were fired from and walk
+// up to its card — which only worked while the buttons lived inside the card. The ⋯ menu closes
+// before the action runs, so the caller resolves the editor first (see _jrEd).
+function clearAAREditor(editor){
+  if(!editor) return;
   if(!confirm('Clear all content in this entry?')) return;
   editor.innerHTML='';
   _aarEditorCommit(editor);
   editor.focus();
 }
 
-function saveAsAARTemplate(btn){
-  const editor=_aarEditorEl(btn);
-  if(!editor) return _aarNoEditor();
+function saveAsAARTemplate(editor){
+  if(!editor) return;
   const content=rtHTML(editor).trim();
   if(!content||content==='<br>'){alert('Write something in the editor first.');return}
   const name=prompt('Name this template:');
   if(!name||!name.trim()) return;
   D.aarTemplates.push({id:uid(),name:name.trim(),content});
   save();
-  _aarTmplRefresh();
 }
 
-function loadAARTemplate(tid,btn){
+function loadAARTemplate(tid,editor){
   const t=D.aarTemplates.find(t=>t.id===tid);
-  if(!t) return;
-  const editor=_aarEditorEl(btn);
-  if(!editor) return _aarNoEditor();
+  if(!t||!editor) return;
   const cur=rtHTML(editor).trim();
   if(cur&&cur!=='<br>'&&!confirm('Load template? This replaces your current entry.')) return;
   editor.innerHTML=t.content;
@@ -9079,7 +9107,7 @@ function deleteAARTemplate(tid){
   if(!confirm('Delete this template?')) return;
   D.aarTemplates=D.aarTemplates.filter(t=>t.id!==tid);
   save();
-  _aarTmplRefresh();
+  _cardMenuRepaint();
 }
 
 function addGroup(){
@@ -9171,18 +9199,6 @@ function _dropHabitOnGroup(targetGid){
   const [hab]=srcG.habits.splice(fi,1);
   tgtG.habits.unshift(hab);
   save();render();
-}
-
-function _dropTemplate(targetTid,insertBefore=true){
-  if(!_dg||_dg.type!=='template'||_dg.tid===targetTid) return;
-  const fi=D.aarTemplates.findIndex(t=>t.id===_dg.tid);
-  if(fi===-1) return;
-  const [tmpl]=D.aarTemplates.splice(fi,1);
-  const ti=D.aarTemplates.findIndex(t=>t.id===targetTid);
-  if(ti===-1) return;
-  D.aarTemplates.splice(insertBefore?ti:ti+1,0,tmpl);
-  save();
-  _aarTmplRefresh();
 }
 
 function deleteGroup(gid){
