@@ -2195,7 +2195,7 @@ function jrRepaint(id){
 function jrFlush(id){
   const ed=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`);
   if(!ed) return;
-  const y=+ed.dataset.y,m=+ed.dataset.m,html=ed.innerHTML.trim();
+  const y=+ed.dataset.y,m=+ed.dataset.m,html=rtHTML(ed).trim();
   if(ed.dataset.week) saveWeekAAREntryAt(y,m,+ed.dataset.week,html);
   else saveAAREntryAt(y,m,+ed.dataset.day,html);
 }
@@ -6085,7 +6085,20 @@ function rtPlaceCaretAtStart(el){
 // Guard first: deleting the last block in a toggle is an input event, and if the
 // container isn't restocked before this returns, the emptied toggle is saved as a
 // dead end and can never be typed into again.
-function rtOnInput(el){ rtGuardBlocks(el); rtNormalizeLists(el); rtSlashUpdate(el); rtPushUndo(el); return el.innerHTML; }
+function rtOnInput(el){ rtGuardBlocks(el); rtNormalizeLists(el); rtSlashUpdate(el); rtPushUndo(el); return rtHTML(el); }
+
+// What an editor is worth saving as. `rt-sel` is the paint on the live cell selection, not
+// something you wrote: it lives in the same DOM that innerHTML serialises, so saving while a
+// cell was highlighted baked the highlight into storage and it came back lit on every reload.
+// Cloning only when there is something to strip keeps the common keystroke free — and the clone
+// means the selection you are still working with stays visible. Same shape as cvHTML.
+function rtHTML(el){
+  if(!el) return '';
+  if(!el.querySelector('.rt-sel')) return el.innerHTML;
+  const c=el.cloneNode(true);
+  c.querySelectorAll('.rt-sel').forEach(td=>td.classList.remove('rt-sel'));
+  return c.innerHTML;
+}
 
 // ─── Undo history ────────────────────────────────────────────────
 // List conversions and table edits move nodes with raw DOM calls, which the browser's
@@ -6597,6 +6610,14 @@ function rtFreezeTables(){
       const cg=t.querySelector('colgroup');
       const stale=!cg||[...cg.children].some(c=>(c.style.width||'').indexOf('%')<0);
       if(stale){ rtEnsureCols(t); dirty=true; }
+    });
+    // A highlighted cell that is not in the live selection is left-over paint — from a save made
+    // while cells were selected, before rtHTML stripped them. Clearing it here repairs what is
+    // already stored: rtFire saves the host, so the highlight goes for good rather than coming
+    // back on the next reload.
+    host.querySelectorAll('.rt-sel').forEach(td=>{
+      if(_rtSel.includes(td)) return;
+      td.classList.remove('rt-sel'); dirty=true;
     });
     if(dirty) rtFire(host);
   });
@@ -9030,7 +9051,7 @@ function clearAAREditor(btn){
 function saveAsAARTemplate(btn){
   const editor=_aarEditorEl(btn);
   if(!editor) return _aarNoEditor();
-  const content=editor.innerHTML.trim();
+  const content=rtHTML(editor).trim();
   if(!content||content==='<br>'){alert('Write something in the editor first.');return}
   const name=prompt('Name this template:');
   if(!name||!name.trim()) return;
@@ -9044,7 +9065,7 @@ function loadAARTemplate(tid,btn){
   if(!t) return;
   const editor=_aarEditorEl(btn);
   if(!editor) return _aarNoEditor();
-  const cur=editor.innerHTML.trim();
+  const cur=rtHTML(editor).trim();
   if(cur&&cur!=='<br>'&&!confirm('Load template? This replaces your current entry.')) return;
   editor.innerHTML=t.content;
   rtFreezeTables();
