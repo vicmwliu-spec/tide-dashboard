@@ -231,10 +231,6 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
   color:var(--text1);border-top:1px solid var(--border);padding-top:8px}
 .jr-side[data-mode="grid"] .jr-list{flex:none}
 .jr-side[data-mode="search"] .jr-commit{display:none}
-/* Empty, it says what it is for. Same job as .pm-sub-empty. :empty alone would miss the
-   <p><br></p> the block guard leaves behind, so the guard's own shape is matched too. */
-.jr-commit:empty::before,.jr-commit>p:only-child>br:only-child::before{
-  content:'Commitments…';color:var(--text3);font-style:italic;pointer-events:none}
 /* One column at a time when there is no room for two — a narrow card or a phone come to the
    same thing, so .jr-narrow is set from the card's measured width rather than from a media
    query and a span rule that would disagree with each other. The ▦ button is the only way
@@ -590,18 +586,35 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before,.jr-ed ul>li[data-st="done"]::before,.jr-commit ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
 /* Done looks the same here as a ticked checklist item does above. One "done" in the app. */
 #aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"],.jr-ed ul>li[data-st="done"],.jr-commit ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
-/* Execution count, drawn from data-dots — which rtCountPaint derives from data-n, so the
-   marks can never disagree with the number they came from. Floated right rather than laid
-   out inline: the marks land at the item's top right whatever length the text runs to, so
-   a card's counts line up in one column and read as a set instead of as per-line notes,
-   and nothing shifts as you edit the words. The float is also what keeps a done item's
-   line-through from crossing them — text-decoration propagates into ::after but not into
-   a float. 11px and --text3 so the row stays quiet until you go looking for it. */
-#aar-editor li[data-dots]::after,.quote-ta li[data-dots]::after,.priority-ta li[data-dots]::after,.notes-ta li[data-dots]::after,.intention-ta li[data-dots]::after,.cv-bd li[data-dots]::after,.jr-ed li[data-dots]::after,.jr-commit li[data-dots]::after{
-  content:attr(data-dots);float:right;margin-left:12px;
-  color:var(--text3);font-size:11px;line-height:inherit;letter-spacing:.15em;
-  font-variant-numeric:tabular-nums;cursor:pointer;text-decoration:none;
+/* Execution count: a tally, never a number. Marks in fives all the way up, because a group
+   of five is perceived rather than counted — which is what lets this stay a picture at any
+   size instead of degrading into "12 / 30". A fraction is a grade; this records what you did
+   and renders nothing for what you didn't, and an untouched line draws nothing at all.
+   Real elements rather than one ::after string. The string version had to be hit-tested by
+   dividing its measured width, which grouping and wrapping break outright — and elements give
+   exact per-mark clicking, a real hover slot, and free wrapping. The <i> hold no text: the
+   glyph is a ::before, so the marks stay out of textContent and cannot leak into the journal
+   search or aarText's template comparison.
+   Floated right so the tally lands at the item's top right whatever length the text runs to
+   — a card's counts line up in one column and read as a set — and so a done item's
+   line-through does not cross them, since text-decoration does not propagate into a float. */
+.rt-n{float:right;margin-left:12px;max-width:60%;text-align:right;line-height:inherit;
+  color:var(--text3);font-size:11px;text-decoration:none;
   -webkit-user-select:none;user-select:none}
+.rt-n i,.rt-n b{font-style:normal;font-weight:400;cursor:pointer;display:inline-block;
+  width:9px;text-align:center}
+.rt-n i::before{content:'●'}
+.rt-n i.o::before{content:'○'}
+/* Every fifth mark opens a group. margin rather than a wrapper element, so the tally is one
+   flat run that can wrap wherever it needs to. */
+.rt-n i.g{margin-left:5px}
+.rt-n i:hover{color:var(--text1)}
+/* The way to go one further than the row shows. Invisible until you are on the row, so a
+   card you are only reading carries no controls. */
+.rt-n b{opacity:0;color:var(--text3);margin-left:5px;transition:opacity .12s}
+.rt-n b::before{content:'+'}
+.rt-n:hover b{opacity:1}
+.rt-n b:hover{color:var(--text1)}
 /* Rich-text simple table (Notion-style) */
 /* The wrapper owns the width, as a share of the card, and the table fills it. An
    explicit width is what lets the table inside be a percentage at all — a
@@ -6176,7 +6189,7 @@ function rtSetCount(ask){
     const a=prompt('How many, to call it done?','3');
     if(a===null) return 0;
     const n=parseInt(a,10);
-    if(!(n>=1&&n<=999)) return 0;
+    if(!(n>=1&&n<=RT_N_MAX)) return 0;
     tgt=n;
   }
   lis.forEach(li=>{
@@ -6209,10 +6222,14 @@ function rtNormalizeLists(root){
     if(!li.textContent.trim()||!p||p.tagName!=='UL'||p.classList.contains('rt-todo')
       ||RT_ST_RING.indexOf(li.getAttribute('data-st'))<0) li.removeAttribute('data-st');
   });
-  // data-dots is derived from data-n and never authored, so it is rebuilt here rather than
-  // trusted: a pasted or hand-edited pair could otherwise draw marks that disagree with the
+  // The tally is derived from data-n and never authored, so it is rebuilt here rather than
+  // trusted: a pasted or hand-edited span could otherwise draw marks that disagree with the
   // count they came from. Same hazard, same place, as the status repair above.
-  root.querySelectorAll('li[data-n],li[data-dots]').forEach(li=>rtCountPaint(li));
+  root.querySelectorAll('li[data-n]').forEach(li=>rtCountPaint(li));
+  // Marks with no count behind them are not marks. data-dots is the attribute an earlier
+  // version rendered from; it is dropped wherever it is still lying around.
+  root.querySelectorAll('.rt-n').forEach(s=>{ if(!rtCountParse(s.parentElement&&s.parentElement.getAttribute('data-n'))) s.remove() });
+  root.querySelectorAll('[data-dots]').forEach(n=>n.removeAttribute('data-dots'));
   let changed=true,guard=0;
   while(changed&&guard++<20){
     changed=false;
@@ -9026,50 +9043,76 @@ const RT_CMDS=[
 // it by asking for it on that line.
 // Stored as data-n on the item, the way data-st is: an attribute survives the innerHTML
 // round trip the cards persist through, and a property would not.
-const RT_N_MAX_DOTS=7;
+// 60 is as far as this goes. It is a tally, and a target of 999 is not a row anyone would
+// read — it is a number wearing marks.
+const RT_N_MAX=60;
 function rtCountParse(v){
   const m=/^(\d+)(?:\/(\d+))?$/.exec(String(v||'').trim());
   if(!m) return null;
   const tgt=m[2]===undefined?null:+m[2];
-  if(tgt!==null&&(tgt<1||tgt>999)) return null;
+  if(tgt!==null&&(tgt<1||tgt>RT_N_MAX)) return null;
   const n=+m[1];
-  return n>999?null:{n,tgt};
+  return n>RT_N_MAX?null:{n,tgt};
 }
-// The render string, derived from data-n and never authored. Dots while you can count them
-// at a glance; past that a numeral, because sixteen dots is a texture, not a quantity.
-function rtCountDots(c){
-  const cap=c.tgt===null?c.n:Math.max(c.n,c.tgt);
-  if(cap>RT_N_MAX_DOTS) return c.tgt===null?String(c.n):c.n+' / '+c.tgt;
-  let s='●'.repeat(c.n);
-  if(c.tgt!==null&&c.tgt>c.n) s+='○'.repeat(c.tgt-c.n);
+// The marks, built from data-n and never authored. Real elements rather than one string,
+// because each one has to be clickable at its own position and grouped marks wrap.
+// The <i> carry no text — the glyph is a CSS ::before — so the tally stays out of
+// li.textContent and cannot reach journal search or aarText's template comparison.
+function rtCountSpan(li,c){
+  const doc=li.ownerDocument;
+  const s=doc.createElement('span');
+  s.className='rt-n';
+  s.setAttribute('contenteditable','false');
+  const total=c.tgt===null?c.n:Math.max(c.n,c.tgt);
+  for(let i=0;i<total;i++){
+    const m=doc.createElement('i');
+    // Hollow past the count: only a target can produce one, so a row you never asked to
+    // shape has nothing on it that looks like a debt.
+    if(i>=c.n) m.className='o';
+    // Every fifth mark opens a group, which is what lets a large tally stay a picture.
+    if(i%5===0&&i) m.className=(m.className?m.className+' ':'')+'g';
+    s.appendChild(m);
+  }
+  // Empty for the same reason the marks are: the glyph is a ::before, so not even the plus
+  // sign lands in the item's text.
+  s.appendChild(doc.createElement('b'));
   return s;
 }
-// Clicking the marks moves the count. Alt takes one back off. It floors at zero and is not
-// capped by a target: doing four of a three is a real thing that happened.
-function rtCountClick(e,li,r,host){
-  if(!li.hasAttribute('data-n')) return false;
+// Clicking a mark says how many, rather than adding one: the row is a record you match to
+// what happened, not a counter you feed. Clicking the mark you are already at steps back
+// one, so every position is reachable both ways and a misclick costs one click.
+function rtCountClick(e,li,host){
+  const mark=e.target&&e.target.closest?e.target.closest('.rt-n i,.rt-n b'):null;
+  if(!mark||!li.contains(mark)) return false;
   const c=rtCountParse(li.getAttribute('data-n'));
   if(!c) return false;
-  const w=parseFloat(getComputedStyle(li,'::after').width)||0;
-  if(!w) return false;
-  // float:right puts the marks at the top right of the item, so they sit on the first line
-  // however many lines the text runs to.
-  const lh=parseFloat(getComputedStyle(li).lineHeight)||18;
-  if(e.clientY<r.top||e.clientY>r.top+lh+2) return false;
-  if(e.clientX<r.right-w-4||e.clientX>r.right+2) return false;
+  const span=mark.parentElement;
+  let n;
+  if(mark.tagName==='B'){
+    // One further than the row shows — past a target, because doing four of a three is a
+    // real thing that happened.
+    n=(c.tgt===null?c.n:Math.max(c.n,c.tgt))+1;
+  }else{
+    const i=[...span.children].indexOf(mark);
+    n=c.n===i+1?i:i+1;
+  }
+  if(n>RT_N_MAX) return true;
   e.preventDefault();
-  const n=Math.max(0,c.n+(e.altKey?-1:1));
   li.setAttribute('data-n',c.tgt===null?String(n):n+'/'+c.tgt);
   rtCountPaint(li);
   rtFire(host);
   return true;
 }
 function rtCountPaint(li){
+  const old=li.querySelector(':scope > .rt-n');
+  if(old) old.remove();
   const c=rtCountParse(li.getAttribute('data-n'));
-  if(!c||!li.textContent.trim()){ li.removeAttribute('data-n'); li.removeAttribute('data-dots'); return }
-  li.setAttribute('data-dots',rtCountDots(c));
-  li.setAttribute('title',c.tgt===null?'Click to add one, Alt-click to take one off'
-    :`${c.n} of ${c.tgt} — click to add one, Alt-click to take one off`);
+  if(!c||!li.textContent.trim()){ li.removeAttribute('data-n'); li.removeAttribute('title'); return }
+  // Before any sub-list, not after it: a float placed below the nested items would land at
+  // the bottom of a tall item instead of on its own first line.
+  const sub=li.querySelector(':scope > ul,:scope > ol');
+  li.insertBefore(rtCountSpan(li,c),sub||null);
+  li.setAttribute('title','Click a mark to set how many');
 }
 document.addEventListener('click',e=>{
   const li=e.target&&e.target.closest?e.target.closest('li'):null;
@@ -9079,7 +9122,7 @@ document.addEventListener('click',e=>{
   const r=li.getBoundingClientRect();
   // A count is drawn at the right end of the item and is its own click target. Checked
   // before the list kind, because a count is worth having on a numbered item too.
-  if(rtCountClick(e,li,r,host)) return;
+  if(rtCountClick(e,li,host)) return;
   const ul=li.parentElement;
   if(!ul||ul.tagName!=='UL') return;
   const todo=ul.classList.contains('rt-todo');
