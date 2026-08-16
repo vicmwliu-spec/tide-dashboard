@@ -574,6 +574,18 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before,.jr-ed ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
 /* Done looks the same here as a ticked checklist item does above. One "done" in the app. */
 #aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"],.jr-ed ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
+/* Execution count, drawn from data-dots — which rtCountPaint derives from data-n, so the
+   marks can never disagree with the number they came from. Floated right rather than laid
+   out inline: the marks land at the item's top right whatever length the text runs to, so
+   a card's counts line up in one column and read as a set instead of as per-line notes,
+   and nothing shifts as you edit the words. The float is also what keeps a done item's
+   line-through from crossing them — text-decoration propagates into ::after but not into
+   a float. 11px and --text3 so the row stays quiet until you go looking for it. */
+#aar-editor li[data-dots]::after,.quote-ta li[data-dots]::after,.priority-ta li[data-dots]::after,.notes-ta li[data-dots]::after,.intention-ta li[data-dots]::after,.cv-bd li[data-dots]::after,.jr-ed li[data-dots]::after{
+  content:attr(data-dots);float:right;margin-left:12px;
+  color:var(--text3);font-size:11px;line-height:inherit;letter-spacing:.15em;
+  font-variant-numeric:tabular-nums;cursor:pointer;text-decoration:none;
+  -webkit-user-select:none;user-select:none}
 /* Rich-text simple table (Notion-style) */
 /* The wrapper owns the width, as a share of the card, and the table fills it. An
    explicit width is what lets the table inside be a percentage at all — a
@@ -5922,6 +5934,26 @@ function richtextKD(e){
       e.preventDefault();
       selectAndDelete();
       rtSetList(kind);
+      return;
+    }
+    // "+" starts a count on this item at zero; "/3" gives it a target of three. Typed at
+    // the end of the line, so "+" mid-sentence is still a plus sign. Only the trigger is
+    // deleted — selectAndDelete would take the whole line with it, since these arrive
+    // after the words rather than before them.
+    const cm=/(\+|\/(\d{1,3}))$/.exec(textBefore);
+    if(cm&&node.textContent.slice(range.startOffset).trim()===''){
+      const li=(node.parentElement||{}).closest?node.parentElement.closest('li'):null;
+      if(li){
+        e.preventDefault();
+        const r2=document.createRange();
+        r2.setStart(node,range.startOffset-cm[0].length);r2.setEnd(node,range.startOffset);
+        sel.removeAllRanges();sel.addRange(r2);
+        document.execCommand('delete');
+        const cur=rtCountParse(li.getAttribute('data-n'))||{n:0,tgt:null};
+        li.setAttribute('data-n',cm[2]===undefined?String(cur.n):cur.n+'/'+ +cm[2]);
+        rtCountPaint(li);
+        rtFire(li.closest(RT_HOSTS));
+      }
     }
   }
 }
@@ -6122,6 +6154,10 @@ function rtNormalizeLists(root){
     if(!li.textContent.trim()||!p||p.tagName!=='UL'||p.classList.contains('rt-todo')
       ||RT_ST_RING.indexOf(li.getAttribute('data-st'))<0) li.removeAttribute('data-st');
   });
+  // data-dots is derived from data-n and never authored, so it is rebuilt here rather than
+  // trusted: a pasted or hand-edited pair could otherwise draw marks that disagree with the
+  // count they came from. Same hazard, same place, as the status repair above.
+  root.querySelectorAll('li[data-n],li[data-dots]').forEach(li=>rtCountPaint(li));
   let changed=true,guard=0;
   while(changed&&guard++<20){
     changed=false;
@@ -8925,16 +8961,81 @@ const RT_CMDS=[
 // markers live in the gutter, but not in the same box: a checkbox is drawn inside the
 // item's own left padding, while a status glyph sits just outside it, in the padding
 // the <ul> reserves for the disc it replaces. So the two need different bounds.
+// ─── Execution count ─────────────────────────────────────────────
+// What you did, and nothing about what you didn't. An empty item draws no marks at all,
+// so a line you haven't got to looks like a line rather than like a failure — the same
+// bargain the habits card makes ("pills only. No streak, no count, no grade"). The row
+// grows instead of filling. A target is the one way to get hollow marks, and you only get
+// it by asking for it on that line.
+// Stored as data-n on the item, the way data-st is: an attribute survives the innerHTML
+// round trip the cards persist through, and a property would not.
+const RT_N_MAX_DOTS=7;
+function rtCountParse(v){
+  const m=/^(\d+)(?:\/(\d+))?$/.exec(String(v||'').trim());
+  if(!m) return null;
+  const tgt=m[2]===undefined?null:+m[2];
+  if(tgt!==null&&(tgt<1||tgt>999)) return null;
+  const n=+m[1];
+  return n>999?null:{n,tgt};
+}
+// The render string, derived from data-n and never authored. Dots while you can count them
+// at a glance; past that a numeral, because sixteen dots is a texture, not a quantity.
+function rtCountDots(c){
+  const cap=c.tgt===null?c.n:Math.max(c.n,c.tgt);
+  if(cap>RT_N_MAX_DOTS) return c.tgt===null?String(c.n):c.n+' / '+c.tgt;
+  let s='●'.repeat(c.n);
+  if(c.tgt!==null&&c.tgt>c.n) s+='○'.repeat(c.tgt-c.n);
+  return s;
+}
+// Clicking the marks moves the count. Alt takes one back off. It floors at zero and is not
+// capped by a target: doing four of a three is a real thing that happened.
+function rtCountClick(e,li,r,host){
+  if(!li.hasAttribute('data-n')) return false;
+  const c=rtCountParse(li.getAttribute('data-n'));
+  if(!c) return false;
+  const w=parseFloat(getComputedStyle(li,'::after').width)||0;
+  if(!w) return false;
+  // float:right puts the marks at the top right of the item, so they sit on the first line
+  // however many lines the text runs to.
+  const lh=parseFloat(getComputedStyle(li).lineHeight)||18;
+  if(e.clientY<r.top||e.clientY>r.top+lh+2) return false;
+  if(e.clientX<r.right-w-4||e.clientX>r.right+2) return false;
+  e.preventDefault();
+  const n=Math.max(0,c.n+(e.altKey?-1:1));
+  li.setAttribute('data-n',c.tgt===null?String(n):n+'/'+c.tgt);
+  rtCountPaint(li);
+  rtFire(host);
+  return true;
+}
+function rtCountPaint(li){
+  const c=rtCountParse(li.getAttribute('data-n'));
+  if(!c||!li.textContent.trim()){ li.removeAttribute('data-n'); li.removeAttribute('data-dots'); return }
+  li.setAttribute('data-dots',rtCountDots(c));
+  li.setAttribute('title',c.tgt===null?'Click to add one, Alt-click to take one off'
+    :`${c.n} of ${c.tgt} — click to add one, Alt-click to take one off`);
+}
 document.addEventListener('click',e=>{
   const li=e.target&&e.target.closest?e.target.closest('li'):null;
   if(!li) return;
-  const ul=li.parentElement;
-  if(!ul||ul.tagName!=='UL') return;
   const host=li.closest(RT_HOSTS);
   if(!host) return;
-  const todo=ul.classList.contains('rt-todo');
   const r=li.getBoundingClientRect();
-  const lo=todo?r.left:r.left-18, hi=todo?r.left+22:r.left+2;
+  // A count is drawn at the right end of the item and is its own click target. Checked
+  // before the list kind, because a count is worth having on a numbered item too.
+  if(rtCountClick(e,li,r,host)) return;
+  const ul=li.parentElement;
+  if(!ul||ul.tagName!=='UL') return;
+  const todo=ul.classList.contains('rt-todo');
+  // The marker is on the first line and nowhere else. Bounding the live zone to the whole
+  // item gave every wrapped line a gutter with no glyph in it — and an item holding a
+  // sub-list is as tall as the sub-list, so clicking beside a sub-bullet toggled its parent.
+  const lh=parseFloat(getComputedStyle(li).lineHeight)||18;
+  if(e.clientY<r.top||e.clientY>r.top+lh+2) return;
+  // Right edge is the marker's, not the item's. A status glyph ends at left-2, entirely
+  // outside the text box; a checkbox is 14px wide inside a 22px pad. Both used to overrun
+  // into the first characters of the line, which is the click that "did nothing" but changed
+  // the status anyway.
+  const lo=todo?r.left:r.left-18, hi=todo?r.left+18:r.left;
   if(e.clientX<lo||e.clientX>=hi) return;
   e.preventDefault();
   if(todo){
