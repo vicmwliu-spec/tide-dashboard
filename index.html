@@ -219,6 +219,22 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
   font-size:13px;padding:0 2px;line-height:1;font-family:var(--font)}
 .jr-pane:hover{color:var(--text1)}
 .jr-ed{flex:1;overflow-y:auto;min-height:0;outline:none;font-size:13px;line-height:1.8;color:var(--text1)}
+/* Commitments, under the calendar. A full rich-text host — the same lists, counts, tables and
+   slash menu as anywhere else — so it is one editor used in a third place rather than a third
+   editor to keep in step. It is a sibling of .jr-list and deliberately not inside it: paging
+   the month replaces that element's innerHTML wholesale, which would take the caret with it.
+   The sidebar has two modes and they want opposite things. Browsing, the grid is exactly as
+   tall as its weeks and the commitments take whatever is left, so they sit directly under the
+   calendar. Searching, the hits take the whole column — what you are looking through is the
+   entries, not this. */
+.jr-commit{flex:1;overflow-y:auto;min-height:64px;outline:none;font-size:12.5px;line-height:1.7;
+  color:var(--text1);border-top:1px solid var(--border);padding-top:8px}
+.jr-side[data-mode="grid"] .jr-list{flex:none}
+.jr-side[data-mode="search"] .jr-commit{display:none}
+/* Empty, it says what it is for. Same job as .pm-sub-empty. :empty alone would miss the
+   <p><br></p> the block guard leaves behind, so the guard's own shape is matched too. */
+.jr-commit:empty::before,.jr-commit>p:only-child>br:only-child::before{
+  content:'Commitments…';color:var(--text3);font-style:italic;pointer-events:none}
 /* One column at a time when there is no room for two — a narrow card or a phone come to the
    same thing, so .jr-narrow is set from the card's measured width rather than from a media
    query and a span rule that would disagree with each other. The ▦ button is the only way
@@ -257,8 +273,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard-bd{padding:8px 16px 14px;min-height:80px;flex:1}
 /* A block at the very top of a card sits at exactly the body's top padding, so
    a table inserted first lines up identically on every card. */
-.pcard-bd>*:first-child,#aar-editor>*:first-child,.jr-ed>*:first-child{margin-top:0}
-.pcard-bd>*:last-child,#aar-editor>*:last-child,.jr-ed>*:last-child{margin-bottom:0}
+.pcard-bd>*:first-child,#aar-editor>*:first-child,.jr-ed>*:first-child,.jr-commit>*:first-child{margin-top:0}
+.pcard-bd>*:last-child,#aar-editor>*:last-child,.jr-ed>*:last-child,.jr-commit>*:last-child{margin-bottom:0}
 .pcard-lnk{background:none;border:none;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px}
 .pcard-lnk:hover{color:var(--accent);background:var(--surface2)}
 .pcard-lnk.on{color:var(--accent);background:var(--today-bg)}
@@ -386,7 +402,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    keyboard, which hover alone cannot. */
 .pm-has-sub{display:flex;align-items:center;justify-content:space-between;position:relative;cursor:default}
 .pm-arw{color:var(--text3);font-size:10px}
-.pm-sub{display:none;position:absolute;right:calc(100% - 1px);top:-5px;z-index:41;min-width:196px;
+.pm-sub{display:none;position:absolute;right:calc(100% - 1px);top:-5px;z-index:41;min-width:216px;
   border:1px solid var(--border);border-radius:var(--r);background:var(--surface);
   box-shadow:var(--shadow-md);padding:5px;flex-direction:column;gap:1px}
 .pm-has-sub:hover .pm-sub,.pm-has-sub:focus-within .pm-sub{display:flex}
@@ -535,45 +551,45 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .wk-arc-btn:hover{background:var(--border2);color:var(--text1)}
 .wk-arc-btn.wk-arc-on{color:var(--accent)}
 .wk-arc-btn svg{width:12px;height:12px;display:block}
-#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr,.cv-bd hr,.jr-ed hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
-#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol,.cv-bd ul,.cv-bd ol,.jr-ed ul,.jr-ed ol{padding-left:22px;margin:4px 0}
-#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li,.cv-bd li,.jr-ed li{margin:2px 0}
-#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul,.cv-bd ul,.jr-ed ul{list-style-type:disc}
-#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul,.cv-bd ul ul,.jr-ed ul ul{list-style-type:circle}
-#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul,.cv-bd ul ul ul,.jr-ed ul ul ul{list-style-type:square}
-#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol,.cv-bd ol,.jr-ed ol{list-style-type:decimal}
+#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr,.cv-bd hr,.jr-ed hr,.jr-commit hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
+#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol,.cv-bd ul,.cv-bd ol,.jr-ed ul,.jr-commit ul,.jr-ed ol,.jr-commit ol{padding-left:22px;margin:4px 0}
+#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li,.cv-bd li,.jr-ed li,.jr-commit li{margin:2px 0}
+#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul,.cv-bd ul,.jr-ed ul,.jr-commit ul{list-style-type:disc}
+#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul,.cv-bd ul ul,.jr-ed ul ul,.jr-commit ul ul{list-style-type:circle}
+#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul,.cv-bd ul ul ul,.jr-ed ul ul ul,.jr-commit ul ul ul{list-style-type:square}
+#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol,.cv-bd ol,.jr-ed ol,.jr-commit ol{list-style-type:decimal}
 /* Numbered lists stay numbered at every depth. A lettered list is something you ask
    for with the "A. " shortcut, which sets list-style-type inline and so still wins. */
 /* Checklists. The checkbox is drawn entirely in CSS from a data attribute — an
    <input> would be useless here because its checked state is a property and never
    survives the innerHTML round trip we persist card content through. */
-#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo,.cv-bd ul.rt-todo,.jr-ed ul.rt-todo{list-style:none;padding-left:4px}
-#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li,.cv-bd ul.rt-todo li,.jr-ed ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
-#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before,.cv-bd ul.rt-todo li::before,.jr-ed ul.rt-todo li::before{
+#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo,.cv-bd ul.rt-todo,.jr-ed ul.rt-todo,.jr-commit ul.rt-todo{list-style:none;padding-left:4px}
+#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li,.cv-bd ul.rt-todo li,.jr-ed ul.rt-todo li,.jr-commit ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
+#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before,.cv-bd ul.rt-todo li::before,.jr-ed ul.rt-todo li::before,.jr-commit ul.rt-todo li::before{
   content:'';position:absolute;left:0;top:.28em;width:14px;height:14px;box-sizing:border-box;
   border:1.5px solid var(--border);border-radius:4px;cursor:pointer;text-decoration:none;
   font-size:10px;line-height:11px;text-align:center;color:#fff;font-weight:700}
-#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before,.jr-ed ul.rt-todo li[data-done="1"]::before{
+#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before,.jr-ed ul.rt-todo li[data-done="1"]::before,.jr-commit ul.rt-todo li[data-done="1"]::before{
   content:'✓';background:var(--text2);border-color:var(--text2)}
-#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"],.jr-ed ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"],.jr-ed ul.rt-todo li[data-done="1"],.jr-commit ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
 /* Task status, carried by the bullet itself. Not a list kind — a property of the item,
    so an ordinary bullet list holds statused and plain items side by side. The <ul>
    already reserves 22px of padding for markers, so the glyph is drawn back into that
    space with position:absolute and the item's own text box never moves: a statused
    line and a plain one sit on exactly the same left edge. Scoped off .rt-todo, whose
    items own that gutter already for their checkbox. */
-#aar-editor ul:not(.rt-todo)>li[data-st],.quote-ta ul:not(.rt-todo)>li[data-st],.priority-ta ul:not(.rt-todo)>li[data-st],.notes-ta ul:not(.rt-todo)>li[data-st],.intention-ta ul:not(.rt-todo)>li[data-st],.cv-bd ul:not(.rt-todo)>li[data-st],.jr-ed ul:not(.rt-todo)>li[data-st]{list-style:none;position:relative}
-#aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before,.jr-ed ul:not(.rt-todo)>li[data-st]::before{
+#aar-editor ul:not(.rt-todo)>li[data-st],.quote-ta ul:not(.rt-todo)>li[data-st],.priority-ta ul:not(.rt-todo)>li[data-st],.notes-ta ul:not(.rt-todo)>li[data-st],.intention-ta ul:not(.rt-todo)>li[data-st],.cv-bd ul:not(.rt-todo)>li[data-st],.jr-ed ul:not(.rt-todo)>li[data-st],.jr-commit ul:not(.rt-todo)>li[data-st]{list-style:none;position:relative}
+#aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before,.jr-ed ul:not(.rt-todo)>li[data-st]::before,.jr-commit ul:not(.rt-todo)>li[data-st]::before{
   position:absolute;left:-16px;width:14px;text-align:center;line-height:inherit;
   cursor:pointer;text-decoration:none;font-size:11px}
 /* There is no glyph for "not started" because the disc already is one. An untouched
    bullet is the default state, which is where most items live, so the marked states are
    only the two that say something: in progress takes the accent, because that is what
    you want to find when you scan the card, and done goes quiet. */
-#aar-editor ul>li[data-st="doing"]::before,.quote-ta ul>li[data-st="doing"]::before,.priority-ta ul>li[data-st="doing"]::before,.notes-ta ul>li[data-st="doing"]::before,.intention-ta ul>li[data-st="doing"]::before,.cv-bd ul>li[data-st="doing"]::before,.jr-ed ul>li[data-st="doing"]::before{content:'◐';color:var(--edit)}
-#aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before,.jr-ed ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
+#aar-editor ul>li[data-st="doing"]::before,.quote-ta ul>li[data-st="doing"]::before,.priority-ta ul>li[data-st="doing"]::before,.notes-ta ul>li[data-st="doing"]::before,.intention-ta ul>li[data-st="doing"]::before,.cv-bd ul>li[data-st="doing"]::before,.jr-ed ul>li[data-st="doing"]::before,.jr-commit ul>li[data-st="doing"]::before{content:'◐';color:var(--edit)}
+#aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before,.jr-ed ul>li[data-st="done"]::before,.jr-commit ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
 /* Done looks the same here as a ticked checklist item does above. One "done" in the app. */
-#aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"],.jr-ed ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"],.jr-ed ul>li[data-st="done"],.jr-commit ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
 /* Execution count, drawn from data-dots — which rtCountPaint derives from data-n, so the
    marks can never disagree with the number they came from. Floated right rather than laid
    out inline: the marks land at the item's top right whatever length the text runs to, so
@@ -581,7 +597,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    and nothing shifts as you edit the words. The float is also what keeps a done item's
    line-through from crossing them — text-decoration propagates into ::after but not into
    a float. 11px and --text3 so the row stays quiet until you go looking for it. */
-#aar-editor li[data-dots]::after,.quote-ta li[data-dots]::after,.priority-ta li[data-dots]::after,.notes-ta li[data-dots]::after,.intention-ta li[data-dots]::after,.cv-bd li[data-dots]::after,.jr-ed li[data-dots]::after{
+#aar-editor li[data-dots]::after,.quote-ta li[data-dots]::after,.priority-ta li[data-dots]::after,.notes-ta li[data-dots]::after,.intention-ta li[data-dots]::after,.cv-bd li[data-dots]::after,.jr-ed li[data-dots]::after,.jr-commit li[data-dots]::after{
   content:attr(data-dots);float:right;margin-left:12px;
   color:var(--text3);font-size:11px;line-height:inherit;letter-spacing:.15em;
   font-variant-numeric:tabular-nums;cursor:pointer;text-decoration:none;
@@ -2263,6 +2279,10 @@ function jrSearch(id,v){
   // search box on the first keystroke.
   const el=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-list`);
   if(el) el.innerHTML=jrPicker(id);
+  // Searching gives the hits the whole column, so the commitments step aside — an attribute
+  // rather than a repaint, for the same reason.
+  const side=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-side`);
+  if(side) side.dataset.mode=v.trim()?'search':'grid';
 }
 function jrPane(id,p){ jrState(id).pane=p; jrRepaint(id); }
 // Every entry that exists, newest first. Derived on demand — the entries are the source of
@@ -2354,8 +2374,11 @@ function journalCardBody(id){
   // anything on a card too narrow for both, where CSS hides the other side.
   const other=s.pane==='grid'?'entry':'grid';
   return `<div class="jr" data-pane="${s.pane}">
-      <div class="jr-side">
+      <div class="jr-side" data-mode="${s.q.trim()?'search':'grid'}">
         <div class="jr-list">${jrPicker(id)}</div>
+        <div class="jr-commit" contenteditable="true" data-cardid="${id}"
+          onkeydown="richtextKD(event)"
+          oninput="saveCard('${id}',rtOnInput(this))"></div>
         <div class="jr-srch">
           <input class="jr-q" type="text" placeholder="Search entries…" value="${_esc(s.q)}"
             oninput="jrSearch('${id}',this.value)"/>
@@ -2395,6 +2418,10 @@ function jrAfter(id){
   setTimeout(()=>{
     const ed=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`);
     if(ed){ rtFreezeTables(); rtSeedUndo(ed); }
+    // The commitments pane restores from the card's own slot, the way a text card's body
+    // does — emitted here rather than inline so rtFreezeTables runs after the content is in.
+    const cm=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-commit`);
+    if(cm){ cm.innerHTML=cardHTML(id)||''; rtFreezeTables(); rtSeedUndo(cm); }
     jrFit(id);
   },0);
 }
@@ -2420,6 +2447,8 @@ function _jrMenuItems(id){
     ? ts.map((t,i)=>`<div class="pm-sub-row">
         <button class="pm-sub-load" title="Load into the open entry"
           onclick="_jrTmplLoad('${id}','${t.id}')">${esc(t.name)}</button>
+        <button class="pm-sub-b" title="Rename"
+          onclick="_jrTmplRename('${t.id}')">&#9998;</button>
         <button class="pm-sub-b" title="Move up" ${i===0?'disabled':''}
           onclick="_jrTmplMove('${t.id}',-1)">&#8593;</button>
         <button class="pm-sub-b" title="Move down" ${i===ts.length-1?'disabled':''}
@@ -2444,6 +2473,17 @@ function _jrTmplLoad(id,tid){ const ed=_jrEd(id); _cardMenuClose(); if(ed) loadA
 // Deleting and reordering leave the menu open — you rarely do just one — and repaint it so the
 // list on screen is the list in the data.
 function _jrTmplDelete(tid){ deleteAARTemplate(tid); }
+// Renaming asks the same way saving a new one does, seeded with the name it has: the point is
+// usually to amend a name rather than to think of a fresh one.
+function _jrTmplRename(tid){
+  const t=(D.aarTemplates||[]).find(t=>t.id===tid);
+  if(!t) return;
+  const n=prompt('Template name',t.name);
+  if(n===null||!n.trim()) return;
+  t.name=n.trim();
+  save();
+  _cardMenuRepaint();
+}
 // What the chips' drag-and-drop did, one step at a time. Swapping neighbours is the whole of it.
 function _jrTmplMove(tid,d){
   const ts=D.aarTemplates||[], i=ts.findIndex(t=>t.id===tid), j=i+d;
@@ -5934,26 +5974,6 @@ function richtextKD(e){
       e.preventDefault();
       selectAndDelete();
       rtSetList(kind);
-      return;
-    }
-    // "+" starts a count on this item at zero; "/3" gives it a target of three. Typed at
-    // the end of the line, so "+" mid-sentence is still a plus sign. Only the trigger is
-    // deleted — selectAndDelete would take the whole line with it, since these arrive
-    // after the words rather than before them.
-    const cm=/(\+|\/(\d{1,3}))$/.exec(textBefore);
-    if(cm&&node.textContent.slice(range.startOffset).trim()===''){
-      const li=(node.parentElement||{}).closest?node.parentElement.closest('li'):null;
-      if(li){
-        e.preventDefault();
-        const r2=document.createRange();
-        r2.setStart(node,range.startOffset-cm[0].length);r2.setEnd(node,range.startOffset);
-        sel.removeAllRanges();sel.addRange(r2);
-        document.execCommand('delete');
-        const cur=rtCountParse(li.getAttribute('data-n'))||{n:0,tgt:null};
-        li.setAttribute('data-n',cm[2]===undefined?String(cur.n):cur.n+'/'+ +cm[2]);
-        rtCountPaint(li);
-        rtFire(li.closest(RT_HOSTS));
-      }
     }
   }
 }
@@ -6132,6 +6152,41 @@ function rtSetStatus(){
   lis=lis.filter(li=>{ const p=li.parentElement;
     return p&&p.tagName==='UL'&&!p.classList.contains('rt-todo'); });
   lis.forEach(li=>li.setAttribute('data-st',RT_ST_RING[0]));
+  return lis.length;
+}
+// Put a count on the touched items. Same opening as rtSetStatus — with no list at the
+// caret, make one, so there is still exactly one path to "this is now a list" — but this
+// one does not require a <ul>: a count is worth having on a numbered item too. A checklist
+// is left out; its items already carry a box, and two marks on one line is a fussy row.
+// Reached from the / menu and nowhere else. It used to be "+" then Space, which cost you
+// the plus sign — a reserved character is a character you can no longer type.
+function rtSetCount(ask){
+  let lis=rtSelLis();
+  if(!lis.length){
+    const l=rtSetList('bullet');
+    const li=rtCaretLi();
+    if(li) lis=[li];
+    else if(l) lis=[...l.children].filter(n=>n.tagName==='LI');
+  }
+  lis=lis.filter(li=>{ const p=li.parentElement;
+    return p&&(p.tagName==='UL'||p.tagName==='OL')&&!p.classList.contains('rt-todo'); });
+  if(!lis.length) return 0;
+  let tgt=null;
+  if(ask){
+    const a=prompt('How many, to call it done?','3');
+    if(a===null) return 0;
+    const n=parseInt(a,10);
+    if(!(n>=1&&n<=999)) return 0;
+    tgt=n;
+  }
+  lis.forEach(li=>{
+    // An item that already counts keeps its number: asking for a target is about the
+    // shape of the row, not a reason to lose what you have already done.
+    const cur=rtCountParse(li.getAttribute('data-n'));
+    const n=cur?cur.n:0;
+    li.setAttribute('data-n',tgt===null?String(n):n+'/'+tgt);
+    rtCountPaint(li);
+  });
   return lis.length;
 }
 function rtNormalizeLists(root){
@@ -6401,7 +6456,7 @@ document.addEventListener('keydown',e=>{
 // .cv-bd is a canvas box's body. Listing it here is the whole of what makes tables,
 // lists, checkboxes, toggles and the slash menu work inside a box — one editor,
 // used in a second place, rather than a second editor to keep in step.
-const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd,.jr-ed';
+const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd,.jr-ed,.jr-commit';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
 let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 // Whether the "split into how many" popover is open. Like _rtMenu, it is state rather
@@ -8952,6 +9007,8 @@ const RT_CMDS=[
   {k:'lettered',ic:'a.',label:'Lettered list',run:()=>rtSetList('letter')},
   {k:'todo',ic:'☑',label:'To-do list',run:()=>rtSetList('todo')},
   {k:'status',ic:'◐',label:'Mark in progress',run:()=>rtSetStatus()},
+  {k:'count',ic:'●',label:'Count',run:()=>rtSetCount(false)},
+  {k:'target',ic:'○',label:'Count of…',run:()=>rtSetCount(true)},
   {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>document.execCommand('strikeThrough',false,null)}
 ];
 // Three clicks return the item to what it was, which is the whole reason a plain bullet
