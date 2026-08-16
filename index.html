@@ -6533,14 +6533,29 @@ function rtNormalizeCols(t){
 // What the table cannot be narrower than. Counting colgroup entries gets this wrong
 // the moment one row is split: the split adds a grid column to express a boundary
 // that exists in that row alone, and every other row goes on showing the cells it
-// always had. Charging the whole table RT_MINW for it raises the floor past the card
-// and everything resizes to make room for a column nobody can see. What actually has
-// to fit is the row with the most cells in it — a colspan is one cell however many
-// grid columns it happens to cover.
+// always had. Charging the whole table for a column nobody can see raises the floor
+// past the card and everything resizes to make room for it. What actually has to fit
+// is the row with the most in it — a colspan is one cell however many grid columns it
+// happens to cover.
+//
+// Each cell is charged what its own content needs, not a flat RT_MINW. A flat charge
+// is what made a six-column table impossible in a narrow pane: 6 × 56 is 336px against
+// a 318px pane, so the table scrolled and could never do anything else — and the
+// last-boundary drag, clamped between that floor and the pane, had a range of zero
+// pixels and would not move at all. A column of single letters does not need 56px.
 function rtMinTableWidth(t){
   const rows=rtRows(t);
   if(!rows.length) return rtCols(t).length*RT_MINW;
-  return Math.max(...rows.map(r=>r.cells.length))*RT_MINW;
+  // Measuring every cell runs on every mousemove of a drag through rtNormalizeCols, so
+  // the answer is cached against something cheap that changes whenever the answer could:
+  // the shape of the table and how much text is in it. The property is an expando and
+  // does not survive innerHTML, so nothing reaches the saved card.
+  const sig=rows.length+'/'+Math.max(...rows.map(r=>r.cells.length))+'/'+t.textContent.length;
+  const c=t.__rtMinW;
+  if(c&&c.sig===sig) return c.val;
+  const val=rtMeasureMinWidth(t,rows);
+  t.__rtMinW={sig,val};
+  return val;
 }
 
 // Percentages are written to two places, so two edges that ought to coincide only do
@@ -7989,7 +8004,7 @@ function rtShowCtl(t){
       }
       const rz=mk('rt-rz'+(sp.length?' rt-rz-row rt-rz-sel':''),`left:${bx-3}px;top:${top}px;height:${hgt}px`);
       rz.title=sp.length?`Drag to resize ${sp.length===1?'the selected cell':'the selected rows'} only`
-                        :'Drag to resize · double-click to distribute evenly';
+        :'Drag to resize · double-click to distribute '+(rtSelBands(t,rtBands(t))?'the selected columns':'evenly');
       if(_rtRz&&_rtRz.ci===ci) rz.classList.add('rt-rz-on');
       rz.onmousedown=e=>rtRzStart(e,t,ci,rz,cn);
       rz.ondblclick=e=>{ e.preventDefault(); e.stopPropagation(); _rtRz=null; document.body.style.userSelect=''; rtDistributeCols(t); };
@@ -8139,7 +8154,10 @@ function rtShowCtl(t){
       m.appendChild(row);
     });
     const sep=document.createElement('div');sep.className='rt-sep';m.appendChild(sep);
-    [['Distribute columns evenly',()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
+    // The label says which columns it will touch, so the scoping is something you read
+    // before you commit to it rather than something you find out afterwards.
+    const dlab=rtSelBands(t,rtBands(t))?'Distribute selected columns evenly':'Distribute columns evenly';
+    [[dlab,()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
       const row=document.createElement('div');row.className='rt-item';
       row.innerHTML='<span class="rt-ck">↔</span><span></span>';
       row.lastElementChild.textContent=label;
@@ -8324,7 +8342,9 @@ function rtScheduleHide(){
 // RT_SNAP is the ordinary handle's tolerance. RT_ALIGN is wider because it is the one snap
 // you have to *hit*: lining a split row up with the rest of the table is the whole reason the
 // gesture exists, and 7px asked for more precision than the target deserved.
-const RT_MINW=56,RT_MAXW=720,RT_SNAP=7,RT_ALIGN=11,RT_NOMW=640;
+// RT_ABSMINW is the hard floor under the content-derived one rtCellFloor computes: below
+// about this, a cell has no room for a caret and the borders start touching.
+const RT_MINW=56,RT_ABSMINW=24,RT_MAXW=720,RT_SNAP=7,RT_ALIGN=11,RT_NOMW=640;
 // The per-column floor while a boundary is being dragged. A flat 56px is right in a wide
 // table and wrong in a narrow one: a text card in the four-column grid is about 270px inside
 // its padding, so three columns there start with barely 100px of slack between them and the
@@ -8362,6 +8382,33 @@ function rtInnerWidth(t){
   const r=w.getBoundingClientRect(),cs=getComputedStyle(w);
   if(r.width<1) return RT_NOMW;
   return Math.max(RT_MINW,r.width-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0));
+}
+// The narrowest a cell can be drawn and still be a cell. Its content's min-content width,
+// not the natural width rtContentWidths measures: a floor is "what cannot wrap", so a
+// paragraph floors at its longest word while a column of single letters floors at a letter.
+// Capped at RT_MINW, so content can only ever lower this and an ordinary table is unchanged;
+// floored at RT_ABSMINW so an empty cell is still somewhere you can put the caret.
+function rtCellFloor(px){ return Math.max(RT_ABSMINW,Math.min(RT_MINW,Math.ceil(px||0)+22)); }
+// The widest row's floor, measured off-screen in one pass — same probe technique as
+// rtContentWidths, asking for min-content rather than the natural width.
+function rtMeasureMinWidth(t,rows){
+  const probe=document.createElement('div');
+  probe.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0;width:min-content;font:'+getComputedStyle(t).font;
+  document.body.appendChild(probe);
+  let max=0;
+  try{
+    rows.forEach(tr=>{
+      let sum=0;
+      [...tr.cells].forEach(td=>{
+        probe.innerHTML=td.innerHTML;
+        sum+=rtCellFloor(probe.getBoundingClientRect().width);
+      });
+      if(sum>max) max=sum;
+    });
+  }finally{ probe.remove(); }
+  // A table that measures nothing — inside a collapsed toggle, or a card not laid out yet —
+  // keeps the old flat floor rather than being told it can be zero wide.
+  return max||rtCols(t).length*RT_MINW;
 }
 // Natural width of the widest cell in each column, measured once off-screen.
 function rtContentWidths(t){
@@ -8615,18 +8662,34 @@ function rtPush(want,lo,budget,w0s,mins){
   return {w,right:right.map(Math.round)};
 }
 // ── whole-table sizing commands ──
+// Which bands a highlighted selection covers, or null for "no selection, so the whole
+// table". Same switch the resize handle uses — rt-sel only, never a bare caret, which is
+// in a cell whenever you type. See rtSelPairsAt.
+function rtSelBands(t,bands){
+  if(!_rtSel.length||!_rtSelUser) return null;
+  const gr=rtGrid(t),sel=new Set(_rtSel);
+  const out=bands.filter(b=>{
+    for(let r=0;r<gr.rows;r++) for(let c=b.c;c<b.c+b.cs;c++){
+      const td=gr.g[r]&&gr.g[r][c];
+      if(td&&sel.has(td)) return true;
+    }
+    return false;
+  });
+  return out.length?out:null;
+}
 function rtDistributeCols(t){
   // Bands, not grid columns: "even" has to mean even to the eye, and a column holding
   // a split cell covers more than one grid column while still being one column.
   const bands=rtBands(t);
-  if(!bands.length) return;
-  // The widest column sets the width for all of them, the same rule the selection
-  // bar uses. Dividing the card's width instead made this a "shrink to fit" that
-  // squeezed the one column that actually needed the room.
-  const w=Math.max(RT_MINW,...bands.map(b=>Math.round(b.w)));
-  bands.forEach(b=>rtSetBandWidth(t,b.c,b.cs,w));
-  // Asking for the widest all round overshoots the card; normalising divides what
-  // there is by the same number of equal shares, which is what "even" meant anyway.
+  const use=rtSelBands(t,bands)||bands;
+  // One column has nothing to be even with.
+  if(use.length<2) return;
+  // Divide what these columns already occupy between them. For a whole table that is the
+  // same answer as giving every column the widest one's width and letting rtNormalizeCols
+  // rescale — equal is equal — but it is the only version that works on a selection, where
+  // the columns outside it have to keep the exact widths they had.
+  const each=use.reduce((a,b)=>a+b.w,0)/use.length;
+  use.forEach(b=>rtSetBandWidth(t,b.c,b.cs,each));
   rtNormalizeCols(t);
   rtFire(rtHost(t)); rtShowCtl(t);
 }
