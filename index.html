@@ -1849,19 +1849,79 @@ function render(){
 // the gap comes out of the span. Shorten a card and it claims fewer rows, which is
 // what lets the card below it rise into the space instead of leaving a hole.
 const PGRID_ROW=4, PGRID_GAP=14;
+// Cards that start at the same height belong to the same row — the grid's 4px rows have no
+// notion of a row of cards, so the row is whatever the eye sees, which is a shared top edge.
+// Given each card's measured top, natural height and opt-out flag, the height each one should
+// be held open to; 0 means leave it as it is. A card that opts out neither stretches nor drags
+// the row taller — that is the whole point of opting out: a tall journal beside three short
+// text cards should not triple them.
+// Tops are subpixel — a border, a scaled screen — so a row is a cluster within a pixel and a
+// half of each other, not an exact match. Rounding each top to an integer instead would split
+// two cards that sit half a pixel apart across a .5 boundary, which is a row that levels itself
+// on some screens and not others.
+const PGRID_ROWTOL=1.5;
+function _rowTargets(items){
+  const out=items.map(()=>0);
+  const ix=items.map((it,i)=>i).filter(i=>!items[i].free)
+    .sort((a,b)=>items[a].top-items[b].top);
+  let row=[],top=null;
+  const settle=()=>{
+    if(!row.length) return;
+    const h=Math.max(...row.map(i=>items[i].h));
+    row.forEach(i=>out[i]=h);
+  };
+  ix.forEach(i=>{
+    if(top===null||items[i].top-top<=PGRID_ROWTOL){ row.push(i); if(top===null) top=items[i].top; }
+    else { settle(); row=[i]; top=items[i].top; }
+  });
+  settle();
+  return out;
+}
+// Six is a guard against a layout that will not settle, not a tuning knob. Each pass evens the
+// topmost row that was not even yet, and a row below only becomes a row once the row above it
+// is level, so a grid of N rows converges in N passes and then reports no change.
+const PGRID_PASSES=6;
+let _packing=false;
 function packCards(){
+  // Our own writes reach the ResizeObserver. Without this the pass that levels a row would
+  // schedule the pass that levels it again.
+  if(_packing) return;
+  _packing=true;
+  try{
+    for(let pass=0;pass<PGRID_PASSES;pass++) if(!_packPass()) break;
+  } finally { _packing=false; }
+}
+// One pass: level every row, then set the spans from the levelled heights. Returns whether it
+// changed any card's height, which is what tells packCards to go round again.
+function _packPass(){
+  let changed=false;
   document.querySelectorAll('.pgrid').forEach(g=>{
-    [...g.children].forEach(c=>{
-      if(!c.classList||!c.classList.contains('pcard')&&!c.classList.contains('paddcard')) return;
-      c.style.gridRowEnd='';
-      // A lifted card is out of the flow, and anything unmeasurable (a hidden view,
-      // or a test environment with no layout) is left alone rather than guessed at.
-      if(c.classList.contains('pdrag')) return;
-      const h=c.getBoundingClientRect().height;
-      if(!h) return;
-      c.style.gridRowEnd='span '+Math.max(1,Math.ceil((h+PGRID_GAP)/PGRID_ROW));
+    const cards=[...g.children].filter(c=>c.classList&&
+      (c.classList.contains('pcard')||c.classList.contains('paddcard')));
+    // Clear the span and the previous stretch first, so what gets measured below is the
+    // height the card wants rather than the height the last pass gave it.
+    const was=new Map();
+    cards.forEach(c=>{ c.style.gridRowEnd=''; was.set(c,c.style.minHeight);
+      if(c.style.minHeight) c.style.minHeight=''; });
+    // A lifted card is out of the flow, and anything unmeasurable (a hidden view, or a test
+    // environment with no layout) is left alone rather than guessed at.
+    const live=cards.filter(c=>!c.classList.contains('pdrag'))
+      .map(c=>({el:c,r:c.getBoundingClientRect()})).filter(x=>x.r.height);
+    // The add-card tile is not a card and has no def; it never stretches and never sets a row.
+    const items=live.map(x=>({top:x.r.top,h:x.r.height,
+      free:!x.el.classList.contains('pcard')||!!cardDef(x.el.dataset.cardid)?.freeH}));
+    _rowTargets(items).forEach((t,i)=>{
+      if(t>Math.round(items[i].h)) live[i].el.style.minHeight=t+'px';
+    });
+    // Changed means changed since before this pass cleared it. A pass that lands on the same
+    // pixels it started with is the exit, and is also the pass that fires no resize.
+    cards.forEach(c=>{ if(c.style.minHeight!==was.get(c)) changed=true; });
+    live.forEach(x=>{
+      const h=x.el.getBoundingClientRect().height;
+      if(h) x.el.style.gridRowEnd='span '+Math.max(1,Math.ceil((h+PGRID_GAP)/PGRID_ROW));
     });
   });
+  return changed;
 }
 window.addEventListener('resize',packCards);
 // A card can grow long after the render that placed it — you type a line, a table
@@ -3234,7 +3294,10 @@ function _cardMenuHTML(def){
   if(def.type==='habits'&&!def.editing){
     it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">Choose levers</button>`);
   }
-  // A clock card has no options at all, so it would open with a rule above its only item.
+  // Every type gets this one: the tall journal and the canvas are the cards most likely to
+  // want out of their row, so it cannot be gated on type the way the others are.
+  it.push(`<button class="padd-item pm-i" onclick="_cardFreeH('${id}')"
+    >${def.freeH?'Match row height':'Free height'}</button>`);
   if(it.length) it.push(`<div class="pm-sep"></div>`);
   it.push(`<button class="padd-item pm-i pm-del" onclick="_cardDelete('${id}')">Delete card</button>`);
   return `<div class="pcard-menu" onpointerdown="event.stopPropagation()">${it.join('')}</div>`;
@@ -3243,6 +3306,14 @@ function _cardMenuHTML(def){
 // Clearing _cardMenu alone used to be enough only because a render was coming to sweep it away.
 function _cardColour(e,id){ e.stopPropagation(); _cardMenuClose(); openChartColorPop(e,'tl_'+id); }
 function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
+// Absent means "match the row", so the shared floor is what a card does unless it is told not
+// to, and no existing card needs migrating.
+function _cardFreeH(id){
+  _cardMenuClose();
+  const c=cardDef(id); if(!c) return;
+  if(c.freeH) delete c.freeH; else c.freeH=true;
+  _cardsDirty(); render();
+}
 function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
 // removePlannerCard renders when it removes something, but it also has a confirm you can
 // decline — and then the menu is closed in state and still on screen. Render for that case.
