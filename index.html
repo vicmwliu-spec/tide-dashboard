@@ -608,7 +608,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* width:100% here as well as on .rt-fixed, so a table fits its card in the moment
    between being pasted in and rtEnsureCols giving it a colgroup. */
 .rt-table{border-collapse:collapse;width:100%;font-size:13px;font-family:var(--font);table-layout:fixed}
-.rt-table td{border:1px solid var(--border);padding:6px 9px;min-width:96px;max-width:320px;vertical-align:top;line-height:1.55;word-wrap:break-word;outline:none}
+/* A whole number of pixels, not 1.55 of 13px. Every other term in a table's height — the
+   padding here, .rt-tw's margins, .pcard-bd's padding, the collapsed borders — is an integer,
+   so that .15 was the only thing device-pixel snapping could round two ways, and two cards
+   holding the same tables drifted a couple of pixels apart further down the column. */
+.rt-table td{border:1px solid var(--border);padding:6px 9px;min-width:96px;max-width:320px;vertical-align:top;line-height:20px;word-wrap:break-word;outline:none}
 /* Header row / header column are opt-in classes (rt-hopt marks a table as migrated) */
 .rt-table.rt-hr tr:first-child td,.rt-table.rt-hc tr td:first-child{background:var(--surface2);font-weight:600}
 .rt-table:not(.rt-hopt) tr:first-child td{background:var(--surface2);font-weight:600}
@@ -639,7 +643,11 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .rt-table td.rt-sel{box-shadow:inset 0 0 0 999px rgba(59,130,246,.20)}
 /* Floating table controls — rendered on <body>, never saved into card HTML */
 #rt-ctl,#rt-tog-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
-#rt-ctl .rt-btn,#rt-ctl .rt-grip,#rt-tog-ctl .rt-btn{position:fixed;pointer-events:auto;cursor:pointer}
+/* z-index over the "space" strip below, which is 14px tall and covers the 4px band the column
+   grips sit in. Both are fixed and neither carried a z-index, so the one built later won every
+   click and the grips could not be grabbed at all. Stated here rather than left to the order
+   rtShowCtl happens to create them in. */
+#rt-ctl .rt-btn,#rt-ctl .rt-grip,#rt-tog-ctl .rt-btn{position:fixed;pointer-events:auto;cursor:pointer;z-index:2}
 #rt-tog-ctl .rt-btn,#rt-ctl .rt-btn{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text3);font-size:14px;line-height:1;box-shadow:var(--shadow-md)}
 /* Invisible padding ring so the button is easy to hit and hard to slip off */
 #rt-ctl .rt-btn::before{content:'';position:absolute;inset:-8px;border-radius:50%}
@@ -719,7 +727,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    hidden anywhere you aren't already looking. The label is the card's own 9px tracked
    eyebrow, the same one the weekday heads and the day label use, and the rule is a plain
    hairline: a dashed line was the only one in the app. */
-#rt-ctl .rt-openln{position:fixed;pointer-events:auto;height:14px;display:flex;align-items:center;justify-content:center;
+#rt-ctl .rt-openln{position:fixed;pointer-events:auto;z-index:1;height:14px;display:flex;align-items:center;justify-content:center;
   font-family:var(--font);font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);
   border-top:1px solid var(--border);cursor:text;opacity:0;transition:opacity .12s ease}
 #rt-ctl .rt-openln:hover{opacity:1;color:var(--text2);border-top-color:var(--text3)}
@@ -6833,6 +6841,10 @@ function rtTrimLeadingGap(host){
   const kids=[...host.childNodes];
   let i=0;
   while(i<kids.length&&_rtBlankLead(kids[i])) i++;
+  // A line you asked for with the "space" strip is content, not the old guard's leftover. It
+  // says so in its own markup, which is the only way to tell the two apart — they are the same
+  // empty paragraph otherwise. Legacy runs carry no class and are still cleaned up.
+  for(let k=0;k<i;k++) if(kids[k].nodeType===1&&kids[k].classList.contains('rt-gap')) return false;
   const first=kids[i];
   if(!i||!first||first.nodeType!==1) return false;
   if(!(first.classList.contains('rt-tw')||first.tagName==='TABLE')) return false;
@@ -6921,9 +6933,15 @@ document.addEventListener('mousedown',e=>{
 function rtOpenLine(host,ref,before){
   if(!host||!ref) return null;
   const sib=before?ref.previousElementSibling:ref.nextElementSibling;
-  // Reuse an empty paragraph that is already there instead of stacking blank lines.
-  if(sib&&!_rtIsTableBlock(sib)&&!sib.textContent.trim()){ rtPlaceCaretAtEnd(sib); return sib; }
-  const p=document.createElement('p'); p.innerHTML='<br>';
+  // Reuse an empty paragraph that is already there instead of stacking blank lines. It is
+  // tagged on the way past: reusing a legacy run is how a gap gets back onto a card that
+  // still carries one, and an untagged run is cleaned off again on the next load.
+  if(sib&&!_rtIsTableBlock(sib)&&!sib.textContent.trim()){
+    sib.classList.add('rt-gap'); rtPlaceCaretAtEnd(sib); rtFire(host); return sib; }
+  // rt-gap says this line was asked for. Nothing lays it out differently — it is an
+  // ordinary empty paragraph — but it is what rtTrimLeadingGap reads to tell a line you
+  // wanted from the leftover of a guard rule that no longer exists.
+  const p=document.createElement('p'); p.className='rt-gap'; p.innerHTML='<br>';
   host.insertBefore(p,before?ref:ref.nextSibling);
   rtPlaceCaretAtEnd(p);
   rtFire(host);
