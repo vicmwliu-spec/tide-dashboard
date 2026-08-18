@@ -158,6 +158,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
   text-align:center;font-variant-numeric:tabular-nums;transition:background .12s,color .12s}
 .tl-ml:hover{background:var(--border);color:var(--text1)}
 .tl-ml.off{color:var(--tlc,var(--edit))}
+/* The space under the calendar, typable — the same pane the journal card puts under its own
+   grid. A sibling of the grid and above .tl-foot, so the month's own line stays the card's
+   baseline. flex:1 with a one-line floor: it takes whatever height the card has spare, and a
+   card nobody types in grows by a single line rather than by a whole empty pane. */
+.tl-note{flex:1;overflow-y:auto;min-height:34px;outline:none;font-size:12.5px;line-height:1.7;
+  color:var(--text1);border-top:1px solid var(--border);padding-top:8px}
 /* margin-top on top of .tlcard's 8px gap. The footer is a different kind of thing from
    the grid above it, and at 8px it read as a seventh week. */
 .tl-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:6px;
@@ -269,8 +275,8 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pcard-bd{padding:8px 16px 14px;min-height:80px;flex:1}
 /* A block at the very top of a card sits at exactly the body's top padding, so
    a table inserted first lines up identically on every card. */
-.pcard-bd>*:first-child,#aar-editor>*:first-child,.jr-ed>*:first-child,.jr-commit>*:first-child{margin-top:0}
-.pcard-bd>*:last-child,#aar-editor>*:last-child,.jr-ed>*:last-child,.jr-commit>*:last-child{margin-bottom:0}
+.pcard-bd>*:first-child,#aar-editor>*:first-child,.jr-ed>*:first-child,.jr-commit>*:first-child,.tl-note>*:first-child{margin-top:0}
+.pcard-bd>*:last-child,#aar-editor>*:last-child,.jr-ed>*:last-child,.jr-commit>*:last-child,.tl-note>*:last-child{margin-bottom:0}
 .pcard-lnk{background:none;border:none;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px}
 .pcard-lnk:hover{color:var(--accent);background:var(--surface2)}
 .pcard-lnk.on{color:var(--accent);background:var(--today-bg)}
@@ -547,45 +553,45 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .wk-arc-btn:hover{background:var(--border2);color:var(--text1)}
 .wk-arc-btn.wk-arc-on{color:var(--accent)}
 .wk-arc-btn svg{width:12px;height:12px;display:block}
-#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr,.cv-bd hr,.jr-ed hr,.jr-commit hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
-#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol,.cv-bd ul,.cv-bd ol,.jr-ed ul,.jr-commit ul,.jr-ed ol,.jr-commit ol{padding-left:22px;margin:4px 0}
-#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li,.cv-bd li,.jr-ed li,.jr-commit li{margin:2px 0}
-#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul,.cv-bd ul,.jr-ed ul,.jr-commit ul{list-style-type:disc}
-#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul,.cv-bd ul ul,.jr-ed ul ul,.jr-commit ul ul{list-style-type:circle}
-#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul,.cv-bd ul ul ul,.jr-ed ul ul ul,.jr-commit ul ul ul{list-style-type:square}
-#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol,.cv-bd ol,.jr-ed ol,.jr-commit ol{list-style-type:decimal}
+#aar-editor hr,.quote-ta hr,.priority-ta hr,.notes-ta hr,.intention-ta hr,.cv-bd hr,.jr-ed hr,.jr-commit hr,.tl-note hr{border:none;border-top:2px solid var(--border);margin:14px 0;display:block}
+#aar-editor ul,#aar-editor ol,.quote-ta ul,.quote-ta ol,.priority-ta ul,.priority-ta ol,.notes-ta ul,.notes-ta ol,.intention-ta ul,.intention-ta ol,.cv-bd ul,.cv-bd ol,.jr-ed ul,.jr-commit ul,.tl-note ul,.jr-ed ol,.jr-commit ol,.tl-note ol{padding-left:22px;margin:4px 0}
+#aar-editor li,.quote-ta li,.priority-ta li,.notes-ta li,.intention-ta li,.cv-bd li,.jr-ed li,.jr-commit li,.tl-note li{margin:2px 0}
+#aar-editor ul,.quote-ta ul,.priority-ta ul,.notes-ta ul,.intention-ta ul,.cv-bd ul,.jr-ed ul,.jr-commit ul,.tl-note ul{list-style-type:disc}
+#aar-editor ul ul,.quote-ta ul ul,.priority-ta ul ul,.notes-ta ul ul,.intention-ta ul ul,.cv-bd ul ul,.jr-ed ul ul,.jr-commit ul ul,.tl-note ul ul{list-style-type:circle}
+#aar-editor ul ul ul,.quote-ta ul ul ul,.priority-ta ul ul ul,.notes-ta ul ul ul,.intention-ta ul ul ul,.cv-bd ul ul ul,.jr-ed ul ul ul,.jr-commit ul ul ul,.tl-note ul ul ul{list-style-type:square}
+#aar-editor ol,.quote-ta ol,.priority-ta ol,.notes-ta ol,.intention-ta ol,.cv-bd ol,.jr-ed ol,.jr-commit ol,.tl-note ol{list-style-type:decimal}
 /* Numbered lists stay numbered at every depth. A lettered list is something you ask
    for with the "A. " shortcut, which sets list-style-type inline and so still wins. */
 /* Checklists. The checkbox is drawn entirely in CSS from a data attribute — an
    <input> would be useless here because its checked state is a property and never
    survives the innerHTML round trip we persist card content through. */
-#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo,.cv-bd ul.rt-todo,.jr-ed ul.rt-todo,.jr-commit ul.rt-todo{list-style:none;padding-left:4px}
-#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li,.cv-bd ul.rt-todo li,.jr-ed ul.rt-todo li,.jr-commit ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
-#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before,.cv-bd ul.rt-todo li::before,.jr-ed ul.rt-todo li::before,.jr-commit ul.rt-todo li::before{
+#aar-editor ul.rt-todo,.quote-ta ul.rt-todo,.priority-ta ul.rt-todo,.notes-ta ul.rt-todo,.intention-ta ul.rt-todo,.cv-bd ul.rt-todo,.jr-ed ul.rt-todo,.jr-commit ul.rt-todo,.tl-note ul.rt-todo{list-style:none;padding-left:4px}
+#aar-editor ul.rt-todo li,.quote-ta ul.rt-todo li,.priority-ta ul.rt-todo li,.notes-ta ul.rt-todo li,.intention-ta ul.rt-todo li,.cv-bd ul.rt-todo li,.jr-ed ul.rt-todo li,.jr-commit ul.rt-todo li,.tl-note ul.rt-todo li{position:relative;padding-left:22px;list-style:none}
+#aar-editor ul.rt-todo li::before,.quote-ta ul.rt-todo li::before,.priority-ta ul.rt-todo li::before,.notes-ta ul.rt-todo li::before,.intention-ta ul.rt-todo li::before,.cv-bd ul.rt-todo li::before,.jr-ed ul.rt-todo li::before,.jr-commit ul.rt-todo li::before,.tl-note ul.rt-todo li::before{
   content:'';position:absolute;left:0;top:.28em;width:14px;height:14px;box-sizing:border-box;
   border:1.5px solid var(--border);border-radius:4px;cursor:pointer;text-decoration:none;
   font-size:10px;line-height:11px;text-align:center;color:#fff;font-weight:700}
-#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before,.jr-ed ul.rt-todo li[data-done="1"]::before,.jr-commit ul.rt-todo li[data-done="1"]::before{
+#aar-editor ul.rt-todo li[data-done="1"]::before,.quote-ta ul.rt-todo li[data-done="1"]::before,.priority-ta ul.rt-todo li[data-done="1"]::before,.notes-ta ul.rt-todo li[data-done="1"]::before,.intention-ta ul.rt-todo li[data-done="1"]::before,.cv-bd ul.rt-todo li[data-done="1"]::before,.jr-ed ul.rt-todo li[data-done="1"]::before,.jr-commit ul.rt-todo li[data-done="1"]::before,.tl-note ul.rt-todo li[data-done="1"]::before{
   content:'✓';background:var(--text2);border-color:var(--text2)}
-#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"],.jr-ed ul.rt-todo li[data-done="1"],.jr-commit ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul.rt-todo li[data-done="1"],.quote-ta ul.rt-todo li[data-done="1"],.priority-ta ul.rt-todo li[data-done="1"],.notes-ta ul.rt-todo li[data-done="1"],.intention-ta ul.rt-todo li[data-done="1"],.cv-bd ul.rt-todo li[data-done="1"],.jr-ed ul.rt-todo li[data-done="1"],.jr-commit ul.rt-todo li[data-done="1"],.tl-note ul.rt-todo li[data-done="1"]{text-decoration:line-through;color:var(--text3)}
 /* Task status, carried by the bullet itself. Not a list kind — a property of the item,
    so an ordinary bullet list holds statused and plain items side by side. The <ul>
    already reserves 22px of padding for markers, so the glyph is drawn back into that
    space with position:absolute and the item's own text box never moves: a statused
    line and a plain one sit on exactly the same left edge. Scoped off .rt-todo, whose
    items own that gutter already for their checkbox. */
-#aar-editor ul:not(.rt-todo)>li[data-st],.quote-ta ul:not(.rt-todo)>li[data-st],.priority-ta ul:not(.rt-todo)>li[data-st],.notes-ta ul:not(.rt-todo)>li[data-st],.intention-ta ul:not(.rt-todo)>li[data-st],.cv-bd ul:not(.rt-todo)>li[data-st],.jr-ed ul:not(.rt-todo)>li[data-st],.jr-commit ul:not(.rt-todo)>li[data-st]{list-style:none;position:relative}
-#aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before,.jr-ed ul:not(.rt-todo)>li[data-st]::before,.jr-commit ul:not(.rt-todo)>li[data-st]::before{
+#aar-editor ul:not(.rt-todo)>li[data-st],.quote-ta ul:not(.rt-todo)>li[data-st],.priority-ta ul:not(.rt-todo)>li[data-st],.notes-ta ul:not(.rt-todo)>li[data-st],.intention-ta ul:not(.rt-todo)>li[data-st],.cv-bd ul:not(.rt-todo)>li[data-st],.jr-ed ul:not(.rt-todo)>li[data-st],.jr-commit ul:not(.rt-todo)>li[data-st],.tl-note ul:not(.rt-todo)>li[data-st]{list-style:none;position:relative}
+#aar-editor ul:not(.rt-todo)>li[data-st]::before,.quote-ta ul:not(.rt-todo)>li[data-st]::before,.priority-ta ul:not(.rt-todo)>li[data-st]::before,.notes-ta ul:not(.rt-todo)>li[data-st]::before,.intention-ta ul:not(.rt-todo)>li[data-st]::before,.cv-bd ul:not(.rt-todo)>li[data-st]::before,.jr-ed ul:not(.rt-todo)>li[data-st]::before,.jr-commit ul:not(.rt-todo)>li[data-st]::before,.tl-note ul:not(.rt-todo)>li[data-st]::before{
   position:absolute;left:-16px;width:14px;text-align:center;line-height:inherit;
   cursor:pointer;text-decoration:none;font-size:11px}
 /* There is no glyph for "not started" because the disc already is one. An untouched
    bullet is the default state, which is where most items live, so the marked states are
    only the two that say something: in progress takes the accent, because that is what
    you want to find when you scan the card, and done goes quiet. */
-#aar-editor ul>li[data-st="doing"]::before,.quote-ta ul>li[data-st="doing"]::before,.priority-ta ul>li[data-st="doing"]::before,.notes-ta ul>li[data-st="doing"]::before,.intention-ta ul>li[data-st="doing"]::before,.cv-bd ul>li[data-st="doing"]::before,.jr-ed ul>li[data-st="doing"]::before,.jr-commit ul>li[data-st="doing"]::before{content:'◐';color:var(--edit)}
-#aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before,.jr-ed ul>li[data-st="done"]::before,.jr-commit ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
+#aar-editor ul>li[data-st="doing"]::before,.quote-ta ul>li[data-st="doing"]::before,.priority-ta ul>li[data-st="doing"]::before,.notes-ta ul>li[data-st="doing"]::before,.intention-ta ul>li[data-st="doing"]::before,.cv-bd ul>li[data-st="doing"]::before,.jr-ed ul>li[data-st="doing"]::before,.jr-commit ul>li[data-st="doing"]::before,.tl-note ul>li[data-st="doing"]::before{content:'◐';color:var(--edit)}
+#aar-editor ul>li[data-st="done"]::before,.quote-ta ul>li[data-st="done"]::before,.priority-ta ul>li[data-st="done"]::before,.notes-ta ul>li[data-st="done"]::before,.intention-ta ul>li[data-st="done"]::before,.cv-bd ul>li[data-st="done"]::before,.jr-ed ul>li[data-st="done"]::before,.jr-commit ul>li[data-st="done"]::before,.tl-note ul>li[data-st="done"]::before{content:'✓';color:var(--text2)}
 /* Done looks the same here as a ticked checklist item does above. One "done" in the app. */
-#aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"],.jr-ed ul>li[data-st="done"],.jr-commit ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
+#aar-editor ul>li[data-st="done"],.quote-ta ul>li[data-st="done"],.priority-ta ul>li[data-st="done"],.notes-ta ul>li[data-st="done"],.intention-ta ul>li[data-st="done"],.cv-bd ul>li[data-st="done"],.jr-ed ul>li[data-st="done"],.jr-commit ul>li[data-st="done"],.tl-note ul>li[data-st="done"]{text-decoration:line-through;color:var(--text3)}
 /* Rich-text simple table (Notion-style) */
 /* The wrapper owns the width, as a share of the card, and the table fills it. An
    explicit width is what lets the table inside be a percentage at all — a
@@ -2001,7 +2007,16 @@ function tlHome(id){ delete _tlMo[id]; tlRepaint(id); }
 // card, the header and the charts — to page one card's calendar.
 function tlRepaint(id){
   const el=document.querySelector(`.tlcard[data-cardid="${id}"]`);
-  if(el) el.innerHTML=timelineCardBody(id);
+  if(el){ el.innerHTML=timelineCardBody(id); tlAfter(id); }
+}
+// The note under the calendar restores from the card's own slot, the way a text card's body
+// does — after the repaint, so rtFreezeTables runs with the content already in the document.
+// Paging the month replaces the whole card body, and what you typed is not part of the month.
+function tlAfter(id){
+  setTimeout(()=>{
+    const n=document.querySelector(`.tlcard[data-cardid="${id}"] .tl-note`);
+    if(n){ n.innerHTML=cardHTML(id)||''; rtFreezeTables(); rtSeedUndo(n); }
+  },0);
 }
 // The weekday header, in the order the week actually runs, and the control that sets that
 // order. Both grids draw the same strip, so it is built here rather than twice.
@@ -2203,7 +2218,12 @@ function timelineCardBody(id){
   const pos=onPD
     ? `<div class="tl-day"><span class="tl-dl">Day</span><b>${sel}</b><span class="tl-dt">/ ${days}</span></div>`
     : `<div class="tl-day"><b>${days}</b><span class="tl-dt">days</span></div>`;
+  // Emitted empty and filled by tlAfter, the way the journal's commitments pane is: the content
+  // has to be in the document before rtFreezeTables can do anything with a table in it.
   return `${nav}<div class="tl-grid">${hd}${rows}</div>
+    <div class="tl-note" contenteditable="true" data-cardid="${id}"
+      onkeydown="richtextKD(event)"
+      oninput="saveCard('${id}',rtOnInput(this))"></div>
     <div class="tl-foot">
       <div class="tl-pos">
         ${pos}${
@@ -3044,6 +3064,7 @@ function mkPlannerCard(def,ix){
     // it up from one place instead of each button carrying its own inline style.
     body=`<div class="pcard-bd tlcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
     foot='';
+    setTimeout(()=>tlAfter(def.id),0);
   }else if(def.type==='journal'){
     // Content is emitted inline rather than restored on a timer — journalCardBody reads the
     // entry itself — but the editor still needs the post-render pass every rich-text host
@@ -6438,7 +6459,7 @@ document.addEventListener('keydown',e=>{
 // .cv-bd is a canvas box's body. Listing it here is the whole of what makes tables,
 // lists, checkboxes, toggles and the slash menu work inside a box — one editor,
 // used in a second place, rather than a second editor to keep in step.
-const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd,.jr-ed,.jr-commit';
+const RT_HOSTS='.quote-ta,.intention-ta,.priority-ta,.notes-ta,#aar-editor,.cv-bd,.jr-ed,.jr-commit,.tl-note';
 let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
 let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 // Whether the "split into how many" popover is open. Like _rtMenu, it is state rather
