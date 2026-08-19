@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0819-b1">
+<meta name="build" content="0819-c1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -108,6 +108,12 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
      row. The narrow breakpoints below reset every start to auto, and this makes a
      stray one harmless rather than silently costing a column of width. */
   grid-auto-columns:0}
+/* Scroll anchoring picks an element to hold still and shifts the scroll position to keep it there
+   when things around it move. These are the worst possible candidates for that: a packing pass
+   clears every card's gridRowEnd, and with grid-auto-rows:4px that drops each card to a single row
+   before the span goes back on, so an anchored card appears to leap up the page and the browser
+   "corrects" by a matching distance. Excluding them leaves anchoring working everywhere else. */
+.pgrid,.pgrid>*{overflow-anchor:none}
 /* Timeline card: the month as a calendar, weeks numbered as the rest of the app
    numbers them. Days are buttons — clicking one moves the page to that day.
    Every marked state reads --tlc, which the card sets from your chosen colour;
@@ -1186,7 +1192,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0819-b1';
+const RT_BUILD = '0819-c1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -3594,6 +3600,15 @@ function _cardDragMoveTo(x,y){
 }
 document.addEventListener('pointermove',e=>{
   const s=_cardDrag; if(!s) return;
+  // A mouse moving with nothing pressed means the release happened somewhere this document never
+  // saw it: outside the window, behind a context menu, or through a setPointerCapture that failed
+  // into the catch below. _cardDrag was then never cleared, and x0/y0 still hold coordinates from
+  // that press — so the distance test further down passed on the next twitch of the mouse, lifted
+  // a card nobody was dragging, and the autoscroll at the end of this handler ran the page to the
+  // bottom. That is the "it jumps all the way down when I just move the mouse". Ending rather than
+  // nulling puts a lifted card back and removes its placeholder. pointerType matters: touch and
+  // pen report buttons:0 perfectly legitimately, and their gesture is governed by the hold below.
+  if(e.pointerType==='mouse'&&!e.buttons){ _cardDragEnd(false); return; }
   // Still waiting out the hold: any real movement means the finger was scrolling, so drop the
   // gesture entirely and let the browser keep the scroll it has already started. Returning
   // without preventDefault is the point — nothing here interferes with that scroll.
@@ -3625,7 +3640,11 @@ document.addEventListener('pointermove',e=>{
     const rest=kids.filter(el=>el!==s.ph);
     s.grid.insertBefore(s.ph,rest[ins]||null);
   }
-  // dragover-driven autoscroll doesn't fire for pointer drags, so do it here.
+  // dragover-driven autoscroll doesn't fire for pointer drags, so do it here. It states its own
+  // precondition rather than inheriting it from the branch above: this is the line that turned a
+  // stale drag record into a page that ran away, so it should be impossible to reach it by
+  // accident from anywhere else in this handler.
+  if(!s.live) return;
   const m=70, vh=innerHeight;
   if(e.clientY<m) scrollBy(0,-Math.ceil((m-e.clientY)/6));
   else if(e.clientY>vh-m) scrollBy(0,Math.ceil((e.clientY-(vh-m))/6));
@@ -3659,6 +3678,14 @@ function _cardDragEnd(commit){
 }
 document.addEventListener('pointerup',()=>_cardDragEnd(true));
 document.addEventListener('pointercancel',()=>_cardDragEnd(false));
+// Every remaining way a press ends without this document seeing the release. Each one is a moment
+// where the button comes up somewhere else — another window, a context menu, a capture the browser
+// took back — and each used to leave _cardDrag set for the rest of the session. Discarded, never
+// committed: a gesture that ended by losing focus did not choose where the card should land.
+window.addEventListener('blur',()=>_cardDragEnd(false));
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') _cardDragEnd(false); });
+document.addEventListener('contextmenu',()=>_cardDragEnd(false));
+document.addEventListener('lostpointercapture',()=>{ if(_cardDrag&&!_cardDrag.live) _cardDragEnd(false); },true);
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&_cardDrag) _cardDragEnd(false);
 });
