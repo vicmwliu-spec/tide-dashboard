@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0819-a1">
+<meta name="build" content="0819-b1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -375,6 +375,33 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .pins:hover::before,.pins.on::before{opacity:1}
 .pins-t:hover::before,.pins-t.on::before,.pins-b:hover::before,.pins-b.on::before{height:2px}
 .pins-l:hover::before,.pins-l.on::before,.pins-r:hover::before,.pins-r.on::before{width:2px}
+
+/* Everything above that reveals itself on hover is opacity:0, not pointer-events:none — which is
+   fine with a mouse, because the pointer that can reach it has already revealed it. A finger never
+   does. On a touchscreen the .pins are invisible but fully live 14px bands hanging outside all four
+   edges of every card, and .pins-t/.pins-b land exactly in the gap between two stacked cards, which
+   is where you put your finger to scroll a one-column layout. Tapping one opens an insert point or
+   adds a card, which is what made the phone feel like it moved things at random.
+
+   Gated on the input device rather than a width: at a width, these would break in a narrow desktop
+   window and stay broken on a tablet. */
+@media (hover:none) and (pointer:coarse){
+  .pins{pointer-events:none}
+  /* Both grips are pixel work, and they are wired onmousedown, so on touch they only fire through
+     the synthesized compatibility event — present enough to steal a tap, too erratic to resize
+     with. Width-resize also has nothing to say here: the grid is a single fixed column. */
+  .pgrip,.pgrip-x{display:none}
+  /* The one piece of hidden chrome that has to become reachable instead: ⋯ is the only route to
+     rename, convert, free height and delete, so hiding it on touch hides the card's whole menu. */
+  .pcard-more{opacity:1}
+  /* Vertical belongs to the browser from the first frame — see _cardGrabStart, where a touch now
+     has to be held before it becomes a drag. pan-y rather than none is what makes scrolling off a
+     card header correct even if the JS below it is wrong. */
+  .pcard-grab{touch-action:pan-y}
+  /* The pick-up needs to be visible on a screen with no cursor to change shape. Shadow only —
+     _cardDragMoveTo owns transform, so a scale here would be overwritten on the next move. */
+  .pcard.pdrag{box-shadow:0 14px 32px rgba(0,0,0,.28)}
+}
 /* The capsule. Zero-sized until wanted, so the resting state stays a bare line. */
 .pins i{position:relative;display:flex;align-items:center;justify-content:center;
   width:0;height:0;overflow:hidden;border-radius:7px;background:#3B82F6;color:#fff;
@@ -453,8 +480,13 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
   .pcard{grid-column:auto / span 1 !important}
   .pcard[data-span="2"],.pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 2 !important}
 }
-@media (max-width:680px){
-  .pgrid{grid-template-columns:1fr;gap:8px}
+/* 768px, matching the mobile stylesheet below — at 680 the band from 680 to 768 got two card
+   columns wearing phone-sized chrome. column-gap, never the gap shorthand: gap would set row-gap
+   too, and row-gap is deliberately 0 because the vertical gap is carried in packCards' spans.
+   Writing gap:8px here put 8px on top of the 14px already in the span, which is why cards sat
+   22px apart on a phone and 14px everywhere else. */
+@media (max-width:768px){
+  .pgrid{grid-template-columns:1fr;column-gap:8px}
   .pcard,.pcard[data-span="2"],.pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 1 !important}
 }
 .top-left-col{width:35%;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
@@ -1154,7 +1186,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0819-a1';
+const RT_BUILD = '0819-b1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -1931,9 +1963,18 @@ function packCards(){
   // schedule the pass that levels it again.
   if(_packing) return;
   _packing=true;
+  // A pass measures by collapsing: it clears every card's span, and .pgrid is grid-auto-rows:4px,
+  // so for that instant the whole grid is one 4px row per card and the document is a fraction of
+  // its real height. Scrolled down, the browser clamps scrollY to the new maximum, and putting the
+  // spans back does not bring you back — the page jumps. So hold the height across the collapse.
+  // render() pins the same way for the same reason (:1837); it may still be holding its own pin
+  // when the 0ms pack fires, which is why the previous value is put back rather than ''.
+  const app=document.getElementById('app');
+  const pin=app?app.style.minHeight:'';
+  if(app) app.style.minHeight=app.offsetHeight+'px';
   try{
     for(let pass=0;pass<PGRID_PASSES;pass++) if(!_packPass()) break;
-  } finally { _packing=false; }
+  } finally { _packing=false; if(app) app.style.minHeight=pin; }
 }
 // One pass: level every row, then set the spans from the levelled heights. Returns whether it
 // changed any card's height, which is what tells packCards to go round again.
@@ -1967,7 +2008,11 @@ function _packPass(){
   });
   return changed;
 }
-window.addEventListener('resize',packCards);
+// Through _packSoon, not packCards directly: a resize storm — dragging a window, a scrollbar
+// appearing, or a phone's URL bar collapsing as you scroll — otherwise runs the whole six-pass
+// routine once per event, synchronously. This is also the one caller that used to ignore
+// _packHold, so an incidental resize could interrupt a width drag mid-gesture.
+window.addEventListener('resize',_packSoon);
 // A card can grow long after the render that placed it — you type a line, a table
 // gains a row, a webfont lands late. .pgrid is align-items:start, so a card is sized
 // by its own content and not stretched to its grid area: outgrow the span and the
@@ -3447,11 +3492,23 @@ function removePlannerCard(id){
 // index below because a drop now answers two questions — which column the card
 // belongs to, and where in that list it sits — and only the second one moves
 // other cards.
-function _cardDropCol(x,gridRect,span){
-  if(!gridRect||!gridRect.width) return 1;
-  const track=gridRect.width/PGRID_COLS;
+// cols is how many columns are actually on screen, which below 1180px is not PGRID_COLS. Dividing
+// by the constant meant a drag to the right edge of a one-column phone layout stored col:4 — you
+// could not see it there, since the media queries force span 1, but the card had moved to column 4
+// the next time the grid was opened on a desktop. 0 means "do not touch the stored column": one
+// column has no horizontal choice to record, and writing 1 would flatten a layout you set up wide.
+function _cardDropCol(x,gridRect,span,cols){
+  if(!gridRect||!gridRect.width) return 0;
+  const n=cols||PGRID_COLS;
+  if(n<2) return 0;
+  const track=gridRect.width/n;
   const c=Math.floor((x-gridRect.left)/track)+1;
-  return Math.min(PGRID_COLS-span+1,Math.max(1,c));
+  return Math.min(n-span+1,Math.max(1,c));
+}
+// The rendered track count, read the way _cardRzxStart reads it.
+function _cardGridCols(grid){
+  const t=getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean);
+  return t.length||PGRID_COLS;
 }
 // Where the card would land, given the pointer and the other cards' boxes. Pure,
 // so it can be tested without layout — jsdom has none. Reading order: insert
@@ -3472,13 +3529,39 @@ function _cardDropIndex(x,y,boxes,dragIx){
 }
 
 let _cardDrag=null;
+// How long a finger has to stay put before the header becomes a drag handle, and how far it may
+// wander while it waits. 500ms matches the skip long-press further down so the two gestures feel
+// like one app; 6px matches _bindTouchScroll's axis slop.
+const PCARD_HOLD=500, PCARD_SLOP=6;
+let _cardHoldTimer=null;
+function _cardHoldCancel(){ clearTimeout(_cardHoldTimer); _cardHoldTimer=null; }
 function _cardGrabStart(e,id){
   // Left button only, and never from a control inside the header.
   if(e.button!==0||e.target.closest('input,button,select,textarea,[contenteditable]')) return;
   const card=e.target.closest('.pcard'), grid=card&&card.closest('.pgrid');
   if(!grid) return;
+  const touch=e.pointerType!=='mouse';
+  // held: a touch has to earn the drag. Until the timer fires this record exists only so
+  // pointermove can measure the slop and pointerup can cancel — it never lifts anything, and
+  // .pcard-grab is touch-action:pan-y on a coarse pointer, so the browser is scrolling the page
+  // the whole time. A mouse is unchanged: armed immediately, lifts at the 5px in pointermove.
   _cardDrag={id,card,grid,hd:e.currentTarget,x0:e.clientX,y0:e.clientY,
-             pid:e.pointerId,live:false,ins:-1};
+             pid:e.pointerId,live:false,ins:-1,held:touch};
+  if(touch){
+    _cardHoldCancel();
+    _cardHoldTimer=setTimeout(()=>{
+      _cardHoldTimer=null;
+      const s=_cardDrag;
+      if(!s||!s.held||s.live) return;
+      s.held=false;
+      // Capture is taken here rather than on pointerdown: holding it through the wait would stop
+      // the page scrolling under the finger, which is the whole thing being fixed.
+      try{ s.hd.setPointerCapture(s.pid) }catch{}
+      navigator.vibrate?.(10);
+      _cardDragLift();
+    },PCARD_HOLD);
+    return;
+  }
   try{ e.currentTarget.setPointerCapture(e.pointerId) }catch{}
 }
 // A few pixels of slop, so clicking the header (or its label field) is still a click.
@@ -3511,6 +3594,15 @@ function _cardDragMoveTo(x,y){
 }
 document.addEventListener('pointermove',e=>{
   const s=_cardDrag; if(!s) return;
+  // Still waiting out the hold: any real movement means the finger was scrolling, so drop the
+  // gesture entirely and let the browser keep the scroll it has already started. Returning
+  // without preventDefault is the point — nothing here interferes with that scroll.
+  if(s.held){
+    if(Math.abs(e.clientX-s.x0)+Math.abs(e.clientY-s.y0)>PCARD_SLOP){
+      _cardHoldCancel(); _cardDrag=null;
+    }
+    return;
+  }
   if(!s.live){
     if(Math.abs(e.clientX-s.x0)+Math.abs(e.clientY-s.y0)<5) return;
     _cardDragLift();
@@ -3523,8 +3615,8 @@ document.addEventListener('pointermove',e=>{
   const dragIx=kids.indexOf(s.ph);
   const boxes=kids.map(el=>el.getBoundingClientRect());
   const ins=_cardDropIndex(e.clientX,e.clientY,boxes,dragIx);
-  const col=_cardDropCol(e.clientX,s.grid.getBoundingClientRect(),s.span);
-  if(col!==s.col){
+  const col=_cardDropCol(e.clientX,s.grid.getBoundingClientRect(),s.span,_cardGridCols(s.grid));
+  if(col&&col!==s.col){
     s.col=col;
     s.ph.style.gridColumn=`${col} / span ${s.span}`;
   }
@@ -3541,6 +3633,7 @@ document.addEventListener('pointermove',e=>{
 function _cardDragEnd(commit){
   const s=_cardDrag; if(!s) return;
   _cardDrag=null;
+  _cardHoldCancel();
   try{ s.hd.releasePointerCapture(s.pid) }catch{}
   if(!s.live) return;
   // The lifted card was moved to <body> to escape the grid's stacking context, so
