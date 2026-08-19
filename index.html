@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0811-c5">
+<meta name="build" content="0819-a1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1154,10 +1154,16 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0811-c5';
+const RT_BUILD = '0819-a1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
-let _lastSyncedAt = null; // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed
+// updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
+// when this device last wrote to localStorage. Both persist, because the question they answer
+// — "is there local work the cloud has not seen?" — is asked at boot, when an in-memory
+// variable is null and every local edit since the last push looks like nothing at all.
+const SK_SYNC = SK+':sync', SK_AT = SK+':at';
+let _lastSyncedAt = localStorage.getItem(SK_SYNC) || null;
+function _setSynced(iso){ _lastSyncedAt=iso; localStorage.setItem(SK_SYNC,iso); }
 
 function updateSyncBadge(){
   const el = document.getElementById('sync-badge');
@@ -1194,7 +1200,7 @@ async function _pushToCloud(force){
     const nowIso=new Date().toISOString();
     const {error}=await _sb.from('tide_data').upsert({id:'main',data:D,updated_at:nowIso});
     if(error) throw error;
-    _lastSyncedAt=nowIso;
+    _setSynced(nowIso);
     _syncStatus='synced';
   }catch(e){
     console.warn('Sync failed:',e);
@@ -1208,11 +1214,25 @@ async function loadFromCloud(){
     const {data,error}=await _sb.from('tide_data').select('data,updated_at').eq('id','main').single();
     if(error) throw error;
     const cloudHasData=data?.data && Object.keys(data.data).length>0 && data.data.groups;
-    if(cloudHasData){
+    // Every save writes localStorage at once but only schedules the cloud push 1500ms later,
+    // so a reload inside that window used to land here with the cloud still holding the copy
+    // from before the last edit — and adopting it wrote that older copy back over localStorage
+    // too, losing the edit for good. Anything done in the last second and a half before a
+    // refresh went that way; clicking "space" above a table and reloading to check is exactly
+    // that shape, which is how this was found. So: if this device has written since its last
+    // successful push, and the cloud row has not moved on since then, the local copy is the
+    // newer one — keep it and push it rather than overwriting it. Requires a recorded push, so
+    // a device that has never synced still takes the cloud copy as it always did.
+    const localAt=localStorage.getItem(SK_AT);
+    const unpushed=!!(localAt&&_lastSyncedAt&&localAt>_lastSyncedAt);
+    const cloudMoved=!!(data?.updated_at&&_lastSyncedAt&&new Date(data.updated_at)>new Date(_lastSyncedAt));
+    if(cloudHasData&&unpushed&&!cloudMoved){
+      await _pushToCloud();
+    } else if(cloudHasData){
       D=data.data;
       if(!D.aarTemplates) D.aarTemplates=[];
       localStorage.setItem(SK,JSON.stringify(D));
-      _lastSyncedAt=data.updated_at||new Date().toISOString();
+      _setSynced(data.updated_at||new Date().toISOString());
       _syncStatus='synced';
     } else {
       // Cloud is empty — upload our local data so other devices can get it
@@ -1227,9 +1247,25 @@ async function loadFromCloud(){
 
 function save(){
   localStorage.setItem(SK,JSON.stringify(D));
+  // Stamped every write, so a boot can tell local work the cloud has not seen from a device
+  // that is simply behind. Written after D, so a crash between the two reads as "not saved"
+  // rather than claiming a write that did not land.
+  localStorage.setItem(SK_AT,new Date().toISOString());
   clearTimeout(_syncTimer);
-  _syncTimer=setTimeout(_pushToCloud,1500);
+  // Cleared as it fires, so _syncFlush below can tell a push that is still owed from one that
+  // has already gone — a timeout id stays truthy long after the timer has run.
+  _syncTimer=setTimeout(()=>{ _syncTimer=null; _pushToCloud(); },1500);
 }
+// A tab going away takes its pending push with it. Firing it early does not make the push
+// synchronous — nothing can — but it shortens the window, and the boot guard above is what
+// actually makes the edit safe if this never reaches the server.
+function _syncFlush(){
+  if(!_syncTimer) return;
+  clearTimeout(_syncTimer); _syncTimer=null;
+  _pushToCloud();
+}
+window.addEventListener('pagehide',_syncFlush);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') _syncFlush(); });
 
 // One-time repair: the July 2026 recovery left every habit's skips corrupted
 // (marked skipped on days 11-12, i.e. on/after their start date), which zeroed
