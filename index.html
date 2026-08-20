@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0819-c1">
+<meta name="build" content="0820-a1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -71,20 +71,24 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 /* ── Quote ── */
 .quote-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
 .quote-icon{color:var(--text3);font-size:22px;line-height:1;margin-top:1px;flex-shrink:0}
-.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden}
+/* 13px and a whole 20px line, matching .rt-table and .rt-table td below: a table inside one
+   of these cards sets its own type rather than inheriting, so the two have to be kept in step
+   or prose and table rows read at different sizes in the same card. Whole pixels, not 1.6 of
+   13px, for the device-pixel-rounding reason spelled out above .rt-table td. */
+.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden}
 .quote-ta::placeholder{color:var(--text3)}
 /* ── Priority ── */
 .priority-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .priority-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap;margin-top:3px;flex-shrink:0}
-.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden;word-break:break-word;min-height:1.4em}
 .priority-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Notes ── */
 .notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
-.notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden;word-break:break-word;min-height:1.4em}
 .notes-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Intention ── */
 .intention-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
-.intention-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);resize:none;line-height:1.6;overflow:hidden;word-break:break-word;min-height:1.4em}
+.intention-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden;word-break:break-word;min-height:1.4em}
 .intention-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Top row ── */
 .top-row{display:flex;gap:14px;margin-bottom:14px;align-items:stretch}
@@ -817,7 +821,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 #rt-slash .rt-item.on{background:var(--surface2)}
 #rt-slash .rt-empty{padding:8px 10px;font-size:12px;color:var(--text3)}
 /* Richtext contenteditable */
-.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:400;color:var(--text1);line-height:1.6;word-break:break-word;min-height:1.4em}
+.quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);line-height:20px;word-break:break-word;min-height:1.4em}
 .quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 
 /* ── Annual ── */
@@ -1192,7 +1196,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0819-c1';
+const RT_BUILD = '0820-a1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
