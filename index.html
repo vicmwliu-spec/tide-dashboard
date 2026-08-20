@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0820-a1">
+<meta name="build" content="0820-b1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -172,7 +172,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    grid. A sibling of the grid and above .tl-foot, so the month's own line stays the card's
    baseline. flex:1 with a one-line floor: it takes whatever height the card has spare, and a
    card nobody types in grows by a single line rather than by a whole empty pane. */
-.tl-note{flex:1;overflow-y:auto;min-height:34px;outline:none;font-size:12.5px;line-height:1.7;
+.tl-note{flex:1;overflow-y:auto;min-height:34px;outline:none;font-size:13px;line-height:20px;
   color:var(--text1);border-top:1px solid var(--border);padding-top:8px}
 /* margin-top on top of .tlcard's 8px gap. The footer is a different kind of thing from
    the grid above it, and at 8px it read as a seventh week. */
@@ -234,7 +234,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
 .jr-pane{display:none;background:none;border:none;cursor:pointer;color:var(--text3);
   font-size:13px;padding:0 2px;line-height:1;font-family:var(--font)}
 .jr-pane:hover{color:var(--text1)}
-.jr-ed{flex:1;overflow-y:auto;min-height:0;outline:none;font-size:13px;line-height:1.8;color:var(--text1)}
+.jr-ed{flex:1;overflow-y:auto;min-height:0;outline:none;font-size:13px;line-height:20px;color:var(--text1)}
 /* Commitments, under the calendar. A full rich-text host — the same lists, counts, tables and
    slash menu as anywhere else — so it is one editor used in a third place rather than a third
    editor to keep in step. It is a sibling of .jr-list and deliberately not inside it: paging
@@ -243,7 +243,7 @@ html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-s
    tall as its weeks and the commitments take whatever is left, so they sit directly under the
    calendar. Searching, the hits take the whole column — what you are looking through is the
    entries, not this. */
-.jr-commit{flex:1;overflow-y:auto;min-height:64px;outline:none;font-size:12.5px;line-height:1.7;
+.jr-commit{flex:1;overflow-y:auto;min-height:64px;outline:none;font-size:13px;line-height:20px;
   color:var(--text1);border-top:1px solid var(--border);padding-top:8px}
 .jr-side[data-mode="grid"] .jr-list{flex:none}
 .jr-side[data-mode="search"] .jr-commit{display:none}
@@ -1196,7 +1196,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0820-a1';
+const RT_BUILD = '0820-b1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
