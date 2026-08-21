@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0821-b1">
+<meta name="build" content="0821-c1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -346,7 +346,13 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pgrip{position:absolute;left:0;right:0;bottom:-3px;height:9px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;z-index:2}
 .pgrip::after{content:'';width:40px;height:3px;border-radius:3px;background:var(--border)}
 .pgrip:hover::after,.pcard.rz .pgrip::after{background:var(--edit-line)}
+/* The other two edges. Both reuse the base grip above and only move it, so the four cannot drift
+   apart in size, colour or hover behaviour. Each overlaps the outer 3px of the matching .pins
+   insert band, which sits at z-index 6 and therefore still wins the pointer — the same overlap
+   the original two grips already had, not a new one. */
+.pgrip-t{top:-3px;bottom:auto}
 .pgrip-x{position:absolute;top:0;bottom:0;right:-3px;width:9px;cursor:ew-resize;display:flex;align-items:center;justify-content:center;z-index:2}
+.pgrip-xl{left:-3px;right:auto}
 .pgrip-x::after{content:'';height:40px;width:3px;border-radius:3px;background:var(--border)}
 .pgrip-x:hover::after,.pcard.rzx .pgrip-x::after{background:var(--edit-line)}
 /* Outside edit mode the grips are there but quiet: they fade in when you hover
@@ -1211,7 +1217,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0821-b1';
+const RT_BUILD = '0821-c1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -2014,21 +2020,30 @@ const PGRID_ROW=4, PGRID_GAP=14;
 // two cards that sit half a pixel apart across a .5 boundary, which is a row that levels itself
 // on some screens and not others.
 const PGRID_ROWTOL=1.5;
-function _rowTargets(items){
-  const out=items.map(()=>0);
+// Which cards share a row, as arrays of indices into `items`, top row first. Split out of
+// _rowTargets because the resize grips need the same answer: a height drag moves a whole row,
+// so the drag and the packing pass have to agree on what a row is, and there can only be one
+// place that decides. Cards that opted out are absent from the result entirely rather than
+// forming rows of their own -- they belong to no row, which is what opting out means.
+function _rowGroups(items){
   const ix=items.map((it,i)=>i).filter(i=>!items[i].free)
     .sort((a,b)=>items[a].top-items[b].top);
+  const out=[];
   let row=[],top=null;
-  const settle=()=>{
-    if(!row.length) return;
-    const h=Math.max(...row.map(i=>items[i].h));
-    row.forEach(i=>out[i]=h);
-  };
+  const settle=()=>{ if(row.length) out.push(row); };
   ix.forEach(i=>{
     if(top===null||items[i].top-top<=PGRID_ROWTOL){ row.push(i); if(top===null) top=items[i].top; }
     else { settle(); row=[i]; top=items[i].top; }
   });
   settle();
+  return out;
+}
+function _rowTargets(items){
+  const out=items.map(()=>0);
+  _rowGroups(items).forEach(row=>{
+    const h=Math.max(...row.map(i=>items[i].h));
+    row.forEach(i=>out[i]=h);
+  });
   return out;
 }
 // Six is a guard against a layout that will not settle, not a tuning knob. Each pass evens the
@@ -3349,10 +3364,17 @@ function mkPlannerCard(def,ix){
   // Resizing is as everyday as dragging a card to reorder it, so the grips are always
   // wired; they are just invisible until you hover the card (the pgrip-q class), so a page
   // you are only reading isn't ringed with handles.
-  d.innerHTML=head+body+foot+`<div class="pgrip pgrip-q" title="Drag to set height · double-click to reset"
+  // All four edges. The horizontal pair set a height, which here is the row's and not the card's,
+  // so they say so; the top one reaches the row above, because a card's top cannot move without
+  // moving what sits over it. On the topmost row _cardRzStart finds nothing above and does nothing.
+  d.innerHTML=head+body+foot+`<div class="pgrip pgrip-q" title="Drag to set this row's height · double-click to reset"
     onmousedown="_cardRzStart(event,'${def.id}')" ondblclick="setCardHeight('${def.id}',0)"></div>
+    <div class="pgrip pgrip-t pgrip-q" title="Drag to set the height of the row above"
+    onmousedown="_cardRzStart(event,'${def.id}',true)"></div>
     <div class="pgrip-x pgrip-q" title="Drag to set width · double-click to reset"
-    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>`
+    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>
+    <div class="pgrip-x pgrip-xl pgrip-q" title="Drag to set width from the left · double-click to reset"
+    onmousedown="_cardRzxStart(event,'${def.id}',true)" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>`
     +_cardInsHTML(def,ix);
 
   return d;
@@ -3736,8 +3758,17 @@ function _cardDragEnd(commit){
     if(from>=0){
       const def=defs[from];
       let dirty=false;
+      // Read before the column is written, or "did it move" is always false by the time it is asked.
+      const moved=s.ins!==from||!!(s.col&&def.col!==s.col);
       // The column is the card's own property — changing it moves nothing else.
       if(s.col&&def.col!==s.col){ def.col=s.col; dirty=true; }
+      // minH is stored per card but is really the height of the row the card was in — packCards
+      // levels a row and holds every member open to it. Carried into a new row it either forced
+      // that row taller or left the card stretched inside it, and either way the card looked
+      // stuck at a height it never chose. Landing somewhere new drops it: the card takes its new
+      // row's height, and the row it left re-levels to its own content. Only correct now that a
+      // height drag sets the row (see _cardRzGroup) -- before that there was no way to set it back.
+      if(def.minH&&moved){ delete def.minH; dirty=true; }
       if(s.ins!==from){
         const [moved]=defs.splice(from,1);
         defs.splice(Math.max(0,Math.min(defs.length,s.ins)),0,moved);
@@ -3761,15 +3792,74 @@ document.addEventListener('lostpointercapture',()=>{ if(_cardDrag&&!_cardDrag.li
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&_cardDrag) _cardDragEnd(false);
 });
-// Height by dragging the bottom edge, the same mousedown/move/up shape the clock
-// blocks use. Committed on mouseup so a drag is one save, not sixty.
+// Height by dragging a horizontal edge, the same mousedown/move/up shape the clock blocks use.
+// Committed on mouseup so a drag is one save, not sixty.
+//
+// The drag moves a whole row, not one card. In this grid a height is not a property of a card:
+// every card has a fixed column and an auto row, so packCards levels each row to its tallest and
+// holds the others open with a min-height on the card. Writing the drag to one card's body meant
+// that for every card except the row's tallest, the card was already stretched past whatever you
+// dragged to -- nothing moved until you passed the row maximum, and dragging shorter never did
+// anything at all. So the gesture now sets the row, which is the thing that was actually being
+// resized all along.
 let _cardRz=null;
-function _cardRzStart(e,id){
+// The cards that move together when one of them is resized, and the shortest that row can be made
+// without clipping any of them. Rows are measured as they sit rather than collapsed the way a
+// packing pass measures them: the row a drag should move is the one on the screen.
+function _cardRzGroup(card,above){
+  const grid=card.closest('.pgrid'); if(!grid) return null;
+  const live=[...grid.children]
+    .filter(el=>el.classList&&el.classList.contains('pcard')&&!el.classList.contains('pdrag'))
+    .map(el=>({el,r:el.getBoundingClientRect()})).filter(x=>x.r.height);
+  const groups=_rowGroups(live.map(x=>({top:x.r.top,h:x.r.height,
+    free:!!cardDef(x.el.dataset.cardid)?.freeH})));
+  let gi=groups.findIndex(g=>g.some(i=>live[i].el===card));
+  // A card that opted out of matching its row belongs to no row, so there is nothing to drag.
+  if(gi<0) return null;
+  // The top grip resizes the row above -- a card's top edge cannot move without moving whatever
+  // sits over it. On the topmost row there is nothing above, and the grip is not drawn.
+  if(above&&--gi<0) return null;
+  const members=groups[gi].map(i=>live[i].el);
+  // The floor is the tallest thing the row actually contains, measured with everything that holds
+  // a card open taken off and put straight back. min-height here is a floor and never a clip (see
+  // .pgrip), so a row cannot be dragged shorter than its own content.
+  const undo=members.map(el=>{
+    const bd=el.querySelector('.pcard-bd');
+    const u=[el,el.style.minHeight,bd,bd&&bd.style.minHeight,bd&&bd.style.height,bd&&bd.style.flex];
+    el.style.minHeight=''; if(bd){ bd.style.minHeight=''; bd.style.height=''; bd.style.flex=''; }
+    return u;
+  });
+  const floor=Math.max(60,...members.map(el=>el.getBoundingClientRect().height));
+  undo.forEach(([el,eh,bd,bm,bh,bf])=>{ el.style.minHeight=eh;
+    if(bd){ bd.style.minHeight=bm; bd.style.height=bh; bd.style.flex=bf; } });
+  return {members,floor};
+}
+function _cardRzStart(e,id,above){
   e.preventDefault();
-  const card=e.target.closest('.pcard'), bd=card.querySelector('.pcard-bd');
-  _cardRz={id,bd,card,y:e.clientY,h:bd.getBoundingClientRect().height,px:0,
-           cv:(cardDef(id)||{}).type==='canvas'};
+  const card=e.target.closest('.pcard');
+  const g=card&&_cardRzGroup(card,!!above); if(!g) return;
+  // The drag works in card heights because that is what a row is levelled on, but a height is
+  // applied to the body -- so each card's own chrome, which differs with its header and footer,
+  // is measured once here and taken off again when the row height is handed to it.
+  const parts=g.members.map(el=>{
+    const bd=el.querySelector('.pcard-bd'); if(!bd) return null;
+    const cid=el.dataset.cardid;
+    return {el,bd,id:cid,cv:(cardDef(cid)||{}).type==='canvas',
+            chrome:el.getBoundingClientRect().height-bd.getBoundingClientRect().height,
+            was:[el.style.minHeight,bd.style.minHeight,bd.style.height,bd.style.flex]};
+  }).filter(Boolean);
+  if(!parts.length) return;
+  _cardRz={parts,card,y:e.clientY,floor:g.floor,px:0,
+           h:Math.max(...g.members.map(el=>el.getBoundingClientRect().height))};
   card.classList.add('rz');
+}
+// One place applies a row height, so the live preview and the commit cannot disagree about what
+// the row is currently showing.
+function _cardRzApply(s,px){
+  s.px=Math.max(s.floor,px);
+  // Cleared because packCards' own stretch would otherwise fight a drag that shortens the row:
+  // the body is what the drag owns, and the card must be free to follow it down.
+  s.parts.forEach(p=>{ p.el.style.minHeight=''; _cardApplyH(p.bd,Math.max(1,s.px-p.chrome),p.cv); });
 }
 // Lining a card up with its neighbours by eye is guesswork at 4px row granularity,
 // so the drag snaps to the other cards' bottom edges — the same CV_SNAP tolerance
@@ -3804,17 +3894,18 @@ function _cardSnapBottom(bottom,others,tol){
 document.addEventListener('mousemove',e=>{
   if(!_cardRz) return;
   const s=_cardRz;
-  s.px=Math.max(60,Math.round(s.h+(e.clientY-s.y)));
-  _cardApplyH(s.bd,s.px,s.cv);
+  _cardRzApply(s,Math.round(s.h+(e.clientY-s.y)));
+  // Snapping is against the cards this drag is not moving, so the row's own members are left out
+  // -- they all sit on the edge being dragged and would each snap it to itself.
   const grid=s.card.closest('.pgrid');
   const others=grid?[...grid.children]
-    .filter(el=>el!==s.card&&el.classList&&el.classList.contains('pcard'))
+    .filter(el=>el.classList&&el.classList.contains('pcard')&&!s.parts.some(p=>p.el===el))
     .map(el=>el.getBoundingClientRect()).filter(r=>r.height):[];
-  const mine=s.card.getBoundingClientRect();
-  const snap=mine.height?_cardSnapBottom(mine.bottom,others):null;
+  // The row's bottom edge is what the pointer is holding, whichever grip started the drag.
+  const edge=Math.max(...s.parts.map(p=>p.el.getBoundingClientRect().bottom));
+  const snap=isFinite(edge)?_cardSnapBottom(edge,others):null;
   if(snap!=null){
-    s.px=Math.max(60,s.px+Math.round(snap-mine.bottom));
-    _cardApplyH(s.bd,s.px,s.cv);
+    _cardRzApply(s,s.px+Math.round(snap-edge));
     const gr=grid.getBoundingClientRect(), g=_cardGuide();
     g.style.cssText=`position:fixed;pointer-events:none;z-index:60;height:0;`
       +`border-top:1px dashed var(--edit);left:${gr.left}px;width:${gr.width}px;top:${snap}px;display:block`;
@@ -3823,13 +3914,27 @@ document.addEventListener('mousemove',e=>{
   // rather than finding out where it went after you let go.
   packCards();
 });
-document.addEventListener('mouseup',()=>{
-  if(!_cardRz) return;
-  const {id,px,card}=_cardRz;
-  card.classList.remove('rz'); _cardRz=null;
+// commit false puts every card back exactly as it was found. A gesture that ended by losing focus
+// or being cancelled did not choose a height -- the same rule _cardDragEnd follows for reordering.
+function _cardRzEnd(commit){
+  const s=_cardRz; if(!s) return;
+  _cardRz=null;
+  s.card.classList.remove('rz');
   _cardGuideHide();
-  const c=cardDef(id); if(c){ c.minH=px; _cardsDirty(); }
-});
+  if(commit){
+    // Stored in body heights, which is the space def.minH is written back out in by mkCard.
+    s.parts.forEach(p=>{ const c=cardDef(p.id); if(c) c.minH=Math.max(1,s.px-p.chrome); });
+    _cardsDirty();
+  } else {
+    s.parts.forEach(p=>{
+      p.el.style.minHeight=p.was[0]; p.bd.style.minHeight=p.was[1];
+      p.bd.style.height=p.was[2];    p.bd.style.flex=p.was[3];
+      if(p.cv) cvFit(p.bd.querySelector('.cv-surface'));
+    });
+  }
+  packCards();
+}
+document.addEventListener('mouseup',()=>_cardRzEnd(true));
 
 // Width by dragging the right edge. The height drag is the model: one inline property
 // follows the pointer continuously, a dashed guide shows where it will land, and the grid
@@ -3844,7 +3949,7 @@ function _cardApplySpan(card,col,span){
   card.style.gridColumn=`${col} / span ${span}`;
   card.dataset.span=span;
 }
-function _cardRzxStart(e,id){
+function _cardRzxStart(e,id,left){
   e.preventDefault();
   const card=e.target.closest('.pcard'), grid=card.closest('.pgrid');
   if(!grid) return;
@@ -3857,7 +3962,14 @@ function _cardRzxStart(e,id){
   const cols=tracks.length||PGRID_COLS, colW=parseFloat(tracks[0])||1;
   const gap=parseFloat(cs.columnGap)||14;
   const r=card.getBoundingClientRect();
-  _cardRzx={id,card,grid,cols,colW,gap,left:r.left,w:r.width,span:def_span(id),start:def_span(id)};
+  // The right edge is what a left-edge drag holds still, so the column it ends on is fixed for
+  // the gesture and the span is measured back from it. Everything else is shared with the
+  // right-edge drag, including the dead zone -- one arithmetic, mirrored, not two.
+  const def=cardDef(id)||{};
+  _cardRzx={id,card,grid,cols,colW,gap,left:r.left,right:r.right,w:r.width,
+            lf:!!left,endCol:cardCol(def)+cardSpan(def)-1,
+            span:def_span(id),start:def_span(id),
+            was:[card.style.width,card.style.marginLeft,card.style.minHeight]};
   card.classList.add('rzx');
   // Nothing repacks until you let go — see _packHold.
   _packHold=1;
@@ -3877,7 +3989,9 @@ function def_span(id){ return cardSpan(cardDef(id)||{}) }
 // dead on the midpoint, so a pixel of hand jitter there toggled the span on every mousemove
 // and relaid out the whole grid each time. Pure, so the arithmetic is testable without layout.
 function _cardRzxSpan(x,s){
-  const f=(x-s.left+s.gap)/(s.colW+s.gap);
+  // Distance measured from whichever edge is standing still. The dead zone is written once and
+  // read the same way in both directions, so the left drag cannot drift from the right one.
+  const f=((s.lf?s.right-x:x-s.left)+s.gap)/(s.colW+s.gap);
   let span=s.span;
   if(f>s.span+0.6) span=Math.floor(f+0.4);
   else if(f<s.span-0.4) span=Math.ceil(f-0.4);
@@ -3886,42 +4000,66 @@ function _cardRzxSpan(x,s){
 document.addEventListener('mousemove',e=>{
   if(!_cardRzx) return;
   const s=_cardRzx, card=s.card;
-  const col=cardCol(cardDef(s.id)||{});
-  // A card can't grow past the right edge from where it starts.
-  const max=Math.max(1,s.cols-col+1);
+  // Growing right is capped by the grid's right edge; growing left is capped by column 1, which
+  // is the same sum read from the other end -- the column the card ends on is what it keeps.
+  const max=s.lf?Math.max(1,s.endCol):Math.max(1,s.cols-cardCol(cardDef(s.id)||{})+1);
   const span=Math.min(max,Math.max(1,_cardRzxSpan(e.clientX,s)));
   s.span=span;
   // The card follows the pointer in pixels, floored at one column and capped at the edge.
   // Its grid area is untouched, so nothing reflows and nothing repacks: the card simply
   // overhangs the space it is about to claim.
-  const w=Math.min(_cardRzxW(max,s),Math.max(_cardRzxW(1,s),e.clientX-s.left));
+  const w=Math.min(_cardRzxW(max,s),Math.max(_cardRzxW(1,s),
+    s.lf?s.right-e.clientX:e.clientX-s.left));
   card.style.width=Math.round(w)+'px';
+  // A grid item is laid out from its column start, so the only way to preview a card growing
+  // leftward without moving it out of the grid is to pull it back by what it just gained.
+  if(s.lf) card.style.marginLeft=Math.round(s.w-w)+'px';
   // The same dashed guide the height drag draws against a neighbour's bottom edge, turned
   // on its side: this is the column boundary the card will snap back to when you let go.
   const gr=s.grid.getBoundingClientRect(), g=_cardGuide();
   g.style.cssText=`position:fixed;pointer-events:none;z-index:60;width:0;`
     +`border-left:1px dashed var(--edit);top:${gr.top}px;height:${gr.height}px;`
-    +`left:${s.left+_cardRzxW(span,s)}px;display:block`;
+    +`left:${s.lf?s.right-_cardRzxW(span,s):s.left+_cardRzxW(span,s)}px;display:block`;
 });
-document.addEventListener('mouseup',()=>{
-  if(!_cardRzx) return;
-  const {id,span,card}=_cardRzx;
-  card.classList.remove('rzx'); _cardRzx=null;
+// commit false restores the inline styles the drag borrowed and leaves the def alone. Without
+// this, a drag that ended by losing focus left the card pinned at a pixel width and _packHold
+// stuck on, which silently stopped the grid repacking for the rest of the session.
+function _cardRzxEnd(commit){
+  const s=_cardRzx; if(!s) return;
+  const {id,span,card}=s;
+  _cardRzx=null;
+  card.classList.remove('rzx');
   _cardGuideHide();
   // Hand the width back to the grid before the span lands, or the inline pixel width from
   // the preview would outlive the drag and pin the card off its column.
-  card.style.width=''; card.style.minHeight='';
+  card.style.width=s.was[0]; card.style.marginLeft=s.was[1]; card.style.minHeight=s.was[2];
   _packHold=0;
-  const c=cardDef(id);
-  if(c&&cardSpan(c)!==span){
+  const c=commit&&cardDef(id);
+  if(c&&(cardSpan(c)!==span||s.lf)){
+    // Dragging the left edge keeps the card's last column, so the start moves by what the span
+    // gained. Below 1500px the media queries force grid-column:auto, so the stored start has no
+    // effect there and the card grows to the right instead -- the width still changes.
+    if(s.lf) c.col=Math.max(1,s.endCol-span+1);
     c.span=span;
     // Growing a card can push its start column past the right edge; cardCol clamps for that,
     // so re-apply the start the next render will give it rather than leaving the drag's.
-    _cardApplySpan(card,cardCol(c),span);
+    _cardApplySpan(card,cardCol(c),cardSpan(c));
     _cardsDirty();
   }
   packCards();
-});
+}
+document.addEventListener('mouseup',()=>_cardRzxEnd(true));
+// Every way a resize can end without this document seeing the release, discarded rather than
+// committed -- the same set and the same rule _cardDragEnd has had since reordering had this bug
+// (:3751). A gesture that ended because the window lost focus or the browser took the capture
+// back did not choose a size, and leaving one half-applied outlived the gesture by a whole session.
+function _cardRzAbort(){ _cardRzEnd(false); _cardRzxEnd(false); }
+window.addEventListener('blur',_cardRzAbort);
+document.addEventListener('pointercancel',_cardRzAbort);
+document.addEventListener('contextmenu',_cardRzAbort);
+document.addEventListener('lostpointercapture',_cardRzAbort,true);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') _cardRzAbort(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') _cardRzAbort(); });
 
 // ── Carrying forward ──
 // Nothing to carry: templates were removed, and now cards don't reset either, so
