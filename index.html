@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0820-c1">
+<meta name="build" content="0821-a1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -44,6 +44,21 @@
   --font:'Inter',system-ui,sans-serif;
 }
 html,body{font-family:var(--font);background:var(--bg);color:var(--text1);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+/* Draw the text that is actually stored. Inter ships a default-on contextual alternate whose
+   lookup maps x -> multiply.case when a digit precedes it, so "Zone 2 x2" rendered as "Zone 2 x2"
+   with a multiplication sign while "Resistance x3" -- a letter before the space -- did not. The
+   character in the DOM and in the database is a plain ASCII x in every case; only the glyph
+   differed, which is why retyping it never helped and why searching the source for the character
+   found nothing. calt cannot be disabled one rule at a time, so this turns the feature off.
+   The cost, accepted deliberately: Inter's calt holds only this rule and the ASCII arrow
+   ligatures, so a typed "->" now renders as "->" rather than an arrow. Time blocks are unaffected
+   -- tbArrows() converts those to real arrow characters before they reach the font.
+   Form controls are named explicitly because they do not inherit font properties, and the .quote-ta
+   /.notes-ta/.priority-ta/.intention-ta textareas would otherwise keep the substitution.
+   no-contextual rather than font-feature-settings:'calt' 0, which would sit in a different cascade
+   layer from the font-variant-numeric:tabular-nums used throughout. scratchpad/calt.test.py shapes
+   the real Inter with HarfBuzz and asserts both halves of this. */
+html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* Extra room at the foot so the lowest card isn't flush against the window edge. */
 #app{max-width:min(2000px,96vw);margin:0 auto;padding:20px 20px 64px}
 
@@ -1196,7 +1211,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0820-c1';
+const RT_BUILD = '0821-a1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
