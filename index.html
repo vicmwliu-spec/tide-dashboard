@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0821-a1">
+<meta name="build" content="0821-b1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1211,7 +1211,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0821-a1';
+const RT_BUILD = '0821-b1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -7704,7 +7704,7 @@ function rtUnmergeSelection(){
   targets.forEach(td=>{
     const gr=rtGrid(t),p=rtGridPos(gr,td);
     if(!p) return;
-    const was=rtHdOn(td); // same reason as in rtSplitCell: read it before it moves
+    const was=rtHdOn(td); // same reason as in _rtSplitOne: read it before it moves
     td.colSpan=1; td.rowSpan=1;
     const rows=rtRows(t);
     for(let r=p.r;r<p.r+p.rs;r++){
@@ -7784,21 +7784,24 @@ function _rtGrowSpan(t,td,k,dir){
 // rest come up empty. A cell that already spans is divided within the span it has and
 // costs the table nothing; a plain cell needs grid slots that do not exist yet, which
 // is what _rtGrowSpan manufactures.
-function rtSplitCell(td,nc,nr){
+// The geometry alone, with no selection or redraw of its own, so it can be run once per
+// cell across a whole highlighted range. Returns the pieces it made -- the original cell
+// first, which still holds the content -- or null if it could not place them.
+function _rtSplitOne(td,nc,nr){
   nc=Math.max(1,Math.min(20,Math.round(Number(nc))||1));
   nr=Math.max(1,Math.min(20,Math.round(Number(nr))||1));
-  if(nc===1&&nr===1) return false;
-  const t=td&&td.closest&&td.closest('table'); if(!t) return false;
+  if(nc===1&&nr===1) return null;
+  const t=td&&td.closest&&td.closest('table'); if(!t) return null;
   // Read how the cell looks now, before the geometry moves under it: once the pieces
   // exist, "first cell of a header column" is only true of the leftmost one, and the
   // rest would come out plain next to it.
   const was=rtHdOn(td);
-  let p=rtGridPos(rtGrid(t),td); if(!p) return false;
+  let p=rtGridPos(rtGrid(t),td); if(!p) return null;
   _rtGrowSpan(t,td,nc-p.cs,'col');
-  p=rtGridPos(rtGrid(t),td); if(!p) return false;
+  p=rtGridPos(rtGrid(t),td); if(!p) return null;
   _rtGrowSpan(t,td,nr-p.rs,'row');
 
-  const gr=rtGrid(t); p=rtGridPos(gr,td); if(!p) return false;
+  const gr=rtGrid(t); p=rtGridPos(gr,td); if(!p) return null;
   const cw=_rtShares(p.cs,nc),rh=_rtShares(p.rs,nr);
   const co=[],ro=[];
   let x=p.c; cw.forEach(s=>{ co.push(x); x+=s; });
@@ -7808,6 +7811,7 @@ function rtSplitCell(td,nc,nr){
   // next DOM cell it meets — a position read back then is a guess.
   const refs=ro.map((r,i)=>i===0?td.nextSibling:_rtRefAt(gr,r,p.c));
   td.colSpan=cw[0]; td.rowSpan=rh[0];
+  const made=[td];
   for(let i=0;i<nr;i++){
     const tr=rtRows(t)[ro[i]]; if(!tr) continue;
     // Inserting each piece before the same reference keeps them in order.
@@ -7816,10 +7820,31 @@ function rtSplitCell(td,nc,nr){
       cell.colSpan=cw[j]; cell.rowSpan=rh[i];
       tr.insertBefore(cell,refs[i]);
       rtHdSet(cell,was); // after insertion: rtHdPos needs the cell's position to exist
+      made.push(cell);
     }
   }
   rtHdSet(td,was);
-  rtSetSel([td]);
+  return made;
+}
+// Every highlighted cell at once, each divided inside the width it already occupies.
+// Splitting one cell hands grid slots to the cells covering that boundary in other rows
+// (see _rtGrowSpan), so a cell later in the loop may arrive already wider than it started
+// -- which is exactly right: it finds the slots it needs already there, grows the table by
+// nothing, and still divides its own visual band. Positions are re-read on every pass for
+// the same reason rtUnmergeSelection re-reads them.
+function rtSplitSelection(nc,nr){
+  // Snapshot first: rtActiveCells hands back _rtSel itself, and rtSetSel below rewrites it.
+  const cells=rtActiveCells().slice();
+  if(!cells.length) return false;
+  const t=cells[0].closest('table'); if(!t) return false;
+  const made=[];
+  cells.forEach(td=>{ const pieces=_rtSplitOne(td,nc,nr); if(pieces) made.push(...pieces); });
+  if(!made.length) return false;
+  // One cell in, one cell selected out -- what splitting a single cell has always done, and
+  // what keeps a caret-driven split from painting a selection across pieces the caret never
+  // covered. A range in, the whole range stays highlighted, so Shade or Distribute can
+  // follow the split without dragging it again.
+  rtSetSel(cells.length>1?made:[cells[0]]);
   rtFire(rtHost(t)); rtShowCtl(t);
   return true;
 }
@@ -8616,19 +8641,20 @@ function rtShowCtl(t){
     // they stay on the real selection. Split and Shade are happy with one cell.
     const s=_rtSel.length?rtSelShape():null;
     const btns=[];
-    // One slot, one decision. Merge and Unmerge are two faces of the same question and
-    // were showing side by side, which is two buttons asking you to read both labels to
-    // work out which one applies. Shade already worked this way — one button saying what
-    // the click will do — so it is the pattern the rest follow. Selecting more than one
-    // cell can only mean joining them; sitting in a single cell that spans can only mean
-    // taking it apart. The two states are exclusive, so one slot is enough for both.
+    // Merge and Unmerge each appear whenever they apply, which means both at once on a
+    // rectangle that contains a merged cell. These shared one slot on the reasoning that
+    // the two states are exclusive -- more than one cell can only mean joining, a lone
+    // spanning cell can only mean taking apart. That is true of those two cases and false
+    // of the one in between: highlight a merged cell together with its neighbours and both
+    // readings are live, and the single slot always chose Merge, leaving no way to reach
+    // Unmerge without first collapsing the selection down to the one cell.
     if(s&&s.rect&&_rtSel.length>1) btns.push(['Merge',rtMergeSelection]);
-    else if(s&&s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
-    // Unmerge takes a merged cell back to 1×1. Split divides one cell however you
-    // ask, and will manufacture the grid slots if the cell hasn't any spare. Both are
-    // legitimate on a merged cell and mean different things, so this stays its own
-    // button rather than being folded in.
-    if(act.length===1) btns.push(['Split',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
+    if(s&&s.hasSpan) btns.push(['Unmerge',rtUnmergeSelection]);
+    // Unmerge takes every merged cell in the selection back to 1×1. Split divides each
+    // highlighted cell however you ask, and will manufacture the grid slots for any that
+    // haven't the spare. Both are legitimate on a merged cell and mean different things,
+    // so this stays its own button rather than being folded in.
+    if(act.length) btns.push(['Split',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
     // Evening up columns takes more than one cell to be a request. One merged cell
     // covers several columns too, and offering it there put a fourth button on the bar
     // for an action that means nothing without a range to spread across.
@@ -8655,8 +8681,7 @@ function rtShowCtl(t){
     // The "how many pieces" popover, drawn on the overlay like the ⋯ menu so it takes
     // no layout and dies with the controls. Every part of it has to preventDefault on
     // mousedown: a click that moves focus clears the very selection it acts on.
-    if(_rtSplit&&act.length===1){
-      const cell=act[0];
+    if(_rtSplit&&act.length){
       const m=mk('rt-menu rt-splitpop',`left:${Math.max(4,wr.left)}px;top:${tb.top+4}px`);
       m.onmousedown=e=>e.preventDefault();
       const num=(label,val)=>{
@@ -8670,7 +8695,9 @@ function rtShowCtl(t){
       const ic=num('Columns',2),ir=num('Rows',1);
       const go=()=>{
         _rtSplit=false;
-        if(!rtSplitCell(cell,ic.value,ir.value)) rtShowCtl(t);
+        // Reads the selection itself rather than a cell captured when the popover opened:
+        // one cell or twenty, the difference is how many times it runs the same split.
+        if(!rtSplitSelection(ic.value,ir.value)) rtShowCtl(t);
       };
       [ic,ir].forEach(i=>{
         i.onmousedown=e=>e.stopPropagation(); // ...but the inputs still need a caret
