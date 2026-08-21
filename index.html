@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0821-c1">
+<meta name="build" content="0821-d1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -661,7 +661,15 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    shrink-to-fit inline-block asked to hold a width:100% child is circular — and it
    is what the last column handle drags. inline-block stays so two tables narrow
    enough to share a row do, and wrap onto the next when they don't. */
-.rt-tw{overflow-x:auto;margin:10px 0;width:100%;display:inline-block;vertical-align:top}
+/* padding-left is the gutter the floating controls stand in — reserved space, the way Word
+   keeps its table handles in the page margin and Numbers keeps its row tabs outside the grid.
+   It was not reserved before: RT_HOSTS are unpadded (.cv-bd), so "clamp the buttons to the host"
+   resolved to the table's own left edge and drew two opaque 20px discs straight over the first
+   column. Padding rather than a margin so the wrapper's own width is untouched and the inline
+   percentage widths .rt-pair writes still mean what they say; border-box so 100% still fits.
+   rtInnerLeft/rtInnerWidth already subtract it, so every column percentage lands correctly
+   without another term. */
+.rt-tw{overflow-x:auto;margin:10px 0;width:100%;padding-left:12px;display:inline-block;vertical-align:top}
 /* Gap only between a pair you deliberately made, which is why both halves carry the
    class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
    table to sit under another, or paste one beside one, and the second was shunted 10px
@@ -712,8 +720,12 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    rtShowCtl happens to create them in. */
 #rt-ctl .rt-btn,#rt-ctl .rt-grip,#rt-tog-ctl .rt-btn{position:fixed;pointer-events:auto;cursor:pointer;z-index:2}
 #rt-tog-ctl .rt-btn,#rt-ctl .rt-btn{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text3);font-size:14px;line-height:1;box-shadow:var(--shadow-md)}
-/* Invisible padding ring so the button is easy to hit and hard to slip off */
-#rt-ctl .rt-btn::before{content:'';position:absolute;inset:-8px;border-radius:50%}
+/* Invisible padding ring so the button is easy to hit and hard to slip off. 4px, not 8: a
+   button can end up within a few pixels of a cell, and at 8 the ring reached past the border
+   and the cell's 9px padding onto the glyphs, so clicking the start of a word put no caret in
+   the cell — it pressed the button. The ceiling is the cell padding, and 28px is still a
+   comfortable mouse target. */
+#rt-ctl .rt-btn::before{content:'';position:absolute;inset:-4px;border-radius:50%}
 #rt-ctl .rt-btn:hover{color:var(--text1);background:var(--surface2)}
 #rt-ctl .rt-grip{background:var(--border);border-radius:2px;opacity:.55;cursor:grab}
 #rt-ctl .rt-grip:hover{opacity:1;background:#3B82F6}
@@ -1217,7 +1229,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0821-c1';
+const RT_BUILD = '0821-d1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -6921,6 +6933,21 @@ function rtHost(n){
   const el=n&&n.nodeType===Node.TEXT_NODE?n.parentElement:n;
   return el&&el.closest?el.closest(RT_HOSTS):null;
 }
+// The box the floating controls may stand in. The host itself is the wrong answer: every
+// RT_HOSTS selector names an unpadded editable (.cv-bd and friends), so its content edge and
+// the table's are the same line, and clamping a 20px button to it put the button on the text.
+// The room is one level out, in whatever block actually carries the horizontal padding — a
+// card's .pcard-bd, the journal's column. Walk up for the first ancestor that has some and
+// use its border box; fall back to the host when nothing does, which is no worse than before.
+function rtGutter(host){
+  let el=host&&host.parentElement;
+  for(let i=0;el&&el!==document.body&&i<6;i++,el=el.parentElement){
+    const cs=getComputedStyle(el);
+    if((parseFloat(cs.paddingLeft)||0)>=8||(parseFloat(cs.paddingRight)||0)>=8)
+      return el.getBoundingClientRect();
+  }
+  return (host||document.body).getBoundingClientRect();
+}
 function rtMakeCell(){
   const td=document.createElement('td');
   td.setAttribute('contenteditable','true');
@@ -8656,7 +8683,11 @@ function rtShowCtl(t){
   } // end per-row boundary handles
   rtRows(t).forEach((tr,ri)=>{
     const r=tr.getBoundingClientRect();
-    const g=mk('rt-grip',`left:${wr.left-7}px;top:${r.top+2}px;width:4px;height:${Math.max(6,r.height-4)}px`);
+    // Inside the wrapper's new gutter and flush against the table's border, rather than
+    // outside the wrapper entirely. Out there they shared a strip with the ⠿/⋯ stack and the
+    // top two rows had no grip you could actually reach; in here the two columns are side by
+    // side and every row keeps its handle.
+    const g=mk('rt-grip',`left:${tb.left-3}px;top:${r.top+2}px;width:3px;height:${Math.max(6,r.height-4)}px`);
     g.title='Drag to move row, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='row'&&_rtMv.from===ri) g.classList.add('rt-mv');
     g.onmousedown=e=>rtMvStart(e,t,'row',ri,g);
@@ -8664,10 +8695,11 @@ function rtShowCtl(t){
   });
   // Both buttons live in the gutter to the table's left, stacked, rather than on the
   // line above it: over that line they covered the text you were typing, which is
-  // worst inside a toggle where the table sits right under the summary. Clamped to
-  // the host so they can't slip off the card's edge either way.
-  const hostR=(rtHost(t)||t).getBoundingClientRect();
-  const gx=Math.max(hostR.left,wr.left-24);
+  // worst inside a toggle where the table sits right under the summary. Clamped to the
+  // padded block around the host so they can't slip off the card's edge either way — the
+  // host itself has no padding, so clamping there just moved them onto the first column.
+  const gut=rtGutter(rtHost(t)||t);
+  const gx=Math.max(gut.left,tb.left-24);
   // Options (header row / header column)
   const ob=mk('rt-btn',`left:${gx}px;top:${tb.top+24}px`);
   ob.textContent='⋯';ob.title='Table options';
@@ -8756,7 +8788,9 @@ function rtShowCtl(t){
     const edge=rtRunEdge(t,before);
     if(!edge) return;
     const er=edge.getBoundingClientRect();
-    const s=mk('rt-openln',`left:${wr.left}px;top:${(before?er.top-13:er.bottom+3)}px;width:${Math.max(60,wr.width)}px`);
+    // Drawn on the table, not on its wrapper: the wrapper now carries the control gutter, and
+    // a strip that started 12px to the left of the table read as belonging to nothing.
+    const s=mk('rt-openln',`left:${tb.left}px;top:${(before?er.top-13:er.bottom+3)}px;width:${Math.max(60,Math.min(tb.width,wr.right-tb.left))}px`);
     s.textContent='space';
     s.title=before?'Add a line above the table':'Add a line below the table';
     s.onmousedown=e=>e.preventDefault(); // don't let the click steal focus first
@@ -8852,12 +8886,16 @@ function rtShowCtl(t){
       setTimeout(()=>{ ic.focus(); ic.select(); },0);
     }
   }
-  const bcx=Math.min(tb.right+2,wr.right-20);
+  // A table is width:100% inside its wrapper, so tb.right and wr.right are the same line and
+  // this clamp always won — which parked the + squarely inside the last column, halfway down,
+  // on top of the text. The card's padding is the room it needed, and clamping there leaves it
+  // overlapping the border and a little of the cell's padding but none of the glyphs.
+  const bcx=Math.min(tb.right+2,gut.right-20);
   const bc=mk('rt-btn',`left:${bcx}px;top:${tb.top+tb.height/2-10}px`);
   bc.textContent='+';bc.title='Add column';
   bc.onclick=()=>{ rtAddCol(t); rtFire(rtHost(t)); rtShowCtl(t); };
-  const brx=Math.min(tb.left+tb.width/2-10,wr.right-20);
-  const br=mk('rt-btn',`left:${Math.max(wr.left,brx)}px;top:${tb.bottom+2}px`);
+  const brx=Math.min(tb.left+tb.width/2-10,gut.right-20);
+  const br=mk('rt-btn',`left:${Math.max(gut.left,brx)}px;top:${tb.bottom+2}px`);
   br.textContent='+';br.title='Add row';
   br.onclick=()=>{ rtAddRow(t); rtFire(rtHost(t)); rtShowCtl(t); };
 }
@@ -9405,10 +9443,13 @@ function rtShowTogCtl(tog){
     document.body.appendChild(el);
   }
   _rtTogHover=tog;
-  const hr=h.getBoundingClientRect(), hostR=host.getBoundingClientRect();
+  // Same clamp as the table's ⠿, and it was degenerate here for the same reason: the host has
+  // no padding, so this resolved to the header's own left edge and the grip covered the
+  // summary text. The padded block one level out is where the room is.
+  const hr=h.getBoundingClientRect(), gut=rtGutter(host);
   const g=el.firstElementChild;
   g.classList.remove('rt-mv');
-  g.style.cssText=`left:${Math.max(hostR.left,hr.left-22)}px;top:${hr.top+1}px`;
+  g.style.cssText=`left:${Math.max(gut.left,hr.left-22)}px;top:${hr.top+1}px`;
   el.style.display='block';
 }
 function rtHideTogCtl(){
