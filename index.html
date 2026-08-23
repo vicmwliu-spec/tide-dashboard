@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0823-a1">
+<meta name="build" content="0823-b1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -378,6 +378,11 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
   box-shadow:var(--shadow-md);padding:5px;display:flex;flex-direction:column;gap:1px}
 .pm-i{font-size:12px;padding:6px 9px;display:flex;align-items:center;gap:7px}
 .pm-sep{height:1px;background:var(--border);margin:4px 2px}
+/* A mode, not an action: the tick sits in the same leading slot the Colour item's dot uses, so
+   the two items line up under their heading and the unticked one still reads as a choice.
+   Same width and blue as the table options menu's .rt-ck, which is the tick this echoes. */
+.pm-lbl{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);padding:6px 9px 2px}
+.pm-ck{color:#3B82F6;font-size:12px;width:13px;text-align:center;flex-shrink:0}
 .pm-del{color:var(--red)}
 .pm-del:hover{background:var(--red);color:#fff}
 /* Add a card here: an insert point sits in the 14px gap around each card, so a new card
@@ -1229,7 +1234,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0823-a1';
+const RT_BUILD = '0823-b1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -2035,8 +2040,14 @@ const PGRID_ROWTOL=1.5;
 // Which cards share a row, as arrays of indices into `items`, top row first. Split out of
 // _rowTargets because the resize grips need the same answer: a height drag moves a whole row,
 // so the drag and the packing pass have to agree on what a row is, and there can only be one
-// place that decides. Cards that opted out are absent from the result entirely rather than
-// forming rows of their own -- they belong to no row, which is what opting out means.
+// place that decides. A card that opted out gets a row of its own rather than being left out of
+// the answer: opting out means "do not match the cards beside me", not "have no height" -- and
+// dropping it from the result is what used to leave the resize grip with nothing to drag, so
+// turning on Free height silently took the card's height drag away with it.
+// The shared rows are clustered from the non-free cards alone, exactly as before -- a free card
+// must not be able to split two cards that would otherwise have clustered through it -- and the
+// singletons are then merged back in by top edge. Ties go to the shared row, so the row "above" a
+// free card is never a row sitting alongside it.
 function _rowGroups(items){
   const ix=items.map((it,i)=>i).filter(i=>!items[i].free)
     .sort((a,b)=>items[a].top-items[b].top);
@@ -2048,11 +2059,23 @@ function _rowGroups(items){
     else { settle(); row=[i]; top=items[i].top; }
   });
   settle();
+  const rowTop=g=>Math.min(...g.map(i=>items[i].top));
+  items.map((it,i)=>i).filter(i=>items[i].free)
+    .sort((a,b)=>items[a].top-items[b].top)
+    .forEach(i=>{
+      let at=out.findIndex(g=>rowTop(g)>items[i].top);
+      out.splice(at<0?out.length:at,0,[i]);
+    });
   return out;
 }
+// The opt-out lives here rather than in _rowGroups so that the packing pass sees exactly what it
+// saw before: a lone free card levelled to its own measured height would not be a no-op, because
+// _packPass compares the target against a *rounded* height and would start writing an inline
+// min-height to any card whose height has a fraction below .5.
 function _rowTargets(items){
   const out=items.map(()=>0);
   _rowGroups(items).forEach(row=>{
+    if(row.length===1&&items[row[0]].free) return;
     const h=Math.max(...row.map(i=>items[i].h));
     row.forEach(i=>out[i]=h);
   });
@@ -3497,8 +3520,14 @@ function _cardMenuHTML(def){
   }
   // Every type gets this one: the tall journal and the canvas are the cards most likely to
   // want out of their row, so it cannot be gated on type the way the others are.
-  it.push(`<button class="padd-item pm-i" onclick="_cardFreeH('${id}')"
-    >${def.freeH?'Match row height':'Free height'}</button>`);
+  // Two items with a tick rather than one item naming the opposite mode. A single toggle label
+  // has to double as a state readout and reads as neither: "Free height" could as easily mean
+  // "this card is free" as "make it free", and on a card already the tallest in its row the
+  // click changes no pixels to disambiguate it.
+  it.push(`<div class="pm-lbl">Height</div>`);
+  it.push([[false,'Match height'],[true,'Free height']].map(([on,lbl])=>
+    `<button class="padd-item pm-i" onclick="_cardSetFreeH('${id}',${on})"
+      ><span class="pm-ck">${!!def.freeH===on?'&#10003;':''}</span>${lbl}</button>`).join(''));
   if(it.length) it.push(`<div class="pm-sep"></div>`);
   it.push(`<button class="padd-item pm-i pm-del" onclick="_cardDelete('${id}')">Delete card</button>`);
   return `<div class="pcard-menu" onpointerdown="event.stopPropagation()">${it.join('')}</div>`;
@@ -3509,10 +3538,24 @@ function _cardColour(e,id){ e.stopPropagation(); _cardMenuClose(); openChartColo
 function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
 // Absent means "match the row", so the shared floor is what a card does unless it is told not
 // to, and no existing card needs migrating.
-function _cardFreeH(id){
+// Set, not toggle: the menu names both modes, so the item you pressed is the mode you get and
+// pressing the one already ticked is a no-op instead of a mode change you did not ask for.
+function _cardSetFreeH(id,on){
   _cardMenuClose();
   const c=cardDef(id); if(!c) return;
-  if(c.freeH) delete c.freeH; else c.freeH=true;
+  if(!!c.freeH===!!on) return;
+  if(on){
+    // Leaving the row must not move the card. minH is stored in body heights (see _cardRzEnd),
+    // so the height the row was holding it open to is measured off the body and kept as its own.
+    const bd=document.querySelector(`.pcard[data-cardid="${id}"] .pcard-bd`);
+    const h=bd&&Math.round(bd.getBoundingClientRect().height);
+    if(h) c.minH=h;
+    c.freeH=true;
+  } else {
+    // Rejoining, the old free height would come back in as a floor the whole row then has to
+    // grow to meet -- which is the row matching the card rather than the other way round.
+    delete c.freeH; delete c.minH;
+  }
   _cardsDirty(); render();
 }
 function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
@@ -3826,7 +3869,8 @@ function _cardRzGroup(card,above){
   const groups=_rowGroups(live.map(x=>({top:x.r.top,h:x.r.height,
     free:!!cardDef(x.el.dataset.cardid)?.freeH})));
   let gi=groups.findIndex(g=>g.some(i=>live[i].el===card));
-  // A card that opted out of matching its row belongs to no row, so there is nothing to drag.
+  // Every measurable card is in a group now, its own if it opted out of matching its neighbours.
+  // Only a card with no height at all -- a hidden view, a test with no layout -- is missing.
   if(gi<0) return null;
   // The top grip resizes the row above -- a card's top edge cannot move without moving whatever
   // sits over it. On the topmost row there is nothing above, and the grip is not drawn.
