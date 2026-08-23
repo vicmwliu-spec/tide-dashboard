@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0821-d1">
+<meta name="build" content="0823-a1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1229,7 +1229,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0821-d1';
+const RT_BUILD = '0823-a1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -6730,11 +6730,21 @@ function rtOnInput(el){ rtGuardBlocks(el); rtNormalizeLists(el); rtSlashUpdate(e
 // cell was highlighted baked the highlight into storage and it came back lit on every reload.
 // Cloning only when there is something to strip keeps the common keystroke free — and the clone
 // means the selection you are still working with stays visible. Same shape as cvHTML.
+// Taking the paint off a cell, and taking the attribute off with it when nothing else is
+// using it. classList.remove leaves class="" behind, which is invisible on screen and not
+// invisible at all to innerHTML: it was being written into saved card HTML, and it meant a
+// snapshot taken while cells were highlighted could never compare equal to one taken when
+// they were not. That inequality is what convinced rtSeedUndo, on the next click, that the
+// card had been replaced by somebody else's content — so it threw the history away.
+function _rtUnpaint(td){
+  td.classList.remove('rt-sel');
+  if(!td.className) td.removeAttribute('class');
+}
 function rtHTML(el){
   if(!el) return '';
   if(!el.querySelector('.rt-sel')) return el.innerHTML;
   const c=el.cloneNode(true);
-  c.querySelectorAll('.rt-sel').forEach(td=>td.classList.remove('rt-sel'));
+  c.querySelectorAll('.rt-sel').forEach(td=>_rtUnpaint(td));
   return c.innerHTML;
 }
 
@@ -6805,8 +6815,27 @@ function _rtSeek(h,c){
 // `snap` commits something other than what is on screen — the state a typing burst had
 // reached before a programmatic edit overwrote the DOM. Without it there is no way to
 // record the past, because by then h.innerHTML is already the future.
+// What the stack stores, and what it compares. rtHTML, not innerHTML, for the same reason
+// the save path uses it: `rt-sel` is paint on the live cell selection, not something you
+// wrote. Snapshotting it meant every table operation recorded a state that stopped being
+// true the moment the highlight cleared — and rtSeedUndo, which wipes the history whenever
+// the DOM disagrees with the top of the stack, then threw the whole history away on the
+// next click into a cell. Merge, split, shade, distribute, delete row: each was undoable
+// for exactly as long as it took to click somewhere.
+function _rtSnap(h){ return {h:rtHTML(h),c:_rtPath(h)}; }
+// The narrower question rtSeedUndo actually asks: "is this somebody else's content?" — not
+// "has a single byte moved". A table's colgroup percentages and its inline min-width are
+// recomputed by the layout pass after rtFire has already snapshotted, so the top of the
+// stack is a little behind the DOM at all times; rtUndo says so and refuses to record it,
+// but the seed had no such guard and treated the drift as a foreign document. Presentation
+// the layout owns is dropped from the comparison only — the stored state keeps it, so
+// undoing a column drag still puts the widths back.
+function _rtSig(html){
+  return String(html).replace(/<colgroup[\s\S]*?<\/colgroup>/gi,'')
+                     .replace(/min-width:\s*[\d.]+px;?/gi,'');
+}
 function _rtCommit(h,st,snap){
-  const state=snap||{h:h.innerHTML,c:_rtPath(h)};
+  const state=snap||_rtSnap(h);
   if(st.i>=0&&st.s[st.i].h===state.h) return;
   st.s=st.s.slice(0,st.i+1);
   st.s.push(state);
@@ -6830,7 +6859,7 @@ function rtPushUndo(h,now){
   if(now){ st.p=null; _rtCommit(h,st); }
   else{
     // Snapshotted at schedule time, when the DOM still holds what was typed.
-    st.p={h:h.innerHTML,c:_rtPath(h)};
+    st.p=_rtSnap(h);
     st.t=setTimeout(()=>{ st.t=0; const p=st.p; st.p=null; _rtCommit(h,st,p); },350);
   }
 }
@@ -6839,7 +6868,8 @@ function rtPushUndo(h,now){
 // screen isn't what the stack last saw.
 function rtSeedUndo(h){
   const st=_rtUState(h);
-  if(st.i<0||st.s[st.i].h!==h.innerHTML){ clearTimeout(st.t); st.t=0; st.p=null; st.s=[{h:h.innerHTML,c:null}]; st.i=0; }
+  const now=rtHTML(h);
+  if(st.i<0||_rtSig(st.s[st.i].h)!==_rtSig(now)){ clearTimeout(st.t); st.t=0; st.p=null; st.s=[{h:now,c:null}]; st.i=0; }
 }
 function rtUndo(h,redo){
   const st=_rtUState(h);
@@ -6861,7 +6891,17 @@ function rtUndo(h,redo){
   st.i=ni;
   _rtRestoring=true;
   try{
+    // Every cell in _rtSel and the table #rt-ctl is pinned to are about to be detached, so
+    // whatever was highlighted is gone whether or not anything says so. Drop the selection
+    // first: rtClearSel on the live nodes keeps the state and the DOM agreeing, where
+    // clearing afterwards would be stripping paint off orphans and leaving the array full
+    // of nodes no longer in the document — which the next table operation would then act on.
+    rtClearSel();
     h.innerHTML=st.s[ni].h;
+    // A restored table is a table like any other: it needs its wrapper, its colgroup and its
+    // guards before anything can be done with it. Without this the first undo of a table
+    // edit brought the markup back inert — no handles, no controls — until a render.
+    rtFreezeTables();
     _rtSeek(h,st.s[ni].c);
     rtFire(h);
   } finally { _rtRestoring=false; }
@@ -7289,7 +7329,7 @@ function rtFreezeTables(){
     // back on the next reload.
     host.querySelectorAll('.rt-sel').forEach(td=>{
       if(_rtSel.includes(td)) return;
-      td.classList.remove('rt-sel'); dirty=true;
+      _rtUnpaint(td); dirty=true;
     });
     if(dirty) rtFire(host);
   });
@@ -7694,7 +7734,7 @@ function rtDelCols(t,idxs){
 // Both redraw the overlay through rtReposition (one rAF, no re-entrancy) so the
 // selection toolbar appears and disappears with the selection itself.
 // The split popover belongs to the selection it was opened over, so it goes with it.
-function rtClearSel(){ const had=_rtSel.length; _rtSplit=false; _rtSel.forEach(td=>td.classList.remove('rt-sel')); _rtSel=[]; if(had) rtReposition(); }
+function rtClearSel(){ const had=_rtSel.length; _rtSplit=false; _rtSel.forEach(td=>_rtUnpaint(td)); _rtSel=[]; if(had) rtReposition(); }
 // `byUser` records who highlighted these cells, which matters because a highlight is now
 // also a mode: it scopes a boundary drag to its own rows. Splitting, merging and formatting
 // all leave a cell highlighted so the control bar has something to act on — the app's doing,
@@ -8181,7 +8221,7 @@ function rtCopyTable(t){
   // Snapshot a clone so the live selection survives (Ctrl+X reads it again to delete),
   // and strip the highlight classes so they aren't baked into the copy.
   const snap=wrap.cloneNode(true);
-  snap.querySelectorAll('.rt-sel').forEach(td=>td.classList.remove('rt-sel'));
+  snap.querySelectorAll('.rt-sel').forEach(td=>_rtUnpaint(td));
   // A copy of one half of a side-by-side pair is not itself half of anything. Carrying
   // the class over would hand the 10px gap to whichever wrapper it happened to land
   // next to, and the inline 50% width would leave the copy stuck at half size.
