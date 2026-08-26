@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a7">
+<meta name="build" content="0825-a8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1249,7 +1249,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a7';
+const RT_BUILD = '0825-a8';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -1509,6 +1509,46 @@ function cardCol(def){
   const c=Math.round(Number(def&&def.col)||0);
   return Math.min(PGRID_COLS-sp+1,Math.max(1,c||1));
 }
+// The row bands the grid will actually produce, worked out the way the grid works them out.
+// .pgrid sets no grid-auto-flow, so it is the default -- row, sparse -- and a sparse cursor only
+// ever moves forwards: a card whose column start is behind it cannot share the band and opens a
+// new one. Nothing stores a row, so this is the whole of where a card ends up vertically, and it
+// is why one card landing badly re-lands every card after it.
+//
+// The invariant the model needs and never enforced: inside a band, each card starts after the one
+// before it ends. Widening a card past its neighbour's column broke it from the right, a left drag
+// broke it from the left, and inserting a card mid-band broke it in the middle. Measured in
+// headless Chrome on the real .pgrid rules: growing one card of nine from 6 sub-columns to 10,
+// past a neighbour starting at 9, moved the other eight down 136px. Held to 8, the neighbour's
+// column start, the same card grew from 383px to 515px and the other eight did not move at all.
+function cardBands(defs){
+  const out=[]; let band=0,cur=1;
+  (defs||[]).forEach(d=>{
+    const col=cardCol(d),sp=cardSpan(d);
+    if(col<cur){ band++; cur=1; }
+    out.push({band,col,end:col+sp-1});
+    cur=col+sp;
+  });
+  return out;
+}
+// How wide defs[i] may be before it would sit under the next card in its own band. With nothing
+// after it in the band this is PGRID_COLS-col+1 -- the whole way to the right edge, which is what
+// the drag has always allowed -- so a card with empty space beside it behaves exactly as before.
+function cardFreeRight(defs,i){
+  const b=cardBands(defs),me=b[i];
+  if(!me) return PGRID_COLS;
+  const nx=b[i+1];
+  return Math.max(1,(nx&&nx.band===me.band?nx.col-1:PGRID_COLS)-me.col+1);
+}
+// The leftmost column defs[i] may start at: after the previous card in its band ends, or 1 if it
+// is the first. The mirror of the above, for the left-edge drag, which moves the start rather
+// than the end.
+function cardFreeLeft(defs,i){
+  const b=cardBands(defs),me=b[i];
+  if(!me) return 1;
+  const pv=b[i-1];
+  return pv&&pv.band===me.band?pv.end+1:1;
+}
 // Where each def sits today under plain left-to-right flow. Used once, to give
 // existing cards the column they already appear in, so nothing moves on upgrade.
 function flowedCols(defs){
@@ -1676,7 +1716,7 @@ function migrateCardsToOneEntry(){
 }
 
 function clockCardDef(id){
-  return {id:id||'clock',type:'clock',label:'TODAY’S SHAPE',span:1,minH:0,cadence:'none'};
+  return {id:id||'clock',type:'clock',label:'TODAY’S SHAPE',span:PGRID_SUB,minH:0,cadence:'none'};
 }
 // The clock used to sit outside the grid, so anyone with existing card defs has
 // no card for it. Add one once, at the end, rather than letting it disappear.
@@ -1685,7 +1725,12 @@ function migrateClockToCard(){
   if(D.cards.defs.some(c=>c.type==='clock')) return;
   if(D._migClockCard) return;
   D._migClockCard=1;
-  D.cards.defs.push(clockCardDef());
+  // This one predates the 24-column grid and runs before migrateCardGrid, which would multiply a
+  // span already written in the new units by PGRID_SUB a second time. On a grid that has migrated
+  // there is nothing left to multiply, so the def is written in the units in force.
+  const cd=clockCardDef();
+  if(!(D.cards.gridv>=2)) cd.span=1;
+  D.cards.defs.push(cd);
   localStorage.setItem(SK,JSON.stringify(D));
 }
 
@@ -3766,26 +3811,33 @@ function addPlannerCard(type,at){
   const id='c'+Math.random().toString(36).slice(2,9);
   const defs=cardDefs();
   const ix=(at==null||at>defs.length)?defs.length:Math.max(0,at);
-  // Inserted after a card, the new one shares that card's column — you asked for a card
-  // *there*. Appended, it starts in the column after the last one, wrapping to the left
-  // when it won't fit: where plain flow would have put it.
-  const prev=defs[ix-1];
-  const nextCol=(def,sp)=>{
-    if(!def) return 1;
-    if(at!=null) return Math.min(PGRID_COLS-sp+1,cardCol(def));
-    const c=cardCol(def)+cardSpan(def);
-    return c+sp-1>PGRID_COLS?1:c;
-  };
-  const withCol=d=>Object.assign(d,{col:nextCol(prev,cardSpan(d))});
-  defs.splice(ix,0,withCol(
+  // Widths are in sub-columns, 24 to the row and PGRID_SUB to a visual quarter. These were 1 and 2
+  // -- quarters and halves, from when the grid had four columns -- and stayed that way through the
+  // change to 24, so every card added since was born 1/24 of the row, about 40px wide.
+  // migrateCardGrid cannot reach them: it is version-gated and ran long ago. PGRID_SUB is what
+  // cardSpan has defaulted to all along, and what the add tile already claims a new card will be.
+  const nd =
+    type==='habits' ? {id,type:'habits',label:'Habits',span:2*PGRID_SUB,minH:0,cadence:'none',hidden:[]}
     // hidden:[] and not undefined — an empty array means "showing everything",
     // where a missing key means "inherit the old global hideToday flags".
-    type==='habits' ? {id,type:'habits',label:'Habits',span:2,minH:0,cadence:'none',hidden:[]}
   : type==='clock'  ? clockCardDef(id)
-  : type==='timeline' ? {id,type:'timeline',label:'TIMELINE',span:1,minH:0,cadence:'none'}
-  : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2,minH:320,cadence:'none'}
-  : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2,minH:420,cadence:'none'}
-  : {id,type:'text',label:'New card',span:1,minH:0,cadence:'none'}));
+  : type==='timeline' ? {id,type:'timeline',label:'TIMELINE',span:PGRID_SUB,minH:0,cadence:'none'}
+  : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2*PGRID_SUB,minH:320,cadence:'none'}
+  : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2*PGRID_SUB,minH:420,cadence:'none'}
+  : {id,type:'text',label:'New card',span:PGRID_SUB,minH:0,cadence:'none'};
+  // A card dropped into the middle of a band used to be given the column of the card above the
+  // plus sign -- which is by definition at or behind the flow cursor, so it opened a band of its
+  // own and every card that had been sitting beside that one was pushed down with it. It goes at
+  // the end of that band instead: into the free space there if it fits, onto a fresh band below if
+  // it does not. The plus still means a card here; that is the only place in the band it can go
+  // without displacing something. Appending is unchanged -- it was already the end of the last band.
+  const bands=cardBands(defs);
+  const bd=ix>0&&bands[ix-1]?bands[ix-1].band:-1;
+  let last=ix-1;
+  while(last+1<defs.length&&bands[last+1]&&bands[last+1].band===bd) last++;
+  const sp=cardSpan(nd),end=last>=0&&bands[last]?bands[last].end:0;
+  nd.col=bd<0?1:(end+sp<=PGRID_COLS?end+1:1);
+  defs.splice(Math.max(0,last+1),0,nd);
   _paddOpen=false; _pinsAt=null;
   _cardsDirty(); render();
 }
@@ -4394,7 +4446,15 @@ function _cardRzxStart(e,id,left){
   // the grid itself. At full width a right drag stops at the last column and a left drag at the
   // first, which is the same sum read from the other end.
   const endCol=cardCol(def)+cardSpan(def)-1;
-  const max=!wide?cols:(left?Math.max(1,endCol):Math.max(1,cols-cardCol(def)+1));
+  // The cap used to be the right edge of the grid, which is not where the card can grow to -- it is
+  // where it could grow to if nothing were in the way. Past the next card's column start that card
+  // no longer fits the band, drops to a row of its own, and takes every card after it down with it.
+  // The drag stops on the neighbour's edge instead, and the dashed guide, drawn from the same span,
+  // stops with it. Below full width the cards flow and a stored start is not in force, so that
+  // branch is left exactly as it was.
+  const all=cardDefs(),me=all.findIndex(c=>c.id===id);
+  const max=!wide?cols:Math.max(1,me<0?(left?endCol:cols-cardCol(def)+1)
+    :(left?endCol-cardFreeLeft(all,me)+1:cardFreeRight(all,me)));
   const q=def.matchW?PGRID_SUB:1;
   // Never narrower than the content fits, rounded up to the quantum in force so a "Match width"
   // card still lands on a whole column. Capped by max, because a card whose content does not fit
