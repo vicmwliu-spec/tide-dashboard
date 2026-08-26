@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a2">
+<meta name="build" content="0825-a3">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1249,7 +1249,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a2';
+const RT_BUILD = '0825-a3';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -3665,7 +3665,21 @@ function setCardFlag(id,k,v){ const c=cardDef(id); if(c){ c[k]=v; _cardsDirty();
 // caller does that today) it falls back to a render so the change still lands.
 function setCardSpan(id,v,card){
   const c=cardDef(id); if(!c) return;
-  c.span=Math.min(PGRID_COLS,Math.max(1,Number(v)||1));
+  let span=Math.min(PGRID_COLS,Math.max(1,Number(v)||1));
+  // The same content floor the drag respects. A card can be set narrower than its contents from
+  // here too — the grip's double-click resets to a quarter whatever is in the card. Only when
+  // there is a card on screen to measure; the stored span is what render() paints either way.
+  if(card){
+    const grid=card.closest('.pgrid');
+    if(grid){
+      const {cols,pitch,edge}=_cardGridMetrics(card,grid);
+      // Measured in the tracks on screen, stored in the full 24 — the same conversion
+      // _cardRzxEnd does on commit, and rounded up for the same reason as the floor itself.
+      span=Math.max(span,Math.min(PGRID_COLS,
+        Math.ceil(_cardMinSpan(card,cols,pitch,edge)*PGRID_COLS/cols)));
+    }
+  }
+  c.span=span;
   _cardsDirty();
   if(card){ _cardApplySpan(card,cardCol(c),cardSpan(c)); packCards(); }
   else render();
@@ -4140,6 +4154,56 @@ function _cardSpansPaint(grid){
     el.style.gridColumn=(cols>=PGRID_COLS&&def?cardCol(def):'auto')+' / span '+_cardGridSpan(span,cols);
   });
 }
+// The grid metrics a width drag works in, read off the live layout rather than assumed. pitch
+// is one track to the next; edge is everything between the last track a card covers and its own
+// right edge. The grid used to carry the gutter as a column-gap (pitch=colW+gap, edge=gap) and
+// now carries it as the card's margin (pitch=colW, edge=margin), and both spell the same thing:
+// a span of N is N pitches less one edge. Reading both off the layout means nothing above here
+// has to know which of the two is in force.
+function _cardGridMetrics(card,grid){
+  const cs=getComputedStyle(grid);
+  const tracks=cs.gridTemplateColumns.split(' ').filter(Boolean);
+  const gap=parseFloat(cs.columnGap)||0;
+  return {cols:tracks.length||PGRID_COLS,
+          pitch:parseFloat(tracks[0])||1,
+          gap,
+          edge:gap+(parseFloat(getComputedStyle(card).marginRight)||0)};
+}
+// What a card cannot be narrower than without its own contents coming apart. Measured, not
+// assumed: min-content is already the browser's answer to "as narrow as this can be laid out
+// and still work" -- the longest word in a paragraph, the widest row of header buttons. It
+// costs one forced reflow, which is why it is worked out once at the start of a gesture and
+// never per mousemove.
+//
+// The one thing min-content cannot see is tables. A .rt-tw is a scroll container, so its
+// min-content contribution is zero by definition -- that is deliberate, and it is what lets a
+// wide table scroll inside a narrow card instead of dragging the card open. But it also meant
+// a card could be squeezed until every table in it was scrolling, which is what this answers.
+// A table's own floor is the inline min-width rtMinTableWidth writes, so it is read back off
+// and re-expressed as a card width: the table's content box, plus everything in the card that
+// is not the table's content box.
+function _cardMinPx(card){
+  const was=card.style.width;
+  card.style.width='min-content';
+  let px=card.getBoundingClientRect().width;
+  card.style.width=was;
+  const outer=card.getBoundingClientRect().width;
+  card.querySelectorAll('.rt-tw').forEach(w=>{
+    const t=w.querySelector('.rt-table'); if(!t) return;
+    const min=parseFloat(t.style.minWidth)||0; if(!min) return;
+    const cs=getComputedStyle(w);
+    const inner=w.getBoundingClientRect().width
+      -(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0);
+    if(inner>0) px=Math.max(px,min+(outer-inner));
+  });
+  return Math.ceil(px);
+}
+// The same number in grid tracks. _cardRzxW spells a span as N pitches less one edge, so this
+// inverts that and rounds up: a floor rounded down is a floor the content does not fit inside.
+function _cardMinSpan(card,cols,pitch,edge){
+  if(!(pitch>0)) return 1;
+  return Math.max(1,Math.min(cols,Math.ceil((_cardMinPx(card)+edge)/pitch)));
+}
 function _cardRzxStart(e,id,left){
   e.preventDefault();
   const card=e.target.closest('.pcard'), grid=card.closest('.pgrid');
@@ -4147,17 +4211,7 @@ function _cardRzxStart(e,id,left){
   // The grid drops to 18 sub-columns under 1500px and 12 under 1180px, so the drag asks the
   // layout how wide a track actually is right now. Assuming the full 24 is what would make the
   // card jump in increments that had nothing to do with where the mouse was.
-  const cs=getComputedStyle(grid);
-  const tracks=cs.gridTemplateColumns.split(' ').filter(Boolean);
-  const cols=tracks.length||PGRID_COLS;
-  // pitch is one track to the next; edge is everything between the last track a card covers and
-  // its own right edge. The grid used to carry the gutter as a column-gap (pitch=colW+gap,
-  // edge=gap) and now carries it as the card's margin (pitch=colW, edge=margin), and both spell
-  // the same thing: a span of N is N pitches less one edge. Reading both off the layout means
-  // neither this nor the guide has to know which of the two is in force.
-  const pitch=parseFloat(tracks[0])||1;
-  const gap=parseFloat(cs.columnGap)||0;
-  const edge=gap+(parseFloat(getComputedStyle(card).marginRight)||0);
+  const {cols,pitch,gap,edge}=_cardGridMetrics(card,grid);
   const r=card.getBoundingClientRect();
   // The right edge is what a left-edge drag holds still, so the column it ends on is fixed for
   // the gesture and the span is measured back from it. Everything else is shared with the
@@ -4174,8 +4228,13 @@ function _cardRzxStart(e,id,left){
   // first, which is the same sum read from the other end.
   const endCol=cardCol(def)+cardSpan(def)-1;
   const max=!wide?cols:(left?Math.max(1,endCol):Math.max(1,cols-cardCol(def)+1));
-  _cardRzx={id,card,grid,cols,pitch,gap,edge,scale,wide,max,
-            q:def.matchW?PGRID_SUB:1,
+  const q=def.matchW?PGRID_SUB:1;
+  // Never narrower than the content fits, rounded up to the quantum in force so a "Match width"
+  // card still lands on a whole column. Capped by max, because a card whose content does not fit
+  // the grid at all is already scrolling, and refusing to let it be resized would be worse than
+  // letting it be as wide as there is room for.
+  const min=Math.min(max,Math.ceil(_cardMinSpan(card,cols,pitch,edge)/q)*q);
+  _cardRzx={id,card,grid,cols,pitch,gap,edge,scale,wide,max,min,q,
             left:r.left,right:r.right,w:r.width,
             lf:!!left,endCol,span,start:span,
             was:[card.style.width,card.style.marginLeft,card.style.minHeight]};
@@ -4218,12 +4277,12 @@ document.addEventListener('mousemove',e=>{
   // cardCol against a def the drag had not written yet, in tracks that below 1500px are not the
   // ones a span is stored in.
   const max=s.max;
-  const span=Math.min(max,Math.max(1,_cardRzxSpan(e.clientX,s)));
+  const span=Math.min(max,Math.max(s.min||1,_cardRzxSpan(e.clientX,s)));
   s.span=span;
   // The card follows the pointer in pixels, floored at one column and capped at the edge.
   // Its grid area is untouched, so nothing reflows and nothing repacks: the card simply
   // overhangs the space it is about to claim.
-  const w=Math.min(_cardRzxW(max,s),Math.max(_cardRzxW(1,s),
+  const w=Math.min(_cardRzxW(max,s),Math.max(_cardRzxW(s.min||1,s),
     s.lf?s.right-e.clientX:e.clientX-s.left));
   card.style.width=Math.round(w)+'px';
   // A grid item is laid out from its column start, so the only way to preview a card growing
