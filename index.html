@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a6">
+<meta name="build" content="0825-a7">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1249,7 +1249,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a6';
+const RT_BUILD = '0825-a7';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -1415,7 +1415,7 @@ document.addEventListener('visibilitychange',()=>{
   // Never while this device owes a push, or the pull would overwrite the very work that has
   // not gone up yet — which is the failure this whole change is about.
   if(_syncTimer||_hasUnpushed()) return;
-  loadFromCloud().then(()=>{ migrateAll(); render(); });
+  loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); });
 });
 
 // One-time repair: the July 2026 recovery left every habit's skips corrupted
@@ -7175,6 +7175,76 @@ function rtPlaceCaretAtStart(el){
   const r=document.createRange();r.selectNodeContents(el);r.collapse(true);
   const s=window.getSelection();s.removeAllRanges();s.addRange(r);
 }
+// ─── Foreign DOM quarantine ──────────────────────────────────────
+// Extensions that attach to contenteditable — grammar and spelling checkers — mount an
+// overlay per editor. Every <td> in these tables is its own contenteditable, so one lands
+// in every cell, and the overlay's wrapper goes into the DOM as a *sibling of the cells,
+// inside the <tr>*. The browser wraps a non-cell box inside a row in an anonymous table
+// cell, and if it goes in before the first <td> a two-column row becomes three: every real
+// column shifts right, the last one is squeezed to nothing, and the text in it wraps one
+// character per line into a row hundreds of pixels tall.
+//
+// Measured in headless Chrome against the real saved table, at the card's real width:
+//
+//   clean                first cell at 18px, columns [186,230], rows [33 x 10]
+//   wrapper prepended    first cell at 204px, columns [230,0],  rows [333,33x8,273]
+//
+// which is the reported bug exactly — a wide empty band, a crushed column, the first and
+// last rows enormously tall and the empty ones between them normal, and a table wider than
+// its wrapper. It is also why 0825-a4, a5 and a6 did not touch it: the stored colgroup was
+// never wrong. The one in the screenshot reads 44.79% / 55.21% and renders perfectly on its
+// own; nothing in the saved data needed repairing.
+//
+// The wrapper carries `display:flex` in a style attribute, with !important. An author
+// stylesheet cannot outrank an inline !important declaration, so this cannot be a CSS rule —
+// that was tried and measured and changed nothing. It has to be written as an inline
+// property in turn. display:none is the property that matters: a box that is not generated
+// cannot become an anonymous cell. Measured, it restores the clean numbers above exactly.
+//
+// The node is hidden rather than removed. It belongs to the extension, and deleting it
+// invites it straight back — a loop between two pieces of software neither of which will
+// give up. Hidden, it stays where its owner put it and simply stops having a layout.
+//
+// Nothing TIDE builds is affected: TIDE creates no custom elements, and puts nothing but
+// cells in a row. Anything else in there came from outside.
+const _RT_TBLP=/^(TR|TBODY|THEAD|TFOOT|TABLE)$/;
+function _rtForeign(el){
+  const p=el.parentElement;
+  if(!p||!_RT_TBLP.test(p.tagName)) return false;
+  if(p.tagName==='TR') return el.tagName!=='TD'&&el.tagName!=='TH';
+  if(p.tagName==='TABLE') return !/^(COLGROUP|CAPTION|THEAD|TBODY|TFOOT)$/.test(el.tagName);
+  return el.tagName!=='TR';
+}
+function rtQuarantine(el){
+  if(el.nodeType!==1||!_rtForeign(el)) return false;
+  // Reading it back is what stops this running again on every mutation the extension makes
+  // to its own overlay — and the observer below only watches childList, so writing here
+  // cannot feed itself.
+  if(el.style&&el.style.display==='none') return false;
+  if(el.style) el.style.setProperty('display','none','important');
+  return true;
+}
+function rtQuarantineAll(root){
+  (root||document).querySelectorAll('table > *, thead > *, tbody > *, tfoot > *, tr > *')
+    .forEach(rtQuarantine);
+}
+let _rtQObs=null;
+function rtStartQuarantine(){
+  if(_rtQObs||typeof MutationObserver!=='function'||!document.body) return;
+  _rtQObs=new MutationObserver(ms=>{
+    for(const m of ms){
+      // The filter is on the parent, so render() replacing half the page costs one tagName
+      // test per node rather than a selector match.
+      const t=m.target;
+      if(!t||t.nodeType!==1||!_RT_TBLP.test(t.tagName)) continue;
+      for(const n of m.addedNodes) rtQuarantine(n);
+    }
+  });
+  _rtQObs.observe(document.body,{childList:true,subtree:true});
+  // Anything mounted before the observer started — the extension attaches on its own clock.
+  rtQuarantineAll();
+}
+
 // Guard first: deleting the last block in a toggle is an input event, and if the
 // container isn't restocked before this returns, the emptied toggle is saved as a
 // dead end and can never be typed into again.
@@ -7195,11 +7265,35 @@ function _rtUnpaint(td){
   td.classList.remove('rt-sel');
   if(!td.className) td.removeAttribute('class');
 }
+// An overlay an extension mounted inside the editor is not something you wrote, and this is
+// the function that decides what you wrote. Left in, it is serialised into D.cards.data and
+// pushed to the cloud: three cards were carrying 236 of these elements, 108KB, 23% of the
+// whole document, and one card was 92KB of almost nothing else. It also defeats rtPushUndo,
+// which compares whole-innerHTML snapshots — two snapshots of identical text stop comparing
+// equal once a third party is rewriting the DOM between them.
+//
+// Custom elements (a dash in the tag name) are the whole of what gets dropped, plus the
+// attributes such an extension stamps on the cells it has claimed. TIDE creates no custom
+// elements, so this can name a shape rather than a vendor.
+const _RT_FGN='*:not(html):not(body)';
+function _rtForeignNodes(el){
+  return [...el.querySelectorAll(_RT_FGN)].filter(n=>n.tagName.indexOf('-')>0);
+}
+function _rtStripForeign(c){
+  _rtForeignNodes(c).forEach(n=>n.remove());
+  c.querySelectorAll('[pwa2-uuid],[pwa-fake-editor]').forEach(n=>{
+    n.removeAttribute('pwa2-uuid'); n.removeAttribute('pwa-fake-editor');
+  });
+}
 function rtHTML(el){
   if(!el) return '';
-  if(!el.querySelector('.rt-sel')) return el.innerHTML;
+  const sel=!!el.querySelector('.rt-sel');
+  const fgn=!!_rtForeignNodes(el).length||!!el.querySelector('[pwa2-uuid],[pwa-fake-editor]');
+  // The common keystroke still clones nothing.
+  if(!sel&&!fgn) return el.innerHTML;
   const c=el.cloneNode(true);
-  c.querySelectorAll('.rt-sel').forEach(td=>_rtUnpaint(td));
+  if(sel) c.querySelectorAll('.rt-sel').forEach(td=>_rtUnpaint(td));
+  if(fgn) _rtStripForeign(c);
   return c.innerHTML;
 }
 
@@ -11659,7 +11753,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ migrateAll(); render(); });
+loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); });
 </script>
 </body>
 </html>
