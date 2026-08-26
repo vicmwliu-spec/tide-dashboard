@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a5">
+<meta name="build" content="0825-a6">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1249,7 +1249,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a5';
+const RT_BUILD = '0825-a6';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -1536,6 +1536,8 @@ function flowedCols(defs){
 function migrateAll(){
   repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard();
   migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateJournalNotebooks();
+  // Last: it rewrites card HTML, so every migration that moves cards between shapes runs first.
+  migrateTableWidths();
 }
 // Runs before migrateCardCols, which flows missing columns and would otherwise flow them in the
 // new units against widths still in the old ones.
@@ -1547,6 +1549,71 @@ function migrateCardGrid(){
   });
   D.cards.gridv=2;
   saveLocal(); // boot migration: local only, never a push — see saveLocal
+}
+// Tables whose stored column shares were overwritten against a card that had not reached its
+// width yet. 0825-a4 and a5 stopped that happening; neither repairs what was already written, and
+// the damage is in D.cards.data on every card. The originals are not recoverable -- nothing kept
+// them -- so this reconstructs each table the way the browser would have laid it out.
+//
+// Every card and every period key, not just the one on screen: a card's other periods are just as
+// saved and just as wrong, and they would surface later looking broken with no obvious cause.
+function repairAllTableWidths(){
+  const data=D.cards&&D.cards.data; if(!data) return 0;
+  // Cards are not rendered when this runs -- migrateAll is called before render -- so the width is
+  // estimated from the card's own span. It only has to be plausible: what gets stored is shares,
+  // not the pixels they were derived from.
+  const row=Math.min(1400,Math.max(360,(document.documentElement.clientWidth||1200)-48));
+  const box=document.createElement('div');
+  // .pcard-bd so the table sees the padding and the wrapper rule it will really live under.
+  box.className='pcard-bd';
+  box.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0';
+  document.body.appendChild(box);
+  let n=0;
+  try{
+    Object.keys(data).forEach(id=>{
+      const def=cardDef(id);
+      const wide=Math.max(220,Math.round(row*(def?cardSpan(def):PGRID_COLS)/PGRID_COLS)-34);
+      const bag=data[id]||{};
+      Object.keys(bag).forEach(k=>{
+        const html=bag[k];
+        if(!html||html.indexOf('<table')<0) return;
+        box.style.width=wide+'px';
+        box.innerHTML=html;
+        let touched=false;
+        // The same order the render path uses: a table written before wrappers existed is bare in
+        // the card and nothing recognises it until rtWrapLooseTables has given it its wrapper and
+        // its class. Repairing on a narrower selector would silently skip exactly the oldest
+        // tables, which are the ones most likely to be wrong.
+        rtWrapLooseTables(box);
+        box.querySelectorAll('.rt-table').forEach(t=>{
+          if(!rtColCount(t)) return;
+          // A table saved during the a4 window has neither colgroup nor rt-fixed; left to itself
+          // rtEnsureCols would rebuild it at equal shares, which is not what it had either.
+          rtEnsureCols(t);
+          t.style.minWidth='';   // stale floor -- rtNormalizeCols writes a fresh one
+          if(rtAutoFitCols(t)) touched=true;
+        });
+        if(touched){ bag[k]=box.innerHTML; n++; }
+      });
+    });
+  }finally{ box.remove(); }
+  return n;
+}
+function migrateTableWidths(){
+  if(!D.cards||!D.cards.data||D._migTableW) return;
+  D._migTableW=1;
+  // Snapshotted before anything is touched. This rewrites stored widths in bulk and there is no
+  // reconstructing them by hand, so putting them back has to be one click rather than a restore.
+  const before=JSON.stringify(D.cards.data);
+  const n=repairAllTableWidths();
+  saveLocal(); // boot migration: local only, never a push — see saveLocal
+  if(!n) return;
+  // The toast lives in the rendered page, and this runs before render.
+  setTimeout(()=>_showUndoToast(n+(n===1?' table re-fitted':' tables re-fitted'),()=>{
+    D.cards.data=JSON.parse(before);
+    save();   // an undo is a decision, so this one does reach the cloud
+    render();
+  }),600);
 }
 function migrateCardCols(){
   const defs=cardDefs();
@@ -9192,7 +9259,8 @@ function rtShowCtl(t){
     // The label says which columns it will touch, so the scoping is something you read
     // before you commit to it rather than something you find out afterwards.
     const dlab=rtSelBands(t,rtBands(t))?'Distribute selected columns evenly':'Distribute columns evenly';
-    [[dlab,()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)]].forEach(([label,fn])=>{
+    [[dlab,()=>rtDistributeCols(t)],['Fit columns to content',()=>rtFitCols(t)],
+     ['Rebalance columns',()=>rtRebalanceCols(t)]].forEach(([label,fn])=>{
       const row=document.createElement('div');row.className='rt-item';
       row.innerHTML='<span class="rt-ck">↔</span><span></span>';
       row.lastElementChild.textContent=label;
@@ -9734,6 +9802,50 @@ function rtDistributeCols(t){
   const each=use.reduce((a,b)=>a+b.w,0)/use.length;
   use.forEach(b=>rtSetBandWidth(t,b.c,b.cs,each));
   rtNormalizeCols(t);
+  rtFire(rtHost(t)); rtShowCtl(t);
+}
+// The widths the browser itself would choose, measured on a throwaway copy laid out with
+// table-layout:auto. rtContentWidths measures max-content per cell, so a column holding one long
+// sentence takes the whole table; auto layout distributes between min- and max-content against
+// the width actually available, which is how these tables looked before they had a colgroup at
+// all -- and so what "right" means for one whose stored shares have been lost.
+//
+// This measures, which rtEnsureCols warns against. What that warns against is freezing a card's
+// width at an arbitrary moment. This is asked for, once, at a width chosen on purpose, and what
+// it stores is shares, which go on scaling afterwards like any other.
+function rtAutoBandWidths(t,inner){
+  const box=document.createElement('div');
+  box.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0;width:'
+    +Math.max(120,Math.round(inner))+'px';
+  const c=t.cloneNode(true);
+  // Without these the copy would lay out under the very shares being replaced.
+  const cg=c.querySelector('colgroup'); if(cg) cg.remove();
+  c.classList.remove('rt-fixed');
+  c.style.minWidth=''; c.style.width='100%';
+  box.appendChild(c);
+  document.body.appendChild(box);
+  let out=null;
+  try{
+    const tr=c.tBodies[0]&&c.tBodies[0].rows[0];
+    if(tr) out=[...tr.cells].map(td=>td.getBoundingClientRect().width);
+  }finally{ box.remove(); }
+  return out&&out.length&&out.some(x=>x>0)?out:null;
+}
+// Bands rather than grid columns, for the reason rtDistributeCols works in bands: a column
+// holding a split cell covers more than one grid column and is still one column to the eye. The
+// first row's cells are the bands, so the measurement and the application line up one to one.
+function rtAutoFitCols(t){
+  const bands=rtBands(t);
+  if(bands.length<1) return false;
+  const w=rtAutoBandWidths(t,rtInnerWidth(t)||RT_NOMW);
+  if(!w||w.length!==bands.length) return false;
+  const fl=rtDragFloor(t);
+  bands.forEach((b,i)=>rtSetBandWidth(t,b.c,b.cs,Math.max(fl*b.cs,w[i]||fl*b.cs)));
+  rtNormalizeCols(t);
+  return true;
+}
+function rtRebalanceCols(t){
+  if(!rtAutoFitCols(t)) return;
   rtFire(rtHost(t)); rtShowCtl(t);
 }
 function rtFitCols(t){
