@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0823-b1">
+<meta name="build" content="0825-a1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -116,12 +116,21 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    tall as its tallest card, so shortening a card used to leave a hole under it
    instead of letting the next card rise. Each card claims the rows it actually
    needs — see packCards — and the 14px gap is carried in the span. */
-.pgrid{display:grid;grid-template-columns:repeat(4,1fr);column-gap:14px;row-gap:0;
+/* 24 sub-columns, six to a visual quarter, so the four widths the grid has always had are
+   still exactly reachable (6/12/18/24) and every step between them is about 4% of the row.
+   Four tracks meant a card could only ever be a quarter, a half, three quarters or the whole
+   width; nothing between those existed to drag to.
+   The 14px gutter cannot stay a column-gap at this resolution -- 23 gaps would eat 322px of
+   the row -- so it moves to a margin on the card. A grid item's width is its area minus its
+   margins, so the card still ends 14px short of the next track either way; what changes is
+   that the gutter no longer multiplies with the track count. The grid's own padding-right
+   goes with it: the last card's margin is now that padding. */
+.pgrid{display:grid;grid-template-columns:repeat(24,1fr);column-gap:0;row-gap:0;
   grid-auto-rows:4px;align-items:start;margin-bottom:14px;
   /* Room for the top insert point of the first card in each column. The vertical gap between
      cards comes from packCards' span arithmetic, not from row-gap, so above the topmost card
      there is no gap at all and its .pins-t would hang outside the grid. */
-  padding:14px 14px 0;
+  padding:14px 0 0 14px;
   /* A card's grid-column-start is written inline by mkCard, so a start of 3 or 4
      inside a narrowed 2-column grid used to conjure implicit columns and crush the
      row. The narrow breakpoints below reset every start to auto, and this makes a
@@ -275,7 +284,10 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* min-width:0 because a grid item's automatic minimum is its content: a card
    holding a table wider than its column would otherwise refuse to shrink and push
    the whole grid sideways, instead of letting the table scroll inside .rt-tw. */
-.pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative;min-width:0}
+/* margin-right is the column gutter -- see .pgrid, which runs at column-gap:0 so the gutter
+   does not multiply with 24 tracks. The grid also has no padding-right, so on the last card
+   in a row this margin is the grid's right-hand padding. */
+.pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative;min-width:0;margin-right:14px}
 /* position:relative so the grab handle can hang in the left padding. In flow the handle
    plus its gap pushed the title to ~32px while the body starts at 16px — a title indented
    past the content it labels, and at rest the handle is transparent, so the gap read as
@@ -449,6 +461,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pins-t .pins-menu,.pins-b .pins-menu{top:15px;left:50%;transform:translateX(-50%)}
 .pins-l .pins-menu{top:50%;left:15px;transform:translateY(-50%)}
 .pins-r .pins-menu{top:50%;right:15px;transform:translateY(-50%)}
+.padd-cell{margin-right:14px}
 .paddcard{border:1px dashed var(--border);border-radius:var(--r);background:none;color:var(--text3);font-family:var(--font);font-size:12px;cursor:pointer;padding:14px 10px;display:flex;align-items:center;justify-content:center;gap:6px}
 .paddcard:hover{border-color:var(--edit-line);color:var(--edit-line)}
 /* The add picker: one button, and the choice explained where you make it rather
@@ -500,30 +513,22 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hlist-eye.on{color:var(--accent)}
 .hlist-eye:hover{background:var(--border)}
 /* Fewer columns as the window narrows, so a card never gets too thin to read —
-   4 above 1500px, then 3, then 2, then 1. Every rule below writes the whole
-   grid-column shorthand, which is what resets the start mkCard set inline; a rule
-   that only overrode the span left the start behind, and the card was placed in an
-   implicit column past the edge of the grid. Nothing here touches the stored col or
-   span, so widening the window restores the layout exactly as it was. */
-@media (max-width:1500px){
-  .pgrid{grid-template-columns:repeat(3,1fr)}
-  .pcard{grid-column:auto / span 1 !important}
-  .pcard[data-span="2"]{grid-column:auto / span 2 !important}
-  .pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 3 !important}
-}
-@media (max-width:1180px){
-  .pgrid{grid-template-columns:repeat(2,1fr)}
-  .pcard{grid-column:auto / span 1 !important}
-  .pcard[data-span="2"],.pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 2 !important}
-}
+   4 quarters above 1500px, then 3, then 2, then 1, at 6 sub-columns each.
+   Only the track count is set here. Rescaling each card's span into those tracks, and
+   dropping the stored start when there are fewer of them, is _cardSpansPaint's job: at 24
+   sub-columns a [data-span="N"] rule per width would be 24 rules per breakpoint, and the
+   arithmetic is one line. Nothing here or there touches the stored col or span, so widening
+   the window restores the layout exactly as it was. */
+@media (max-width:1500px){ .pgrid{grid-template-columns:repeat(18,1fr)} }
+@media (max-width:1180px){ .pgrid{grid-template-columns:repeat(12,1fr)} }
 /* 768px, matching the mobile stylesheet below — at 680 the band from 680 to 768 got two card
-   columns wearing phone-sized chrome. column-gap, never the gap shorthand: gap would set row-gap
-   too, and row-gap is deliberately 0 because the vertical gap is carried in packCards' spans.
-   Writing gap:8px here put 8px on top of the 14px already in the span, which is why cards sat
-   22px apart on a phone and 14px everywhere else. */
+   columns wearing phone-sized chrome. One card to a row, so it is a 6-sub-column grid and
+   every card fills it. column-gap stays 0 the way it is everywhere else — the gutter is the
+   card's own margin — and the margin goes to 0 here, because with one card per row it would
+   only shave 14px off a phone-width card for no gutter to sit in. */
 @media (max-width:768px){
-  .pgrid{grid-template-columns:1fr;column-gap:8px}
-  .pcard,.pcard[data-span="2"],.pcard[data-span="3"],.pcard[data-span="4"]{grid-column:auto / span 1 !important}
+  .pgrid{grid-template-columns:repeat(6,1fr);padding-right:14px}
+  .pcard,.padd-cell{margin-right:0}
 }
 .top-left-col{width:35%;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
 
@@ -670,11 +675,21 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    keeps its table handles in the page margin and Numbers keeps its row tabs outside the grid.
    It was not reserved before: RT_HOSTS are unpadded (.cv-bd), so "clamp the buttons to the host"
    resolved to the table's own left edge and drew two opaque 20px discs straight over the first
-   column. Padding rather than a margin so the wrapper's own width is untouched and the inline
-   percentage widths .rt-pair writes still mean what they say; border-box so 100% still fits.
-   rtInnerLeft/rtInnerWidth already subtract it, so every column percentage lands correctly
-   without another term. */
+   column. rtInnerLeft/rtInnerWidth already subtract it, so every column percentage lands
+   correctly without another term.
+   What the padding must not do is come out of the table. border-box plus width:100% meant it
+   did, so rtInnerWidth dropped 12px for every table on the page. A uniform 12px would have
+   cancelled out in rtNormalizeCols, which renormalises the percentages to 100 — but the floors
+   (.rt-table td min-width, rtDragFloor) are in pixels and do not scale with it. On a narrow card
+   that was enough to tip columns sitting near their floor over it; a pinned column stops
+   scaling, the remainder gets redistributed, and the proportions you dragged are gone — then
+   written back as inline percentages and saved. Inside a card the gutter is taken out of the
+   card's own 16px padding instead, so the table's content box is exactly what it was before the
+   gutter existed. The unpadded hosts (.cv-bd in a canvas box, .jr-ed) have no padding to take it
+   from and keep paying for it out of the table; their tables are sized to the box rather than to
+   a shared column, so the cost there is 12px of width and not a change of proportion. */
 .rt-tw{overflow-x:auto;margin:10px 0;width:100%;padding-left:12px;display:inline-block;vertical-align:top}
+.pcard-bd .rt-tw{margin-left:-12px;width:calc(100% + 12px)}
 /* Gap only between a pair you deliberately made, which is why both halves carry the
    class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
    table to sit under another, or paste one beside one, and the second was shunted 10px
@@ -1234,7 +1249,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0823-b1';
+const RT_BUILD = '0825-a1';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -1477,8 +1492,14 @@ function cardDef(id){ return cardDefs().find(c=>c.id===id)||null }
 // card after it and the flow backfilled the hole by pulling a later card up and
 // to the left. With an explicit grid-column-start, the list only decides vertical
 // order within a column; nothing ever slides sideways to fill a gap.
-const PGRID_COLS=4;
-function cardSpan(def){ return Math.min(PGRID_COLS,Math.max(1,Number(def&&def.span)||1)) }
+// Widths are stored in sub-columns, 24 to the row and 6 to a visual quarter, so a card can be
+// any width and still line up with its neighbours. It used to be 4, which is why a card could
+// only ever be a quarter, a half, three quarters or the whole width.
+const PGRID_COLS=24;
+// One visual quarter. The unit a card snaps to under "Match width", the width a new card gets,
+// and the factor the 4-column layout migrates by.
+const PGRID_SUB=6;
+function cardSpan(def){ return Math.min(PGRID_COLS,Math.max(1,Number(def&&def.span)||PGRID_SUB)) }
 // Clamped so a card can never start where its span would run off the right edge.
 function cardCol(def){
   const sp=cardSpan(def);
@@ -1497,6 +1518,21 @@ function flowedCols(defs){
     if(cur>PGRID_COLS) cur=1;
   });
   return out;
+}
+// 4 columns to 24 sub-columns. Every stored width and start was written in quarters, so they
+// are multiplied by PGRID_SUB rather than reinterpreted -- a span of 2 was half the row before
+// and is half the row after. Flagged on the cards object, not on each def, because a def that
+// happens to have no span still needs the pass to have run before cardSpan's default applies.
+// Runs before migrateCardCols, which flows missing columns and would otherwise flow them in the
+// new units against widths still in the old ones.
+function migrateCardGrid(){
+  if(!D.cards||D.cards.gridv>=2) return;
+  cardDefs().forEach(d=>{
+    if(d.span) d.span=Math.min(PGRID_COLS,Math.max(1,Math.round(d.span)))*PGRID_SUB;
+    if(d.col) d.col=(Math.max(1,Math.round(d.col))-1)*PGRID_SUB+1;
+  });
+  D.cards.gridv=2;
+  saveLocal(); // boot migration: local only, never a push — see saveLocal
 }
 function migrateCardCols(){
   const defs=cardDefs();
@@ -2091,6 +2127,10 @@ function packCards(){
   // schedule the pass that levels it again.
   if(_packing) return;
   _packing=true;
+  // Widths before heights: a card's span decides how wide it is, and how wide it is decides how
+  // tall its content ends up. This is also the only hook a breakpoint crossing gets -- the media
+  // queries change the track count and nothing re-renders -- and packCards is already on resize.
+  _cardSpansPaint();
   // A pass measures by collapsing: it clears every card's span, and .pgrid is grid-auto-rows:4px,
   // so for that instant the whole grid is one 4px row per card and the document is a fraction of
   // its real height. Scrolled down, the browser clamps scrollY to the new maximum, and putting the
@@ -2122,7 +2162,7 @@ function _packPass(){
       .map(c=>({el:c,r:c.getBoundingClientRect()})).filter(x=>x.r.height);
     // The add-card tile is not a card and has no def; it never stretches and never sets a row.
     const items=live.map(x=>({top:x.r.top,h:x.r.height,
-      free:!x.el.classList.contains('pcard')||!!cardDef(x.el.dataset.cardid)?.freeH}));
+      free:!x.el.classList.contains('pcard')||!cardDef(x.el.dataset.cardid)?.matchH}));
     _rowTargets(items).forEach((t,i)=>{
       if(t>Math.round(items[i].h)) live[i].el.style.minHeight=t+'px';
     });
@@ -2252,7 +2292,13 @@ function mkCardGrid(){
   // permanent piece of chrome left on this view, and it is the last cell rather than a
   // bar under the page.
   const add=document.createElement('div');
+  // A quarter of the row, spelled in sub-columns, and the same 14px gutter every card
+  // carries. Left to itself it would take one 24th of the width and read as a sliver.
+  // dataset.span rather than an inline grid-column: _cardSpansPaint owns the translation
+  // from a stored span to the tracks actually on screen, and the tile goes through it too.
+  add.className='padd-cell';
   add.style.cssText='display:flex;flex-direction:column;gap:8px';
+  add.dataset.span=PGRID_SUB;
   add.innerHTML=_paddOpen
     ? _cardTypeMenu('',t=>`addPlannerCard('${t}')`)
     : `<button class="paddcard" onclick="_paddToggle()">+ Add a card</button>`;
@@ -3284,8 +3330,9 @@ function mkPlannerCard(def,ix){
   const d=document.createElement('div');
   d.className='pcard';
   d.dataset.cardid=def.id;
-  d.dataset.span=def.span||1;
-  d.style.gridColumn=`${cardCol(def)} / span ${cardSpan(def)}`;
+  // The card is not in the grid yet, so this places it for the full 24 tracks; packCards
+  // calls _cardSpansPaint once it is mounted, which is where a narrowed grid is accounted for.
+  _cardApplySpan(d,cardCol(def),cardSpan(def));
   d.draggable=false;
 
   // One header, no modes. The title has always been renameable in place and the header has
@@ -3407,9 +3454,9 @@ function mkPlannerCard(def,ix){
     <div class="pgrip pgrip-t pgrip-q" title="Drag to set the height of the row above"
     onmousedown="_cardRzStart(event,'${def.id}',true)"></div>
     <div class="pgrip-x pgrip-q" title="Drag to set width · double-click to reset"
-    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>
+    onmousedown="_cardRzxStart(event,'${def.id}')" ondblclick="setCardSpan('${def.id}',PGRID_SUB,this.closest('.pcard'))"></div>
     <div class="pgrip-x pgrip-xl pgrip-q" title="Drag to set width from the left · double-click to reset"
-    onmousedown="_cardRzxStart(event,'${def.id}',true)" ondblclick="setCardSpan('${def.id}',1,this.closest('.pcard'))"></div>`
+    onmousedown="_cardRzxStart(event,'${def.id}',true)" ondblclick="setCardSpan('${def.id}',PGRID_SUB,this.closest('.pcard'))"></div>`
     +_cardInsHTML(def,ix);
 
   return d;
@@ -3504,8 +3551,8 @@ function _cardMenuHTML(def){
   // A journal card wears its colour dot on the month row instead, beside the ‹ — one press
   // rather than two, and it sits next to the grid the colour actually paints.
   if(def.type==='timeline'||def.type==='canvas'){
-    it.push(`<button class="padd-item pm-i" onclick="_cardColour(event,'${id}')">
-      <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span>Colour</button>`);
+    it.push(`<button class="padd-item pm-i" title="Colour" aria-label="Colour" onclick="_cardColour(event,'${id}')">
+      <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span></button>`);
   }
   if(def.type==='journal') it.push(_jrMenuItems(id));
   // Text and canvas only: those two carry the same content in two shapes, so the trip is
@@ -3518,16 +3565,21 @@ function _cardMenuHTML(def){
   if(def.type==='habits'&&!def.editing){
     it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">Choose levers</button>`);
   }
-  // Every type gets this one: the tall journal and the canvas are the cards most likely to
-  // want out of their row, so it cannot be gated on type the way the others are.
+  // Every type gets these: the tall journal and the canvas are the cards most likely to want
+  // out of their row, so they cannot be gated on type the way the others are.
   // Two items with a tick rather than one item naming the opposite mode. A single toggle label
   // has to double as a state readout and reads as neither: "Free height" could as easily mean
   // "this card is free" as "make it free", and on a card already the tallest in its row the
   // click changes no pixels to disambiguate it.
-  it.push(`<div class="pm-lbl">Height</div>`);
-  it.push([[false,'Match height'],[true,'Free height']].map(([on,lbl])=>
-    `<button class="padd-item pm-i" onclick="_cardSetFreeH('${id}',${on})"
-      ><span class="pm-ck">${!!def.freeH===on?'&#10003;':''}</span>${lbl}</button>`).join(''));
+  // Both axes, in the same shape, because they are the same question asked twice: does this
+  // card take its size from its neighbours, or from you.
+  [['Height','matchH','_cardSetMatchH','Match height','Free height'],
+   ['Width','matchW','_cardSetMatchW','Match width','Free width']].forEach(([hd,key,fn,mlbl,flbl])=>{
+    it.push(`<div class="pm-lbl">${hd}</div>`);
+    it.push([[true,mlbl],[false,flbl]].map(([on,lbl])=>
+      `<button class="padd-item pm-i" onclick="${fn}('${id}',${on})"
+        ><span class="pm-ck">${!!def[key]===on?'&#10003;':''}</span>${lbl}</button>`).join(''));
+  });
   if(it.length) it.push(`<div class="pm-sep"></div>`);
   it.push(`<button class="padd-item pm-i pm-del" onclick="_cardDelete('${id}')">Delete card</button>`);
   return `<div class="pcard-menu" onpointerdown="event.stopPropagation()">${it.join('')}</div>`;
@@ -3536,26 +3588,42 @@ function _cardMenuHTML(def){
 // Clearing _cardMenu alone used to be enough only because a render was coming to sweep it away.
 function _cardColour(e,id){ e.stopPropagation(); _cardMenuClose(); openChartColorPop(e,'tl_'+id); }
 function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
-// Absent means "match the row", so the shared floor is what a card does unless it is told not
-// to, and no existing card needs migrating.
+// The flag stored is the opt-IN, so absent means free and free is what a card does unless you
+// ask for the other. It was the other way round -- freeH, absent meaning "match the row" -- and
+// inverting it is what makes free the default for every card that already exists and every card
+// added later, without a migration: there is no matchH on any of them.
 // Set, not toggle: the menu names both modes, so the item you pressed is the mode you get and
 // pressing the one already ticked is a no-op instead of a mode change you did not ask for.
-function _cardSetFreeH(id,on){
+function _cardSetMatchH(id,on){
   _cardMenuClose();
   const c=cardDef(id); if(!c) return;
-  if(!!c.freeH===!!on) return;
+  if(!!c.matchH===!!on) return;
   if(on){
+    // Rejoining, the old free height would come back in as a floor the whole row then has to
+    // grow to meet -- which is the row matching the card rather than the other way round.
+    c.matchH=true; delete c.minH;
+  } else {
     // Leaving the row must not move the card. minH is stored in body heights (see _cardRzEnd),
     // so the height the row was holding it open to is measured off the body and kept as its own.
     const bd=document.querySelector(`.pcard[data-cardid="${id}"] .pcard-bd`);
     const h=bd&&Math.round(bd.getBoundingClientRect().height);
     if(h) c.minH=h;
-    c.freeH=true;
-  } else {
-    // Rejoining, the old free height would come back in as a floor the whole row then has to
-    // grow to meet -- which is the row matching the card rather than the other way round.
-    delete c.freeH; delete c.minH;
+    delete c.matchH;
   }
+  _cardsDirty(); render();
+}
+// Width has no row to rejoin -- a card's width is its own either way -- so the mode is only the
+// step the side grip moves in: a whole visual quarter under match, a single sub-column under
+// free. Turning match on rounds the width it has now to the nearest quarter, or the tick would
+// name a state the card was not in until the next time you happened to drag it.
+function _cardSetMatchW(id,on){
+  _cardMenuClose();
+  const c=cardDef(id); if(!c) return;
+  if(!!c.matchW===!!on) return;
+  if(on){
+    c.matchW=true;
+    c.span=Math.min(PGRID_COLS,Math.max(PGRID_SUB,Math.round(cardSpan(c)/PGRID_SUB)*PGRID_SUB));
+  } else delete c.matchW;
   _cardsDirty(); render();
 }
 function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
@@ -3656,6 +3724,11 @@ function _cardDropCol(x,gridRect,span,cols){
   if(!gridRect||!gridRect.width) return 0;
   const n=cols||PGRID_COLS;
   if(n<2) return 0;
+  // A narrowed grid has no start to record: below 1500px the cards flow, so the column the
+  // pointer is over is a column of a layout that is not the one the start is stored in. Writing
+  // it anyway would translate 12 tracks into 24ths and quietly halve the card's position the
+  // next time the grid was opened wide.
+  if(n<PGRID_COLS) return 0;
   const track=gridRect.width/n;
   const c=Math.floor((x-gridRect.left)/track)+1;
   return Math.min(n-span+1,Math.max(1,c));
@@ -3666,20 +3739,41 @@ function _cardGridCols(grid){
   return t.length||PGRID_COLS;
 }
 // Where the card would land, given the pointer and the other cards' boxes. Pure,
-// so it can be tested without layout — jsdom has none. Reading order: insert
-// before the first card the pointer hasn't reached yet.
+// so it can be tested without layout — jsdom has none.
+//
+// The card nearest the pointer decides, and which side of that card the pointer is on decides
+// before or after. It used to be the first card in DOM order the pointer had not reached yet,
+// which assumes boxes that partition the page in reading order. This grid is masonry: a tall
+// card covers the vertical range of two or three short ones beside it, so the pointer is level
+// with several cards at once and the earliest of them in DOM order answered for the whole
+// overlap. Reaching "below" a tall card then meant getting past its horizontal midpoint, and
+// which card that was depended on which card happened to be tall -- which is why a drop under
+// one card took and the same drop under its neighbour did not.
 function _cardDropIndex(x,y,boxes,dragIx){
-  let ins=boxes.length;
+  let best=-1,bestD=Infinity,after=false;
   for(let i=0;i<boxes.length;i++){
     if(i===dragIx) continue;
     const b=boxes[i];
-    const after = y<b.top ? true
-                : y>b.bottom ? false
-                : x < b.left+b.width/2;
-    if(after){ ins=i; break; }
+    const bottom=b.bottom!=null?b.bottom:b.top+b.height;
+    const right=b.right!=null?b.right:b.left+b.width;
+    // Distance to the box, not to its centre: a tall card is not further away than a short one
+    // just because its middle is. Zero inside, so the card under the pointer always wins.
+    const dx=Math.max(b.left-x,0,x-right), dy=Math.max(b.top-y,0,y-bottom);
+    const d=dx*dx+dy*dy;
+    if(d>=bestD) continue;
+    bestD=d; best=i;
+    // Above this card is before it, below it is after it. Inside a card the old rule asked
+    // which side of its horizontal midpoint the pointer was on, which is a reading-order test:
+    // it reads "after" as "further along the row". Cards here stack down a column, so "below"
+    // is the answer to "put it under this one", and x has already had its say in choosing
+    // which card is being asked.
+    after = y>=b.top+(bottom-b.top)/2;
   }
-  // Removing the card first shifts every later slot down by one.
-  if(dragIx<ins) ins--;
+  if(best<0) return 0;
+  let ins=after?best+1:best;
+  // Removing the card first shifts every later slot down by one. Guarded, because a caller
+  // with no card of its own to skip passes -1, and -1 is less than every slot there is.
+  if(dragIx>=0&&dragIx<ins) ins--;
   return Math.max(0,Math.min(boxes.length-1,ins));
 }
 
@@ -3782,7 +3876,7 @@ document.addEventListener('pointermove',e=>{
   const col=_cardDropCol(e.clientX,s.grid.getBoundingClientRect(),s.span,_cardGridCols(s.grid));
   if(col&&col!==s.col){
     s.col=col;
-    s.ph.style.gridColumn=`${col} / span ${s.span}`;
+    _cardApplySpan(s.ph,col,s.span);
   }
   if(ins!==s.ins){
     s.ins=ins;
@@ -3867,7 +3961,7 @@ function _cardRzGroup(card,above){
     .filter(el=>el.classList&&el.classList.contains('pcard')&&!el.classList.contains('pdrag'))
     .map(el=>({el,r:el.getBoundingClientRect()})).filter(x=>x.r.height);
   const groups=_rowGroups(live.map(x=>({top:x.r.top,h:x.r.height,
-    free:!!cardDef(x.el.dataset.cardid)?.freeH})));
+    free:!cardDef(x.el.dataset.cardid)?.matchH})));
   let gi=groups.findIndex(g=>g.some(i=>live[i].el===card));
   // Every measurable card is in a group now, its own if it opted out of matching its neighbours.
   // Only a card with no height at all -- a hidden view, a test with no layout -- is missing.
@@ -3994,37 +4088,85 @@ document.addEventListener('mouseup',()=>_cardRzEnd(true));
 
 // Width by dragging the right edge. The height drag is the model: one inline property
 // follows the pointer continuously, a dashed guide shows where it will land, and the grid
-// is only relaid out once, on release. Stepping the real layout through four states as you
-// dragged is what made this feel static — the card can only be four widths, but the
-// *preview* doesn't have to be, so the card grows in pixels over the space to its right
-// while every neighbour stays exactly where it is.
+// is only relaid out once, on release. Stepping the real layout through every state as you
+// dragged is what made this feel static, so the card grows in pixels over the space to its
+// right while every neighbour stays exactly where it is.
 let _cardRzx=null;
+// A stored span is in the full 24 sub-columns. Below 1500px the grid has fewer tracks, so the
+// span is scaled into what is there -- a half stays a half. Pure, so the arithmetic is testable
+// without layout.
+function _cardGridSpan(span,cols){
+  const n=cols||PGRID_COLS;
+  const sp=Math.max(1,Math.min(PGRID_COLS,Math.round(span)||PGRID_SUB));
+  if(n>=PGRID_COLS) return sp;
+  // Floored at one visual column, never at one sub-column: a quarter-width card scaled into a
+  // 6-track phone grid is 1.5 tracks, and rounding that to 2 would leave a card a third of a
+  // phone screen wide. Every breakpoint keeps 6 sub-columns to a column, so the floor is the
+  // same number at all of them, and at 6 tracks it makes every card full width -- which is what
+  // the old span-1-of-1 rule did there.
+  return Math.max(1,Math.min(n,Math.max(PGRID_SUB,Math.round(sp*n/PGRID_COLS))));
+}
 // One place decides how a width is applied, so the live drag, the commit that follows it
-// and the double-click reset can't disagree — the same reason _cardApplyH exists for heights.
+// and the double-click reset can not disagree — the same reason _cardApplyH exists for heights.
 function _cardApplySpan(card,col,span){
-  card.style.gridColumn=`${col} / span ${span}`;
+  const grid=card.closest&&card.closest('.pgrid');
+  const cols=grid?_cardGridCols(grid):PGRID_COLS;
+  // A stored start means nothing in a grid with a different number of tracks -- placing a card
+  // at sub-column 19 of 12 conjures implicit columns and crushes the row -- so below full width
+  // the cards flow, which is exactly what the old !important media rules made them do.
+  card.style.gridColumn=(cols>=PGRID_COLS?col:'auto')+' / span '+_cardGridSpan(span,cols);
   card.dataset.span=span;
+}
+// Every cell in the grid re-placed for the tracks on screen right now. The media queries only
+// change the track count; this is what turns that into each card's span, and it has to run on
+// resize because nothing else re-renders when the window crosses a breakpoint.
+function _cardSpansPaint(grid){
+  const g=grid||document.querySelector('.pgrid'); if(!g) return;
+  const cols=_cardGridCols(g);
+  g.querySelectorAll(':scope > [data-span]').forEach(el=>{
+    const span=Number(el.dataset.span)||PGRID_SUB;
+    const def=el.dataset.cardid&&cardDef(el.dataset.cardid);
+    el.style.gridColumn=(cols>=PGRID_COLS&&def?cardCol(def):'auto')+' / span '+_cardGridSpan(span,cols);
+  });
 }
 function _cardRzxStart(e,id,left){
   e.preventDefault();
   const card=e.target.closest('.pcard'), grid=card.closest('.pgrid');
   if(!grid) return;
-  // The grid drops to 3 columns under 1500px and 2 under 1180px, with a smaller gap under
-  // 680px, so the drag asks the layout how wide a column actually is right now. Assuming
-  // four 14px-gapped columns is what made the card jump in increments that had nothing to
-  // do with where the mouse was.
+  // The grid drops to 18 sub-columns under 1500px and 12 under 1180px, so the drag asks the
+  // layout how wide a track actually is right now. Assuming the full 24 is what would make the
+  // card jump in increments that had nothing to do with where the mouse was.
   const cs=getComputedStyle(grid);
   const tracks=cs.gridTemplateColumns.split(' ').filter(Boolean);
-  const cols=tracks.length||PGRID_COLS, colW=parseFloat(tracks[0])||1;
-  const gap=parseFloat(cs.columnGap)||14;
+  const cols=tracks.length||PGRID_COLS;
+  // pitch is one track to the next; edge is everything between the last track a card covers and
+  // its own right edge. The grid used to carry the gutter as a column-gap (pitch=colW+gap,
+  // edge=gap) and now carries it as the card's margin (pitch=colW, edge=margin), and both spell
+  // the same thing: a span of N is N pitches less one edge. Reading both off the layout means
+  // neither this nor the guide has to know which of the two is in force.
+  const pitch=parseFloat(tracks[0])||1;
+  const gap=parseFloat(cs.columnGap)||0;
+  const edge=gap+(parseFloat(getComputedStyle(card).marginRight)||0);
   const r=card.getBoundingClientRect();
   // The right edge is what a left-edge drag holds still, so the column it ends on is fixed for
   // the gesture and the span is measured back from it. Everything else is shared with the
   // right-edge drag, including the dead zone -- one arithmetic, mirrored, not two.
   const def=cardDef(id)||{};
-  _cardRzx={id,card,grid,cols,colW,gap,left:r.left,right:r.right,w:r.width,
-            lf:!!left,endCol:cardCol(def)+cardSpan(def)-1,
-            span:def_span(id),start:def_span(id),
+  // The drag works in the tracks that are on screen, which below 1500px is not what a span is
+  // stored in; scale converts back on commit. q is the quantum: under "Match width" a card
+  // snaps to a whole visual quarter, which is 6 tracks at every breakpoint because each one
+  // keeps 6 sub-columns to a column. Free width snaps to a single track.
+  const scale=PGRID_COLS/cols, wide=cols>=PGRID_COLS;
+  const span=_cardGridSpan(cardSpan(def),cols);
+  // Below full width the card flows -- the stored start is not in force -- so the only cap is
+  // the grid itself. At full width a right drag stops at the last column and a left drag at the
+  // first, which is the same sum read from the other end.
+  const endCol=cardCol(def)+cardSpan(def)-1;
+  const max=!wide?cols:(left?Math.max(1,endCol):Math.max(1,cols-cardCol(def)+1));
+  _cardRzx={id,card,grid,cols,pitch,gap,edge,scale,wide,max,
+            q:def.matchW?PGRID_SUB:1,
+            left:r.left,right:r.right,w:r.width,
+            lf:!!left,endCol,span,start:span,
             was:[card.style.width,card.style.marginLeft,card.style.minHeight]};
   card.classList.add('rzx');
   // Nothing repacks until you let go — see _packHold.
@@ -4038,27 +4180,33 @@ function _cardRzxStart(e,id,left){
 }
 // Where a span's right edge sits, measured from the card's left. Used for both the live
 // width and the guide, so the line and the card can't disagree about where a column ends.
-function _cardRzxW(span,s){ return span*s.colW+(span-1)*s.gap }
+function _cardRzxW(span,s){ return span*s.pitch-s.edge }
 // PGRID_COLS is declared once, up with the column helpers.
 function def_span(id){ return cardSpan(cardDef(id)||{}) }
 // The span the pointer is asking for, with a dead zone around the boundary. Rounding flips
 // dead on the midpoint, so a pixel of hand jitter there toggled the span on every mousemove
 // and relaid out the whole grid each time. Pure, so the arithmetic is testable without layout.
+// The whole thing is counted in quanta rather than tracks, so the dead zone scales with the
+// step: under "Match width" it is a fifth of a quarter-column, under free width a fifth of a
+// sub-column, and neither has a different feel from the other.
 function _cardRzxSpan(x,s){
+  const q=Math.max(1,s.q||1);
   // Distance measured from whichever edge is standing still. The dead zone is written once and
   // read the same way in both directions, so the left drag cannot drift from the right one.
-  const f=((s.lf?s.right-x:x-s.left)+s.gap)/(s.colW+s.gap);
-  let span=s.span;
-  if(f>s.span+0.6) span=Math.floor(f+0.4);
-  else if(f<s.span-0.4) span=Math.ceil(f-0.4);
-  return span;
+  const f=((s.lf?s.right-x:x-s.left)+s.edge)/s.pitch/q;
+  const cur=s.span/q;
+  let n=cur;
+  if(f>cur+0.6) n=Math.floor(f+0.4);
+  else if(f<cur-0.4) n=Math.ceil(f-0.4);
+  return Math.max(1,Math.round(n))*q;
 }
 document.addEventListener('mousemove',e=>{
   if(!_cardRzx) return;
   const s=_cardRzx, card=s.card;
-  // Growing right is capped by the grid's right edge; growing left is capped by column 1, which
-  // is the same sum read from the other end -- the column the card ends on is what it keeps.
-  const max=s.lf?Math.max(1,s.endCol):Math.max(1,s.cols-cardCol(cardDef(s.id)||{})+1);
+  // Worked out once, at the start of the gesture -- see _cardRzxStart. Recomputing it here read
+  // cardCol against a def the drag had not written yet, in tracks that below 1500px are not the
+  // ones a span is stored in.
+  const max=s.max;
   const span=Math.min(max,Math.max(1,_cardRzxSpan(e.clientX,s)));
   s.span=span;
   // The card follows the pointer in pixels, floored at one column and capped at the edge.
@@ -4091,12 +4239,16 @@ function _cardRzxEnd(commit){
   card.style.width=s.was[0]; card.style.marginLeft=s.was[1]; card.style.minHeight=s.was[2];
   _packHold=0;
   const c=commit&&cardDef(id);
-  if(c&&(cardSpan(c)!==span||s.lf)){
+  // The drag counted in the tracks on screen; a span is stored in the full 24. Above 1500px
+  // scale is 1 and this is the number the drag produced.
+  const stored=Math.max(1,Math.min(PGRID_COLS,Math.round(span*s.scale)));
+  if(c&&(cardSpan(c)!==stored||s.lf)){
     // Dragging the left edge keeps the card's last column, so the start moves by what the span
-    // gained. Below 1500px the media queries force grid-column:auto, so the stored start has no
-    // effect there and the card grows to the right instead -- the width still changes.
-    if(s.lf) c.col=Math.max(1,s.endCol-span+1);
-    c.span=span;
+    // gained. Below 1500px the card flows, so the stored start has no effect there and the card
+    // grows to the right instead -- the width still changes, and the start is left alone rather
+    // than rewritten from a gesture that never saw it.
+    if(s.lf&&s.wide) c.col=Math.max(1,s.endCol-stored+1);
+    c.span=stored;
     // Growing a card can push its start column past the right edge; cardCol clamps for that,
     // so re-apply the start the next render will give it rather than leaving the drag's.
     _cardApplySpan(card,cardCol(c),cardSpan(c));
@@ -6490,6 +6642,28 @@ function richtextKD(e){
         }
       }
     }
+  }
+  // Auto-arrow on ">": "->" becomes an arrow, "=>" a double one.
+  // These used to come from Inter's calt table, until 08f52fa turned contextual
+  // alternates off app-wide to stop a typed "2x3" rendering as "2×3" -- the arrows
+  // were the other rule in the same table and went out with it. Substituting a real
+  // character asks nothing of the font, which is what tbArrows already does for time
+  // blocks, and is why those were never affected.
+  if(e.key==='>'){
+    const sel=window.getSelection();
+    if(!sel||!sel.rangeCount) return;
+    const range=sel.getRangeAt(0);
+    const node=range.startContainer;
+    if(node.nodeType!==Node.TEXT_NODE) return;
+    const prev=node.textContent.slice(0,range.startOffset).slice(-1);
+    const arrow=prev==='-'?'\u2192':prev==='='?'\u21D2':null;
+    if(!arrow) return;
+    e.preventDefault();
+    const r2=document.createRange();
+    r2.setStart(node,range.startOffset-1);r2.setEnd(node,range.startOffset);
+    sel.removeAllRanges();sel.addRange(r2);
+    document.execCommand('insertText',false,arrow);
+    return;
   }
   // Auto-list on Space: "- " → bullet, "1. " → numbered, "A. " / "a. " → lettered
   if(e.key===' '){
@@ -11161,7 +11335,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); migrateCardsToOneEntry(); migrateCardCols(); migrateJournalNotebooks(); render(); });
+loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateJournalNotebooks(); render(); });
 </script>
 </body>
 </html>
