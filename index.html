@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a1">
+<meta name="build" content="0825-a2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1249,7 +1249,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a1';
+const RT_BUILD = '0825-a2';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -1412,7 +1412,7 @@ document.addEventListener('visibilitychange',()=>{
   // Never while this device owes a push, or the pull would overwrite the very work that has
   // not gone up yet — which is the failure this whole change is about.
   if(_syncTimer||_hasUnpushed()) return;
-  loadFromCloud().then(render);
+  loadFromCloud().then(()=>{ migrateAll(); render(); });
 });
 
 // One-time repair: the July 2026 recovery left every habit's skips corrupted
@@ -1523,6 +1523,17 @@ function flowedCols(defs){
 // are multiplied by PGRID_SUB rather than reinterpreted -- a span of 2 was half the row before
 // and is half the row after. Flagged on the cards object, not on each def, because a def that
 // happens to have no span still needs the pass to have run before cardSpan's default applies.
+// Everything that has to be true of D before anything reads it. Adopting the cloud row replaces
+// D wholesale, so every path that does it runs this -- not just boot. The visibilitychange reload
+// did not, and the cloud row is not necessarily migrated: migrateCardGrid writes locally and never
+// pushes, so a device that has not pushed since still has its spans up there in quarters. Pulling
+// those straight into a 24-column grid read a half-width card as 2/24, which is why the cards
+// collapsed and their tables went to pieces a few seconds after a refresh. Each of these is
+// already guarded and idempotent, which is what makes running them on every adoption free.
+function migrateAll(){
+  repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard();
+  migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateJournalNotebooks();
+}
 // Runs before migrateCardCols, which flows missing columns and would otherwise flow them in the
 // new units against widths still in the old ones.
 function migrateCardGrid(){
@@ -11335,7 +11346,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard(); migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateJournalNotebooks(); render(); });
+loadFromCloud().then(()=>{ migrateAll(); render(); });
 </script>
 </body>
 </html>
