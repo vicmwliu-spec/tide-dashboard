@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a4">
+<meta name="build" content="0825-a5">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1249,7 +1249,10 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a4';
+const RT_BUILD = '0825-a5';
+// This has now been diagnosed from reading twice and the second reading was wrong about which
+// window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
+const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -4170,6 +4173,11 @@ function _cardApplySpan(card,col,span,grid){
   // at sub-column 19 of 12 conjures implicit columns and crushes the row -- so below full width
   // the cards flow, which is exactly what the old !important media rules made them do.
   card.style.gridColumn=(cols>=PGRID_COLS?col:'auto')+' / span '+_cardGridSpan(span,cols);
+  // This is a real placement at the track count on screen, so it counts as placed for
+  // rtMeasurable exactly as the paint pass does. The two must not disagree: a card resized by a
+  // drag goes through here, and a table inside it that stopped being measurable mid-gesture
+  // would refuse to follow the boundary the pointer is holding.
+  card.dataset.placed='1';
 }
 // Every cell in the grid re-placed for the tracks on screen right now. The media queries only
 // change the track count; this is what turns that into each card's span, and it has to run on
@@ -4180,9 +4188,22 @@ function _cardSpansPaint(grid){
   // left it.
   const grids=grid?[grid]:[...document.querySelectorAll('.pgrid')];
   grids.forEach(g=>{
-    // An unlaid-out grid is skipped rather than guessed at: nothing it could be given would be
-    // right, and the resize or the pack that follows the layout paints it properly.
-    const tracks=_cardGridTracks(g); if(!tracks) return;
+    const tracks=_cardGridTracks(g);
+    // An unlaid-out grid cannot be measured, but leaving its cards unplaced is worse than a
+    // provisional answer. An unplaced item auto-places into a single track -- about 40px of 24,
+    // not zero -- and anything that measures a card in that state gets an answer that is wrong
+    // and, through rtNormalizeCols and rtFire, saved. One visual column is legal and
+    // non-degenerate at 24, 18, 12 and 6 tracks alike and creates no implicit tracks. It is
+    // deliberately not stamped placed, so nothing trusts its geometry in the meantime, and the
+    // resize or the pack that follows the layout paints it properly.
+    if(!tracks){
+      g.querySelectorAll(':scope > [data-span]').forEach(el=>{
+        delete el.dataset.placed;
+        const v='auto / span '+PGRID_SUB;
+        if(el.style.gridColumn!==v) el.style.gridColumn=v;
+      });
+      return;
+    }
     const cols=tracks.length, pitch=tracks[0]||0;
     const gap=parseFloat(getComputedStyle(g).columnGap)||0;
     // Read every card, then write every card. The floor below measures boxes, and a grid-column
@@ -4209,7 +4230,12 @@ function _cardSpansPaint(grid){
       }
       out.push([el,(cols>=PGRID_COLS&&def?cardCol(def):'auto')+' / span '+sp]);
     });
-    out.forEach(([el,v])=>{ if(el.style.gridColumn!==v) el.style.gridColumn=v; });
+    // The stamp is the whole of what rtMeasurable asks: this card is at the width the grid
+    // actually gives it, so a table inside it may convert its columns against that width.
+    out.forEach(([el,v])=>{
+      if(el.style.gridColumn!==v) el.style.gridColumn=v;
+      el.dataset.placed='1';
+    });
   });
 }
 // The grid metrics a width drag works in, read off the live layout rather than assumed. pitch
@@ -4255,6 +4281,14 @@ function _cardTablesMinPx(card){
   if(!(outer>0)) return 0;
   let px=0;
   card.querySelectorAll('.rt-tw').forEach(w=>{
+    // A wrapper given a width of its own is skipped. Those widths are percentages -- half a card
+    // for a side-by-side pair, whatever the right-edge drag left -- so "everything in the card
+    // that is not the table" grows with the card, and the floor feeds back into the width that
+    // produced it: a fifth-width table converges on pinning its card to the whole row. It is
+    // also the wrong question to ask of one. A narrowed table is the user choosing shrink-then-
+    // scroll, which is what .rt-tw is for; only a full-width table is making a claim on the card,
+    // and for that one the difference is a genuine constant -- border plus body padding.
+    if(w.style.width) return;
     const t=w.querySelector('.rt-table'); if(!t) return;
     const min=parseFloat(t.style.minWidth)||0; if(!min) return;
     const cs=getComputedStyle(w);
@@ -7434,20 +7468,58 @@ function rtSetColWidth(t,c,px){
 // this is what makes it right again, and it is why "fits" is true rather than nearly
 // true. A colgroup still written in px lands here too: dividing by the sum cancels
 // the card width out of the arithmetic, so the ratios survive migration untouched.
+// Whether the geometry under this table can be trusted yet. Exactly two things read a live
+// width -- the px to % migration below and the minWidth floor -- and both write their answer
+// into the colgroup, which rtFire then saves into the card. A reading taken before the card is
+// at its final width is therefore saved for good, which is what made the distortion sticky and
+// cumulative rather than something a reload cleared.
+//
+// Placed, not merely wider than zero. A card that has not been placed auto-places into a single
+// track and measures about 40px, which no width test can tell apart from a genuinely narrow
+// card; _cardSpansPaint stamps the cards it has placed at the track count on screen. The
+// wrapper still has to have a box at all, because a placed card in a view that is not showing
+// has none. A table outside a card -- the AAR editor -- is judged on its wrapper alone, as
+// before, since there is nothing placing it.
+function rtMeasurable(t){
+  const w=(t.closest&&t.closest('.rt-tw'))||t;
+  if(!(w.getBoundingClientRect().width>0)) return false;
+  const card=t.closest&&t.closest('.pcard');
+  return !card||card.dataset.placed==='1';
+}
 function rtNormalizeCols(t){
   const cg=t.querySelector('colgroup'); if(!cg) return;
   const cs=[...cg.children]; if(!cs.length) return;
-  const inner=rtInnerWidth(t)||RT_NOMW;
+  // The guard is here rather than around any one caller because every one of the twenty-odd
+  // paths into rtEnsureCols funnels through this function, and because everything else
+  // rtEnsureCols does -- the colgroup, rt-fixed, the header classes -- is width-independent and
+  // must always happen. Blocking the whole call was the 0825-a4 mistake: it left a table with no
+  // colgroup and no rt-fixed, so .rt-table td's 96px floor and auto layout decided the columns,
+  // the wrapping and with it the row heights, and a boundary drag had nothing to write into.
+  const live=rtMeasurable(t);
+  const inner=live?(rtInnerWidth(t)||RT_NOMW):0;
+  let px=false;
   const p=cs.map(c=>{
     const s=c.style.width||'',v=parseFloat(s)||0;
     if(s.indexOf('%')>=0) return Math.max(0.01,v);
-    return v?v/inner*100:100/cs.length;
+    if(v){ px=true; return live?v/inner*100:0; }
+    return 100/cs.length;
   });
+  if(px&&RT_DEBUG){
+    const card=t.closest('.pcard');
+    console.log('[rt] px->%',{live,inner,cols:cs.length,
+      card:card?card.dataset.cardid:null,placed:card?card.dataset.placed:'(no card)',
+      wrap:Math.round(((t.closest('.rt-tw')||t).getBoundingClientRect().width)*10)/10});
+  }
+  // A colgroup already in percentages is re-normalised either way: dividing by the sum cancels
+  // the width out of the arithmetic, so it cannot come out wrong, and skipping it would leave a
+  // column added by a split without its share. Only a px colgroup has to wait, and it waits by
+  // being left exactly as it is -- the next render migrates it against a real width.
+  if(px&&!live) return;
   const tot=p.reduce((a,b)=>a+b,0)||100;
   cs.forEach((c,i)=>{ c.style.width=(p[i]/tot*100).toFixed(2)+'%'; });
   // The scroll floor. Inline so it survives into the saved card HTML, and rewritten
   // here so it always matches the widest row.
-  t.style.minWidth=rtMinTableWidth(t)+'px';
+  if(live) t.style.minWidth=rtMinTableWidth(t)+'px';
 }
 // What the table cannot be narrower than. Counting colgroup entries gets this wrong
 // the moment one row is split: the split adds a grid column to express a boundary
@@ -7675,13 +7747,11 @@ function rtFreezeTables(){
       if(!rtColCount(t)) return;
       const cg=t.querySelector('colgroup');
       const stale=!cg||[...cg.children].some(c=>(c.style.width||'').indexOf('%')<0);
-      // Never against a box that has not been laid out. rtEnsureCols recomputes the column
-      // percentages from the geometry it can see, and rtFire writes them into D.cards.data -- so
-      // a table measured while its card is zero-wide has that measurement saved for good. That is
-      // what made the distortion sticky and cumulative rather than something a reload cleared.
-      // Nothing is lost by waiting: the next render freezes it correctly.
-      const box=t.closest('.rt-tw')||t.closest('.pcard');
-      if(stale&&!(box&&box.getBoundingClientRect().width===0)){ rtEnsureCols(t); dirty=true; }
+      // Unconditional. Upgrading is not measuring: the colgroup rtEnsureCols builds is equal
+      // shares and rt-fixed is a class, and a table denied those is not left alone but left
+      // broken -- .rt-table td's 96px floor and auto layout deciding its columns. rtNormalizeCols
+      // holds back the one step that reads a width, which is all that ever needed holding back.
+      if(stale){ rtEnsureCols(t); dirty=true; }
     });
     // A highlighted cell that is not in the live selection is left-over paint — from a save made
     // while cells were selected, before rtHTML stripped them. Clearing it here repairs what is
