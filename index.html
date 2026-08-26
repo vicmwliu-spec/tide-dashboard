@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a3">
+<meta name="build" content="0825-a4">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1249,7 +1249,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a3';
+const RT_BUILD = '0825-a4';
 let _syncStatus = 'loading'; // 'loading'|'synced'|'syncing'|'offline'|'conflict'
 let _syncTimer = null;
 // updated_at (ISO string) of the cloud row this device last successfully loaded/pushed, and
@@ -2297,7 +2297,7 @@ function mkCardGrid(){
   const wrap=document.createElement('div');
   wrap.className='pgrid';
   const defs=cardDefs();
-  defs.forEach((def,ix)=>wrap.appendChild(mkPlannerCard(def,ix)));
+  defs.forEach((def,ix)=>wrap.appendChild(mkPlannerCard(def,ix,wrap)));
   // The end of the grid keeps a picker, because an empty page has no card to hover for a
   // ⊕ and because "add one more at the end" is still the common case. It is the only
   // permanent piece of chrome left on this view, and it is the last cell rather than a
@@ -3337,13 +3337,15 @@ function convertCardTo(id,type){
   _cardsDirty(); render();
 }
 
-function mkPlannerCard(def,ix){
+function mkPlannerCard(def,ix,grid){
   const d=document.createElement('div');
   d.className='pcard';
   d.dataset.cardid=def.id;
-  // The card is not in the grid yet, so this places it for the full 24 tracks; packCards
-  // calls _cardSpansPaint once it is mounted, which is where a narrowed grid is accounted for.
-  _cardApplySpan(d,cardCol(def),cardSpan(def));
+  // The card is not in the grid yet, so this writes dataset.span and no grid-column at all:
+  // packCards calls _cardSpansPaint once it is mounted, and that is where a span becomes a
+  // placement, at the track count actually on screen. The grid it is bound for is passed so it
+  // can place itself immediately in the one case where that grid is already in the document.
+  _cardApplySpan(d,cardCol(def),cardSpan(def),grid);
   d.draggable=false;
 
   // One header, no modes. The title has always been renameable in place and the header has
@@ -3758,10 +3760,25 @@ function _cardDropCol(x,gridRect,span,cols){
   const c=Math.floor((x-gridRect.left)/track)+1;
   return Math.min(n-span+1,Math.max(1,c));
 }
-// The rendered track count, read the way _cardRzxStart reads it.
+// The resolved track list, or null when the grid has not been laid out. getComputedStyle answers
+// gridTemplateColumns with the *used* value -- a list of px lengths -- only once the grid has a
+// box. For a grid in a hidden view, or one not in the document at all, Chrome hands back the
+// specified value instead: "repeat(24, 1fr)", which splits to two tokens and would be counted as
+// a two-track grid, painting every card span 2. So a value is a track list only when every token
+// is a length; anything still holding repeat( or fr is an unlaid-out grid with no answer to give.
+function _cardGridTracks(grid){
+  if(!grid) return null;
+  const v=getComputedStyle(grid).gridTemplateColumns||'';
+  if(!v||v==='none'||/repeat\(|fr\b|content|auto/.test(v)) return null;
+  const t=v.split(' ').filter(Boolean).map(parseFloat);
+  return t.length&&t.every(x=>isFinite(x)&&x>=0)?t:null;
+}
+// The rendered track count, read the way _cardRzxStart reads it. PGRID_COLS when there is no
+// layout to read -- the full-width case, and the only one where a stored start still means
+// something, so a card that cannot be measured is left alone rather than guessed narrow.
 function _cardGridCols(grid){
-  const t=getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean);
-  return t.length||PGRID_COLS;
+  const t=_cardGridTracks(grid);
+  return t?t.length:PGRID_COLS;
 }
 // Where the card would land, given the pointer and the other cards' boxes. Pure,
 // so it can be tested without layout — jsdom has none.
@@ -4124,34 +4141,75 @@ function _cardGridSpan(span,cols){
   const n=cols||PGRID_COLS;
   const sp=Math.max(1,Math.min(PGRID_COLS,Math.round(span)||PGRID_SUB));
   if(n>=PGRID_COLS) return sp;
-  // Floored at one visual column, never at one sub-column: a quarter-width card scaled into a
-  // 6-track phone grid is 1.5 tracks, and rounding that to 2 would leave a card a third of a
-  // phone screen wide. Every breakpoint keeps 6 sub-columns to a column, so the floor is the
-  // same number at all of them, and at 6 tracks it makes every card full width -- which is what
-  // the old span-1-of-1 rule did there.
-  return Math.max(1,Math.min(n,Math.max(PGRID_SUB,Math.round(sp*n/PGRID_COLS))));
+  // Rounded up to a whole visual column, not to the nearest sub-column. Before the grid went to
+  // 24 tracks the breakpoints were !important rules on the four legacy widths, and at <=1500px a
+  // half-width card took 2 of 3 columns and a three-quarter card the whole row. Scaling linearly
+  // and rounding to nearest gives 9/18 and 14/18 instead -- a straight narrowing of every card on
+  // a narrow window, and most of why tables that used to fit now scroll. Rounding up restores it,
+  // and says the thing worth guaranteeing: crossing a breakpoint can widen a card, never narrow
+  // one. Every breakpoint keeps 6 sub-columns to a visual column, so the quantum is the same at
+  // all of them, and at 6 tracks it makes every card full width -- what the old span-1-of-1 rule
+  // did there.
+  return Math.max(PGRID_SUB,Math.min(n,Math.ceil(sp*n/PGRID_COLS/PGRID_SUB)*PGRID_SUB));
 }
 // One place decides how a width is applied, so the live drag, the commit that follows it
 // and the double-click reset can not disagree — the same reason _cardApplyH exists for heights.
-function _cardApplySpan(card,col,span){
-  const grid=card.closest&&card.closest('.pgrid');
-  const cols=grid?_cardGridCols(grid):PGRID_COLS;
+function _cardApplySpan(card,col,span,grid){
+  card.dataset.span=span;
+  const g=grid||(card.closest&&card.closest('.pgrid'));
+  const tracks=g&&g.isConnected?_cardGridTracks(g):null;
+  // No layout to measure against is not the same as 24 tracks, and treating it as 24 is what
+  // collapsed the grid: a card built while still detached was written "19 / span 6" into an
+  // 18-track grid, where grid-auto-columns:0 crushes every implicit track to nothing. So write
+  // the span and stop. _cardSpansPaint is the one place that turns a span into a grid-column,
+  // and it runs from packCards the moment the grid is mounted -- which is what the comments in
+  // mkCardGrid and mkPlannerCard have always claimed happened.
+  if(!tracks) return;
+  const cols=tracks.length;
   // A stored start means nothing in a grid with a different number of tracks -- placing a card
   // at sub-column 19 of 12 conjures implicit columns and crushes the row -- so below full width
   // the cards flow, which is exactly what the old !important media rules made them do.
   card.style.gridColumn=(cols>=PGRID_COLS?col:'auto')+' / span '+_cardGridSpan(span,cols);
-  card.dataset.span=span;
 }
 // Every cell in the grid re-placed for the tracks on screen right now. The media queries only
 // change the track count; this is what turns that into each card's span, and it has to run on
 // resize because nothing else re-renders when the window crosses a breakpoint.
 function _cardSpansPaint(grid){
-  const g=grid||document.querySelector('.pgrid'); if(!g) return;
-  const cols=_cardGridCols(g);
-  g.querySelectorAll(':scope > [data-span]').forEach(el=>{
-    const span=Number(el.dataset.span)||PGRID_SUB;
-    const def=el.dataset.cardid&&cardDef(el.dataset.cardid);
-    el.style.gridColumn=(cols>=PGRID_COLS&&def?cardCol(def):'auto')+' / span '+_cardGridSpan(span,cols);
+  // Every grid, matching what _packPass iterates. The no-argument call used to paint
+  // querySelector -- the first grid only -- so a second one kept whatever the last breakpoint
+  // left it.
+  const grids=grid?[grid]:[...document.querySelectorAll('.pgrid')];
+  grids.forEach(g=>{
+    // An unlaid-out grid is skipped rather than guessed at: nothing it could be given would be
+    // right, and the resize or the pack that follows the layout paints it properly.
+    const tracks=_cardGridTracks(g); if(!tracks) return;
+    const cols=tracks.length, pitch=tracks[0]||0;
+    const gap=parseFloat(getComputedStyle(g).columnGap)||0;
+    // Read every card, then write every card. The floor below measures boxes, and a grid-column
+    // written to the card before it invalidates the layout those measurements come from -- so
+    // interleaving the two costs a forced reflow per card, on a pass that runs on every resize
+    // and several times per pack. Two passes cost one.
+    const out=[];
+    g.querySelectorAll(':scope > [data-span]').forEach(el=>{
+      const span=Number(el.dataset.span)||PGRID_SUB;
+      const def=el.dataset.cardid&&cardDef(el.dataset.cardid);
+      let sp=_cardGridSpan(span,cols);
+      // The same content floor _cardRzxStart enforces, applied where a breakpoint can narrow a
+      // card without anyone dragging it -- the drag was the only path that had it, so the one
+      // way a card got too narrow for its contents that nobody had asked for went unchecked.
+      // Only the tables half of the floor: _cardMinPx forces a min-content reflow, affordable
+      // once at the start of a gesture and not once per card per paint, and tables are the part
+      // that actually stopped fitting.
+      if(pitch>0&&def){
+        const min=_cardTablesMinPx(el);
+        if(min>0){
+          const edge=gap+(parseFloat(getComputedStyle(el).marginRight)||0);
+          sp=Math.max(sp,Math.min(cols,Math.ceil((min+edge)/pitch)));
+        }
+      }
+      out.push([el,(cols>=PGRID_COLS&&def?cardCol(def):'auto')+' / span '+sp]);
+    });
+    out.forEach(([el,v])=>{ if(el.style.gridColumn!==v) el.style.gridColumn=v; });
   });
 }
 // The grid metrics a width drag works in, read off the live layout rather than assumed. pitch
@@ -4162,10 +4220,10 @@ function _cardSpansPaint(grid){
 // has to know which of the two is in force.
 function _cardGridMetrics(card,grid){
   const cs=getComputedStyle(grid);
-  const tracks=cs.gridTemplateColumns.split(' ').filter(Boolean);
+  const tracks=_cardGridTracks(grid);
   const gap=parseFloat(cs.columnGap)||0;
-  return {cols:tracks.length||PGRID_COLS,
-          pitch:parseFloat(tracks[0])||1,
+  return {cols:tracks?tracks.length:PGRID_COLS,
+          pitch:(tracks&&tracks[0])||1,
           gap,
           edge:gap+(parseFloat(getComputedStyle(card).marginRight)||0)};
 }
@@ -4174,20 +4232,28 @@ function _cardGridMetrics(card,grid){
 // and still work" -- the longest word in a paragraph, the widest row of header buttons. It
 // costs one forced reflow, which is why it is worked out once at the start of a gesture and
 // never per mousemove.
-//
-// The one thing min-content cannot see is tables. A .rt-tw is a scroll container, so its
-// min-content contribution is zero by definition -- that is deliberate, and it is what lets a
-// wide table scroll inside a narrow card instead of dragging the card open. But it also meant
-// a card could be squeezed until every table in it was scrolling, which is what this answers.
-// A table's own floor is the inline min-width rtMinTableWidth writes, so it is read back off
-// and re-expressed as a card width: the table's content box, plus everything in the card that
-// is not the table's content box.
+// The one thing min-content cannot see is tables, so the two halves are added together here.
 function _cardMinPx(card){
   const was=card.style.width;
   card.style.width='min-content';
-  let px=card.getBoundingClientRect().width;
+  const px=card.getBoundingClientRect().width;
   card.style.width=was;
+  return Math.ceil(Math.max(px,_cardTablesMinPx(card)));
+}
+// The tables half of that floor. A .rt-tw is a scroll container, so its min-content contribution
+// is zero by definition -- that is deliberate, and it is what lets a wide table scroll inside a
+// narrow card instead of dragging the card open. But it also means a card can be squeezed until
+// every table in it is scrolling, which is what this answers: a table's own floor is the inline
+// min-width rtMinTableWidth writes, so it is read back off and re-expressed as a card width --
+// the table's content box, plus everything in the card that is not the table's content box.
+//
+// On its own rather than inside _cardMinPx because it is the half that costs nothing -- no width
+// written and no reflow forced, only boxes read -- and _cardSpansPaint needs a floor per card on
+// every paint and cannot pay for min-content. It is also the half a card was actually violating.
+function _cardTablesMinPx(card){
   const outer=card.getBoundingClientRect().width;
+  if(!(outer>0)) return 0;
+  let px=0;
   card.querySelectorAll('.rt-tw').forEach(w=>{
     const t=w.querySelector('.rt-table'); if(!t) return;
     const min=parseFloat(t.style.minWidth)||0; if(!min) return;
@@ -7609,7 +7675,13 @@ function rtFreezeTables(){
       if(!rtColCount(t)) return;
       const cg=t.querySelector('colgroup');
       const stale=!cg||[...cg.children].some(c=>(c.style.width||'').indexOf('%')<0);
-      if(stale){ rtEnsureCols(t); dirty=true; }
+      // Never against a box that has not been laid out. rtEnsureCols recomputes the column
+      // percentages from the geometry it can see, and rtFire writes them into D.cards.data -- so
+      // a table measured while its card is zero-wide has that measurement saved for good. That is
+      // what made the distortion sticky and cumulative rather than something a reload cleared.
+      // Nothing is lost by waiting: the next render freezes it correctly.
+      const box=t.closest('.rt-tw')||t.closest('.pcard');
+      if(stale&&!(box&&box.getBoundingClientRect().width===0)){ rtEnsureCols(t); dirty=true; }
     });
     // A highlighted cell that is not in the live selection is left-over paint — from a save made
     // while cells were selected, before rtHTML stripped them. Clearing it here repairs what is
