@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a10">
+<meta name="build" content="0825-a11">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -739,8 +739,20 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* Days already gone fade back so the days still ahead carry the eye. The width is
    deliberately untouched: the weeks stacked in one of these tables share one colgroup, so
    narrowing this week's Monday would narrow Monday in every week below it too. */
-.rt-table.rt-live td.rt-past{color:var(--text3)}
+.rt-table.rt-live td.rt-past{opacity:.55}
 .rt-table.rt-live td.rt-past.rt-hd{opacity:.7}
+/* A week that has gone entirely steps back as one block, rather than seven columns each
+   fading on their own -- at a glance the page then reads as "these weeks are done, this one
+   is live". The per-day fade above still marks the days gone inside the current week, which
+   is the week where knowing that is worth anything. */
+.rt-table.rt-live tr.rt-pastwk td{opacity:.45}
+.rt-table.rt-live tr.rt-pastwk td.rt-past{opacity:1}
+/* A rule between weeks, so the blocks separate without a heading on each. Not above the
+   first: it is the boundary that carries the meaning, not the row. */
+.rt-table.rt-live tr.rt-wk:not(:first-child) td{border-top:2px solid var(--border)}
+/* The row labels are a key down the side, not four headings. Quieter than the words written
+   in the week, so the eye goes to the week. */
+.rt-table.rt-live tr td:first-child{font-size:11px;letter-spacing:.06em;color:var(--text2)}
 /* Today is marked with a rule and the text colour, never a fill: the header rules above set
    `background` at a higher specificity, so a fill on a header cell simply would not show —
    the same trap .rt-sel documents. The colour is per-table, painted onto the element as a
@@ -750,6 +762,9 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .rt-table.rt-live tr td.rt-today.rt-hd{box-shadow:inset 2px 2px 0 var(--rt-hl,var(--accent)),inset -2px 0 0 var(--rt-hl,var(--accent));color:var(--rt-hl,var(--accent))}
 .rt-table.rt-live td.rt-today .rt-dt{color:var(--rt-hl,var(--accent))}
 /* The swatch row in the table menu, borrowed wholesale from the time-block modal. */
+#rt-ctl .rt-menu.rt-colpop{min-width:186px}
+#rt-ctl .rt-colpop .rt-colhd{padding:6px 10px 0;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text3)}
 .rt-hlrow{display:flex;gap:5px;flex-wrap:wrap;padding:6px 10px 8px}
 .rt-hlsw{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0}
 .rt-hlsw.on{border-color:var(--text1)}
@@ -1272,7 +1287,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a10';
+const RT_BUILD = '0825-a11';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -7467,7 +7482,7 @@ function rtPaintLive(t,today){
     const start=rtLiveAnchor(b,prev,now); prev=start;
     const cols=Object.keys(b.days).map(Number).sort((a,z)=>a-z);
     const first=b.days[cols[0]];
-    let lastMon=-1;
+    let lastMon=-1,gone=0,ahead=0;
     cols.forEach(ci=>{
       const off=(((b.days[ci]-first)%7)+7)%7;
       const d=_rtAddDays(start,off);
@@ -7488,12 +7503,17 @@ function rtPaintLive(t,today){
       // one table share one colgroup, so narrowing this week's Monday would narrow Monday
       // in every week below it too.
       const past=d<now, isToday=+d===+now;
+      if(past) gone++; else ahead++;
       [td,...b.rows.map(r=>r.children[ci])].forEach(c=>{
         if(!c) return;
         _rtMark(c,'rt-past',past);
         _rtMark(c,'rt-today',isToday);
       });
     });
+    // The block as a whole: every day in it has gone, or it has not.
+    _rtMark(b.head,'rt-wk',true);
+    const done=ahead===0&&gone>0;
+    [b.head,...b.rows].forEach(r=>_rtMark(r,'rt-pastwk',done));
   });
 }
 // Everything above is drawn, not written. This takes it back out again, so what reaches
@@ -7504,8 +7524,8 @@ function _rtStripLive(c){
   // Every cell in these tables is written contenteditable="true"; the lock above is the only
   // thing that ever says otherwise, so taking it off is putting the attribute back.
   c.querySelectorAll('td[contenteditable="false"]').forEach(td=>td.setAttribute('contenteditable','true'));
-  c.querySelectorAll('.rt-past,.rt-today').forEach(n=>{
-    n.classList.remove('rt-past','rt-today');
+  c.querySelectorAll('.rt-past,.rt-today,.rt-wk,.rt-pastwk').forEach(n=>{
+    n.classList.remove('rt-past','rt-today','rt-wk','rt-pastwk');
     if(!n.classList.length) n.removeAttribute('class');
   });
 }
@@ -7860,11 +7880,26 @@ function rtPushUndo(h,now){
     st.t=setTimeout(()=>{ st.t=0; const p=st.p; st.p=null; _rtCommit(h,st,p); },350);
   }
 }
+// Bank a typing burst still sitting on the debounce. It is the one state that legitimately
+// differs from the top of the stack without being anybody else's content, and reading it as
+// foreign is how a history got thrown away mid-edit: every td in a table is contenteditable
+// in its own right, so moving the caret from one cell to the next is a real focusin, and the
+// seed used to flatten the stack to a single entry over keystrokes it had not yet banked.
+function rtFlushUndo(h){
+  const st=_rtUState(h);
+  if(!st||!st.t||!st.p) return false;
+  clearTimeout(st.t); st.t=0;
+  const p=st.p; st.p=null;
+  _rtCommit(h,st,p);
+  return true;
+}
 // Content replaced from outside (render() reloads the cards, the AAR editor reloads on
 // open) must not stay undoable back to somebody else's text. Reseed whenever what's on
-// screen isn't what the stack last saw.
+// screen isn't what the stack last saw -- with the burst banked first, so what is compared
+// is the editor's own settled state and not a half-typed word.
 function rtSeedUndo(h){
   const st=_rtUState(h);
+  rtFlushUndo(h);
   const now=rtHTML(h);
   if(st.i<0||_rtSig(st.s[st.i].h)!==_rtSig(now)){ clearTimeout(st.t); st.t=0; st.p=null; st.s=[{h:now,c:null}]; st.i=0; }
 }
@@ -7909,7 +7944,20 @@ function rtUndo(h,redo){
 }
 document.addEventListener('focusin',e=>{
   const h=e.target&&e.target.closest?e.target.closest(RT_HOSTS):null;
-  if(h){ rtSeedUndo(h); rtSetLastHost(h); }
+  // Only when focus arrives from outside the host it was already in. Cell to cell in a table,
+  // or out to an #rt-ctl button and back, is not content arriving from elsewhere. Same element
+  // or same stable key is the same editor; a keyless host falls through and reseeds as before,
+  // since without a key two different ones cannot be told apart.
+  if(h){
+    // Bank whatever is pending wherever focus came from, then ask whether this is even a
+    // different editor. Same element or same stable key is the same one; a keyless host
+    // falls through and reseeds as before, since without a key two cannot be told apart.
+    if(_rtLastHost&&document.contains(_rtLastHost)) rtFlushUndo(_rtLastHost);
+    rtFlushUndo(h);
+    const key=_rtHostKey(h);
+    if(!(h===_rtLastHost||(key&&key===_rtLastHostKey))) rtSeedUndo(h);
+    rtSetLastHost(h);
+  }
 });
 // Which card was last edited. Every table operation runs from a button on #rt-ctl,
 // which lives on <body> — and deleting a table takes the caret with it — so after
@@ -7962,6 +8010,11 @@ let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 // Whether the "split into how many" popover is open. Like _rtMenu, it is state rather
 // than a live node because rtShowCtl rebuilds the whole overlay on every redraw.
 let _rtSplit=false;
+// The row + opens a menu instead of acting, on a weekly table only — where "add a row"
+// is genuinely two questions.
+let _rtAddMenu=false;
+// The fill/text colour popover, opened from the selection bar.
+let _rtColour=false;
 
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
@@ -8898,6 +8951,30 @@ function rtHdSet(td,on){
   if(rtHdPos(td)!==!!on) td.classList.add(on?'rt-hd':'rt-nohd');
 }
 // The button's label: shaded only if every selected cell is.
+// A colour chosen by hand, which is not the same thing as rt-hd: that is a *semantic*
+// header shade that follows the theme, and it stays its own toggle. These are inline styles
+// on the cell, which means unlike everything the live paint draws they are STORED — so
+// _rtStripLive must leave them alone, and undo carries them with no extra machinery.
+// Reads rtActiveCells like rtShadeSel does, so a cell, a whole row and a whole column all
+// work through the grips that already select one.
+function rtColourSel(fill,text){
+  const cells=rtActiveCells();
+  if(!cells.length) return false;
+  const t=cells[0].closest('table'); if(!t) return false;
+  cells.forEach(td=>{
+    // A tint, not the colour itself: a solid fill from this palette leaves the text on top
+    // unreadable in one theme or the other, and the whole point is glancing at it.
+    if(fill===null) td.style.removeProperty('background');
+    else if(fill) td.style.background=_rgbaFromColor(fill,.16);
+    if(text===null) td.style.removeProperty('color');
+    else if(text) td.style.color=text;
+    // The same discipline _rtMark keeps for class: never leave an emptied attribute behind,
+    // or the round trip stops being byte-exact.
+    if(!td.getAttribute('style')) td.removeAttribute('style');
+  });
+  rtFire(rtHost(t)); rtShowCtl(t);
+  return true;
+}
 function rtSelShaded(){ const cs=rtActiveCells(); return cs.length>0&&cs.every(rtHdOn); }
 // One button, and never ambiguous on a mixed selection: any plain cell in the
 // selection means the click shades, so a second click always undoes the first.
@@ -9196,8 +9273,51 @@ function _rtIsDayCell(td){
   const tr=td.parentElement,h=tr&&rtLiveHead(tr);
   return !!h&&h[[...tr.children].indexOf(td)]!==undefined;
 }
+// Are these full rows exactly one or more whole weeks? Returns the block indices if so,
+// null otherwise. The question is deliberately all-or-nothing: a selection that takes a
+// header row without the rows under it, or the rows without their header, is a week broken
+// in half, and there is no sensible thing to do with half a week.
+function rtWeekSpan(t,rows){
+  if(!t||!t.classList.contains('rt-live')) return null;
+  const at=_rtBlockAt(t);
+  if(!at.length) return null;
+  const want=new Set(rows),out=[];
+  let n=0;
+  at.forEach((start,i)=>{
+    const len=_rtBlockLen(t,i),all=[];
+    for(let k=0;k<len;k++) all.push(start+k);
+    if(all.every(r=>want.has(r))){ out.push(i); n+=len; }
+  });
+  // Every row selected has to be accounted for by a whole block, or this is not a week.
+  return out.length&&n===want.size?out:null;
+}
 function rtDeleteSelection(){
   const s=rtSelShape(),host=rtHost(s.t);
+  // Highlight a whole week and press delete and you mean the week. Route it through the
+  // same rtWeekDel the ⋯ menu uses, so it refuses to take the last remaining week and names
+  // what is about to go before it goes — this is the one gesture here that destroys writing.
+  const wk=s.kind==='rows'?rtWeekSpan(s.t,s.fullRows):null;
+  if(wk){
+    const bs=rtLiveBlocks(s.t);
+    const names=wk.map(i=>rtWeekLabel(bs[i])).filter(Boolean).join(', ');
+    if(_rtBlockAt(s.t).length-wk.length<1){ rtClearSel(); return; }
+    if(!confirm(wk.length>1?'Remove '+wk.length+' weeks ('+names+') and everything in them?'
+                           :'Remove the week of '+(names||'this block')+' and everything in it?')){
+      rtClearSel(); return;
+    }
+    // Highest first: removing a block shifts the index of every block below it.
+    wk.slice().sort((a,b)=>b-a).forEach(i=>rtWeekDel(s.t,i));
+    rtPaintHost(host||s.t);
+    rtClearSel();
+    rtFire(host);
+    return;
+  }
+  // Full rows that cut a week in half are refused outright rather than quietly leaving
+  // orphaned rows under the week above, which is what removing them used to do.
+  if(s.kind==='rows'&&s.t.classList.contains('rt-live')&&_rtBlockAt(s.t).length){
+    const at=new Set(_rtBlockAt(s.t));
+    if(s.fullRows.some(r=>at.has(r))){ rtClearSel(); return; }
+  }
   if(s.kind==='rows') rtDelRows(s.t,s.fullRows);
   else if(s.kind==='cols') rtDelCols(s.t,s.fullCols);
   // A day cell is locked against the browser, not against TIDE's own delete. Clearing one
@@ -9853,7 +9973,9 @@ function rtShowCtl(t){
         cb.className='rt-hlsw rt-hlcustom'+(cur&&!TB_COLORS.includes(cur)?' on':'');
         cb.title='Custom colour';
         const ci=document.createElement('input');ci.type='color';ci.value=cur||'#2563EB';
-        ci.oninput=()=>{ t.dataset.hl=ci.value; rtPaintAllLive(); };
+        // rtFire, like every other control here. Without it a custom colour was painted and
+        // then lost on the next reload -- never stored, and invisible to undo.
+        ci.oninput=()=>{ t.dataset.hl=ci.value; rtPaintAllLive(); rtFire(rtHost(t)); };
         ci.onchange=()=>pick(ci.value);
         cb.appendChild(ci);hr.appendChild(cb);
         m.appendChild(hr);
@@ -10018,8 +10140,11 @@ function rtShowCtl(t){
     // accident at best. rtAlignable does the whole test, so the bar stays quiet otherwise.
     if(s&&rtAlignable()) btns.push(['Align',rtAlignSelRows,
       'Snap the highlighted rows’ borders onto the other rows’. Highlight the whole table and the top row holds still.']);
-    // Shading a whole column or row needs nothing else: the grips already select one.
-    btns.push([rtSelShaded()?'Unshade':'Shade',rtShadeSel]);
+    // Colouring a whole column or row needs nothing else: the grips already select one.
+    // Shade lives inside the popover rather than beside it — two buttons that both look
+    // like "make this cell a different colour" and mean different things is the confusing
+    // arrangement, not the long menu.
+    btns.push(['Colour',()=>{ _rtColour=!_rtColour; rtShowCtl(t); }]);
     if(btns.length){
       const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
       btns.forEach(([label,fn,tip])=>{
@@ -10066,6 +10191,51 @@ function rtShowCtl(t){
       m.appendChild(b);
       setTimeout(()=>{ ic.focus(); ic.select(); },0);
     }
+    // Fill and text in one place, because they are one decision. Drawn on the overlay like
+    // the ⋯ menu and the split popover, and preventDefault throughout: a click that moves
+    // focus would clear the very selection this acts on.
+    if(_rtColour&&act.length){
+      const m=mk('rt-menu rt-colpop',`left:${Math.max(4,wr.left)}px;top:${tb.top+4}px`);
+      m.onmousedown=e=>e.preventDefault();
+      const strip=(label,apply)=>{
+        const hd=document.createElement('div');
+        hd.className='rt-colhd';hd.textContent=label;
+        m.appendChild(hd);
+        const row=document.createElement('div');row.className='rt-hlrow';
+        // The ten the time-block modal uses, and the conic-gradient custom swatch beside
+        // them — the same palette and the same idiom as the highlight row in the ⋯ menu,
+        // rather than a second set of colours to keep in step.
+        TB_COLORS.forEach(c=>{
+          const b=document.createElement('button');
+          b.className='rt-hlsw';b.style.background=c;b.title=c;
+          b.onmousedown=e=>e.preventDefault();
+          b.onclick=()=>apply(c);
+          row.appendChild(b);
+        });
+        const cw=document.createElement('button');
+        cw.className='rt-hlsw rt-hlcustom';cw.title='Custom';
+        cw.onmousedown=e=>e.preventDefault();
+        const ci=document.createElement('input');
+        ci.type='color';
+        ci.onmousedown=e=>e.stopPropagation(); // ...but the picker still needs the click
+        ci.oninput=()=>apply(ci.value);
+        cw.appendChild(ci);row.appendChild(cw);
+        m.appendChild(row);
+      };
+      strip('Fill',c=>rtColourSel(c,undefined));
+      strip('Text',c=>rtColourSel(undefined,c));
+      const item=(label,fn)=>{
+        const row=document.createElement('div');row.className='rt-item';
+        row.innerHTML='<span class="rt-ck"></span><span></span>';
+        row.lastElementChild.textContent=label;
+        row.onmousedown=e=>e.preventDefault();
+        row.onclick=()=>fn();
+        m.appendChild(row);
+      };
+      const sep=document.createElement('div');sep.className='rt-sep';m.appendChild(sep);
+      item(rtSelShaded()?'Unshade':'Shade',rtShadeSel);
+      item('Clear colour',()=>rtColourSel(null,null));
+    }
   }
   // A table is width:100% inside its wrapper, so tb.right and wr.right are the same line and
   // this clamp always won — which parked the + squarely inside the last column, halfway down,
@@ -10076,9 +10246,37 @@ function rtShowCtl(t){
   bc.textContent='+';bc.title='Add column';
   bc.onclick=()=>{ rtAddCol(t); rtFire(rtHost(t)); rtShowCtl(t); };
   const brx=Math.min(tb.left+tb.width/2-10,gut.right-20);
-  const br=mk('rt-btn',`left:${Math.max(gut.left,brx)}px;top:${tb.bottom+2}px`);
-  br.textContent='+';br.title='Add row';
-  br.onclick=()=>{ rtAddRow(t); rtFire(rtHost(t)); rtShowCtl(t); };
+  const bry=Math.max(gut.left,brx);
+  const br=mk('rt-btn',`left:${bry}px;top:${tb.bottom+2}px`);
+  br.textContent='+';
+  // On a weekly table a bare row is ambiguous — a row inside every week, or a whole week
+  // more — so the + asks rather than guessing. On any other table it does what it always did.
+  const wk=t.classList.contains('rt-live')&&rtLiveBlocks(t).length;
+  br.title=wk?'Add row or week':'Add row';
+  br.onclick=()=>{
+    if(!wk){ rtAddRow(t); rtFire(rtHost(t)); rtShowCtl(t); return; }
+    _rtAddMenu=!_rtAddMenu; rtShowCtl(t);
+  };
+  if(wk&&_rtAddMenu){
+    const m=mk('rt-menu',`left:${bry}px;top:${tb.bottom+26}px`);
+    m.onmousedown=e=>e.preventDefault();
+    // Both of these are the a9 functions the ⋯ menu already calls. This is a second door,
+    // not a second implementation: a row goes into every week at once so the weeks stay
+    // comparable down the page, and a week is added after the last one.
+    [['Add row','A row in every week',()=>rtWeekAddRow(t)],
+     ['Add week','One more week, after the last',()=>rtWeekAdd(t)]].forEach(([label,tip,fn])=>{
+      const row=document.createElement('div');row.className='rt-item';
+      row.innerHTML='<span class="rt-ck"></span><span></span>';
+      row.lastElementChild.textContent=label;
+      row.title=tip;
+      row.onclick=()=>{
+        _rtAddMenu=false;
+        if(fn()){ rtPaintHost(rtHost(t)||t); rtFire(rtHost(t)); }
+        rtShowCtl(t);
+      };
+      m.appendChild(row);
+    });
+  }
 }
 // Hide on a delay so the pointer can travel from the table to a control
 // without the control being destroyed underneath it.
@@ -10086,7 +10284,7 @@ let _rtHideT=null,_rtRaf=null;
 function rtCtlCancelHide(){ if(_rtHideT){ clearTimeout(_rtHideT); _rtHideT=null; } }
 function rtScheduleHide(){
   // Never pull the controls out from under an in-flight drag or an open menu.
-  if(_rtRz||_rtMv||_rtTwMv||_rtMenu||_rtSplit) return;
+  if(_rtRz||_rtMv||_rtTwMv||_rtMenu||_rtSplit||_rtAddMenu||_rtColour) return;
   rtCtlCancelHide(); _rtHideT=setTimeout(()=>{ _rtHideT=null; rtHideCtl(); },250);
 }
 // ── column resize ──
@@ -10704,7 +10902,7 @@ document.addEventListener('mouseover',e=>{
 document.addEventListener('mousedown',e=>{
   if(!e.target.closest) return;
   if(e.target.closest('#rt-slash')) return;
-  if(!e.target.closest('#rt-ctl')){ rtSlashClose(); if(_rtMenu||_rtSplit){ _rtMenu=false; _rtSplit=false; if(_rtCtlTable) rtShowCtl(_rtCtlTable); } }
+  if(!e.target.closest('#rt-ctl')){ rtSlashClose(); if(_rtMenu||_rtSplit||_rtAddMenu||_rtColour){ _rtMenu=false; _rtSplit=false; _rtAddMenu=false; _rtColour=false; if(_rtCtlTable) rtShowCtl(_rtCtlTable); } }
   const td=e.target.closest('.rt-table td');
   if(td){ _rtDrag={t:td.closest('table'),start:td}; rtClearSel(); return; }
   _rtDrag=null;
