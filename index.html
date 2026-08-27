@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0827-a17">
+<meta name="build" content="0827-a18">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1360,7 +1360,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0827-a17';
+const RT_BUILD = '0827-a18';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -2955,7 +2955,7 @@ function _tlUntilBody(id,un,ud){
     <div class="tl-foot">
       <div class="tl-pos">
         <div class="tl-day"><b>${d}</b><span class="tl-dt">day${d===1?'':'s'} to ${esc(un.name)}</span></div>
-        <span class="tl-rem">${w===0?'this week':`${w} more weekly outline${w===1?'':'s'}`}</span></div>
+        <span class="tl-rem">${w===0?'this week':`${w} week${w===1?'':'s'} left`}</span></div>
     </div>`;
 }
 function timelineCardBody(id){
