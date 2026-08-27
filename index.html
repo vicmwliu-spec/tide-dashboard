@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a11">
+<meta name="build" content="0825-a12">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -34,6 +34,11 @@
   --edit-line:#9CA3AF;
   --today-bg:#EFF6FF;
   --today-border:#93C5FD;
+  /* The wash behind a day that has gone, and behind a week that has gone entirely.
+     A tint of the ink rather than a fixed grey, so it sits on whatever surface the
+     table is drawn on and inverts with the theme instead of going muddy in one of them. */
+  --rt-past-bg:rgba(17,17,17,.05);
+  --rt-pastwk-bg:rgba(17,17,17,.085);
   --green:#16A34A;
   --amber:#B45309;
   --red:#DC2626;
@@ -125,12 +130,20 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    margins, so the card still ends 14px short of the next track either way; what changes is
    that the gutter no longer multiplies with the track count. The grid's own padding-right
    goes with it: the last card's margin is now that padding. */
-.pgrid{display:grid;grid-template-columns:repeat(24,1fr);column-gap:0;row-gap:0;
+.pgrid{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));column-gap:0;row-gap:0;
   grid-auto-rows:4px;align-items:start;margin-bottom:14px;
   /* Room for the top insert point of the first card in each column. The vertical gap between
      cards comes from packCards' span arithmetic, not from row-gap, so above the topmost card
      there is no gap at all and its .pins-t would hang outside the grid. */
   padding:14px 0 0 14px;
+  /* minmax(0,1fr), not 1fr. A bare 1fr is minmax(AUTO,1fr), and an auto minimum is the item's
+     min-content contribution -- so the instant the width drag writes card.style.width in pixels
+     (:_cardRzx mousemove) the dragged card's tracks claimed that width as a floor and every other
+     track gave way. The cards beside the one you were dragging narrowed before it had reached
+     them, which made the guide line and the cards disagree about where a column was and defeated
+     the whole point of dragging against a neighbour. Floored at 0, the tracks stay equal and the
+     .rzx card simply overhangs the space it is about to claim, which is what it was always
+     meant to do. */
   /* A card's grid-column-start is written inline by mkCard, so a start of 3 or 4
      inside a narrowed 2-column grid used to conjure implicit columns and crush the
      row. The narrow breakpoints below reset every start to auto, and this makes a
@@ -519,15 +532,15 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    sub-columns a [data-span="N"] rule per width would be 24 rules per breakpoint, and the
    arithmetic is one line. Nothing here or there touches the stored col or span, so widening
    the window restores the layout exactly as it was. */
-@media (max-width:1500px){ .pgrid{grid-template-columns:repeat(18,1fr)} }
-@media (max-width:1180px){ .pgrid{grid-template-columns:repeat(12,1fr)} }
+@media (max-width:1500px){ .pgrid{grid-template-columns:repeat(18,minmax(0,1fr))} }
+@media (max-width:1180px){ .pgrid{grid-template-columns:repeat(12,minmax(0,1fr))} }
 /* 768px, matching the mobile stylesheet below — at 680 the band from 680 to 768 got two card
    columns wearing phone-sized chrome. One card to a row, so it is a 6-sub-column grid and
    every card fills it. column-gap stays 0 the way it is everywhere else — the gutter is the
    card's own margin — and the margin goes to 0 here, because with one card per row it would
    only shave 14px off a phone-width card for no gutter to sit in. */
 @media (max-width:768px){
-  .pgrid{grid-template-columns:repeat(6,1fr);padding-right:14px}
+  .pgrid{grid-template-columns:repeat(6,minmax(0,1fr));padding-right:14px}
   .pcard,.padd-cell{margin-right:0}
 }
 .top-left-col{width:35%;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
@@ -736,16 +749,27 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    The date a weekly table draws into its own header row. Lighter than the day name it
    follows, and tabular figures so the columns of a week line up down the page. */
 .rt-dt{color:var(--text3);font-weight:400;font-variant-numeric:tabular-nums}
-/* Days already gone fade back so the days still ahead carry the eye. The width is
-   deliberately untouched: the weeks stacked in one of these tables share one colgroup, so
-   narrowing this week's Monday would narrow Monday in every week below it too. */
-.rt-table.rt-live td.rt-past{opacity:.55}
-.rt-table.rt-live td.rt-past.rt-hd{opacity:.7}
+/* Days already gone fade back so the days still ahead carry the eye -- dimmed AND washed,
+   because a dim alone left the cell looking identical to a live one and the boundary between
+   done and ahead had to be hunted for. The width is deliberately untouched: the weeks stacked
+   in one of these tables share one colgroup, so narrowing this week's Monday would narrow
+   Monday in every week below it too.
+   The .rt-hd variants are not decoration. The day-name row IS a header row, and it is where
+   the dates are drawn, so without them the one part you asked to fade most would be the one
+   part the wash never reached: .rt-table.rt-hopt tr td.rt-hd sets its own background at a
+   higher specificity and would win. Same trap .rt-today documents below.
+   A wash, not a fill: an inline background from the colour picker beats a stylesheet rule, so
+   a cell you have coloured keeps your colour and still recedes on the opacity. That is the
+   right way round, and it is why the dim lives on opacity rather than on colour. */
+.rt-table.rt-live td.rt-past{opacity:.42;background:var(--rt-past-bg)}
+.rt-table.rt-live tr td.rt-past.rt-hd{opacity:.58;background:var(--rt-past-bg)}
 /* A week that has gone entirely steps back as one block, rather than seven columns each
    fading on their own -- at a glance the page then reads as "these weeks are done, this one
    is live". The per-day fade above still marks the days gone inside the current week, which
-   is the week where knowing that is worth anything. */
-.rt-table.rt-live tr.rt-pastwk td{opacity:.45}
+   is the week where knowing that is worth anything, and rt-past inside a gone week resets to
+   full opacity so the two dims cannot multiply into something unreadable. */
+.rt-table.rt-live tr.rt-pastwk td{opacity:.34;background:var(--rt-pastwk-bg)}
+.rt-table.rt-live tr.rt-pastwk td.rt-hd{background:var(--rt-pastwk-bg)}
 .rt-table.rt-live tr.rt-pastwk td.rt-past{opacity:1}
 /* A rule between weeks, so the blocks separate without a heading on each. Not above the
    first: it is the boundary that carries the meaning, not the row. */
@@ -1173,6 +1197,7 @@ html.dark{
   --grade:#6BBDB0;
   --accent:#3B82F6;--today-bg:#0D1B35;--today-border:#1D3461;
   --edit:#5FAF9E;--edit-soft:#12211F;--edit-line:#4B5563;
+  --rt-past-bg:rgba(255,255,255,.05);--rt-pastwk-bg:rgba(255,255,255,.08);
   --shadow:0 1px 3px rgba(0,0,0,.5),0 1px 2px rgba(0,0,0,.4);
   --shadow-md:0 4px 8px rgba(0,0,0,.6),0 2px 4px rgba(0,0,0,.5);
 }
@@ -1287,7 +1312,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a11';
+const RT_BUILD = '0825-a12';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -1537,9 +1562,15 @@ function cardDef(id){ return cardDefs().find(c=>c.id===id)||null }
 // any width and still line up with its neighbours. It used to be 4, which is why a card could
 // only ever be a quarter, a half, three quarters or the whole width.
 const PGRID_COLS=24;
-// One visual quarter. The unit a card snaps to under "Match width", the width a new card gets,
-// and the factor the 4-column layout migrates by.
+// One visual quarter. The width a new card gets, the factor the 4-column layout migrates by,
+// and the strongest of the magnets a width drag snaps to.
 const PGRID_SUB=6;
+// How near a card has to be dragged to something for it to catch on it -- a whole quarter, a
+// neighbour's edge, another card's width, its row's natural floor. The whole of what "match
+// width" and "match height" used to be, minus the mode: you no longer say in advance whether a
+// card lines up with its neighbours, you just drag it near them and it does. Wider than CV_SNAP
+// because a card is dragged with the whole arm and a canvas box with the fingertips.
+const PGRID_SNAP=10;
 function cardSpan(def){ return Math.min(PGRID_COLS,Math.max(1,Number(def&&def.span)||PGRID_SUB)) }
 // Clamped so a card can never start where its span would run off the right edge.
 function cardCol(def){
@@ -1611,9 +1642,27 @@ function flowedCols(defs){
 // those straight into a 24-column grid read a half-width card as 2/24, which is why the cards
 // collapsed and their tables went to pieces a few seconds after a refresh. Each of these is
 // already guarded and idempotent, which is what makes running them on every adoption free.
+// Height and width were modes once, chosen from the card menu and stored as matchH / matchW.
+// Neither is read anywhere now: a card's height is its own exactly when it has a minH, and a
+// width drag magnetises rather than quantising. Both flags come off so a def cannot carry a
+// setting nothing honours -- which is the state that makes the next person reading it wonder
+// what it does.
+// Nothing needs to be written in their place. A card that had matchH has no minH by
+// construction (setting one deleted the other), so it is levelled under the new rule as it was
+// under the old; matchW only ever chose a drag step and left nothing behind.
+function migrateCardModes(){
+  let dirty=false;
+  (cardDefs()||[]).forEach(c=>{
+    if('matchH' in c){ delete c.matchH; dirty=true; }
+    if('matchW' in c){ delete c.matchW; dirty=true; }
+  });
+  if(dirty) saveLocal(); // boot migration: local only, never a push -- as migrateCardCols
+  return dirty;
+}
 function migrateAll(){
   repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard();
-  migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateJournalNotebooks();
+  migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateCardModes();
+  migrateJournalNotebooks();
   // Last: it rewrites card HTML, so every migration that moves cards between shapes runs first.
   migrateTableWidths();
 }
@@ -2327,8 +2376,12 @@ function _packPass(){
     const live=cards.filter(c=>!c.classList.contains('pdrag'))
       .map(c=>({el:c,r:c.getBoundingClientRect()})).filter(x=>x.r.height);
     // The add-card tile is not a card and has no def; it never stretches and never sets a row.
+    // free means "do not level this one with its row". There used to be a matchH flag saying so,
+    // set from a menu; there is now no menu and no flag. A card is levelled with its row until
+    // you drag its height, and from then on the height you dragged to is its own -- which is
+    // what minH already recorded, and the two were mutually exclusive even when both existed.
     const items=live.map(x=>({top:x.r.top,h:x.r.height,
-      free:!x.el.classList.contains('pcard')||!cardDef(x.el.dataset.cardid)?.matchH}));
+      free:!x.el.classList.contains('pcard')||!!cardDef(x.el.dataset.cardid)?.minH}));
     _rowTargets(items).forEach((t,i)=>{
       if(t>Math.round(items[i].h)) live[i].el.style.minHeight=t+'px';
     });
@@ -3759,21 +3812,14 @@ function _cardMenuHTML(def){
   if(def.type==='habits'&&!def.editing){
     it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">Choose levers</button>`);
   }
-  // Every type gets these: the tall journal and the canvas are the cards most likely to want
-  // out of their row, so they cannot be gated on type the way the others are.
-  // Two items with a tick rather than one item naming the opposite mode. A single toggle label
-  // has to double as a state readout and reads as neither: "Free height" could as easily mean
-  // "this card is free" as "make it free", and on a card already the tallest in its row the
-  // click changes no pixels to disambiguate it.
-  // Both axes, in the same shape, because they are the same question asked twice: does this
-  // card take its size from its neighbours, or from you.
-  [['Height','matchH','_cardSetMatchH','Match height','Free height'],
-   ['Width','matchW','_cardSetMatchW','Match width','Free width']].forEach(([hd,key,fn,mlbl,flbl])=>{
-    it.push(`<div class="pm-lbl">${hd}</div>`);
-    it.push([[true,mlbl],[false,flbl]].map(([on,lbl])=>
-      `<button class="padd-item pm-i" onclick="${fn}('${id}',${on})"
-        ><span class="pm-ck">${!!def[key]===on?'&#10003;':''}</span>${lbl}</button>`).join(''));
-  });
+  // There were four items here -- Match height / Free height, Match width / Free width -- and
+  // they are gone. Asking someone to choose a sizing mode before resizing is asking them to
+  // answer a question about the layout engine, and the answer was always "both": free to put
+  // where I want, aligned when it is near something. So the grips do both without being told.
+  // Height is now free the moment you drag it and levelled with its row until you do; drop it
+  // back on the row's natural floor and it rejoins. Width is free to a single sub-column and
+  // magnetises to whole quarters, to a neighbour's edge and to another card's width. Neither is
+  // a state the card is in, so neither needs a readout here.
   if(it.length) it.push(`<div class="pm-sep"></div>`);
   it.push(`<button class="padd-item pm-i pm-del" onclick="_cardDelete('${id}')">Delete card</button>`);
   return `<div class="pcard-menu" onpointerdown="event.stopPropagation()">${it.join('')}</div>`;
@@ -3782,44 +3828,10 @@ function _cardMenuHTML(def){
 // Clearing _cardMenu alone used to be enough only because a render was coming to sweep it away.
 function _cardColour(e,id){ e.stopPropagation(); _cardMenuClose(); openChartColorPop(e,'tl_'+id); }
 function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
-// The flag stored is the opt-IN, so absent means free and free is what a card does unless you
-// ask for the other. It was the other way round -- freeH, absent meaning "match the row" -- and
-// inverting it is what makes free the default for every card that already exists and every card
-// added later, without a migration: there is no matchH on any of them.
-// Set, not toggle: the menu names both modes, so the item you pressed is the mode you get and
-// pressing the one already ticked is a no-op instead of a mode change you did not ask for.
-function _cardSetMatchH(id,on){
-  _cardMenuClose();
-  const c=cardDef(id); if(!c) return;
-  if(!!c.matchH===!!on) return;
-  if(on){
-    // Rejoining, the old free height would come back in as a floor the whole row then has to
-    // grow to meet -- which is the row matching the card rather than the other way round.
-    c.matchH=true; delete c.minH;
-  } else {
-    // Leaving the row must not move the card. minH is stored in body heights (see _cardRzEnd),
-    // so the height the row was holding it open to is measured off the body and kept as its own.
-    const bd=document.querySelector(`.pcard[data-cardid="${id}"] .pcard-bd`);
-    const h=bd&&Math.round(bd.getBoundingClientRect().height);
-    if(h) c.minH=h;
-    delete c.matchH;
-  }
-  _cardsDirty(); render();
-}
-// Width has no row to rejoin -- a card's width is its own either way -- so the mode is only the
-// step the side grip moves in: a whole visual quarter under match, a single sub-column under
-// free. Turning match on rounds the width it has now to the nearest quarter, or the tick would
-// name a state the card was not in until the next time you happened to drag it.
-function _cardSetMatchW(id,on){
-  _cardMenuClose();
-  const c=cardDef(id); if(!c) return;
-  if(!!c.matchW===!!on) return;
-  if(on){
-    c.matchW=true;
-    c.span=Math.min(PGRID_COLS,Math.max(PGRID_SUB,Math.round(cardSpan(c)/PGRID_SUB)*PGRID_SUB));
-  } else delete c.matchW;
-  _cardsDirty(); render();
-}
+// Height and width used to be modes, set from the card menu and stored as matchH / matchW.
+// Both are gone -- see cardMenuHTML. What they controlled now falls out of what you actually
+// did: a card with a stored minH is a card whose height you chose, and a width drag magnetises
+// rather than quantising. migrateCardModes clears the two flags off every existing card.
 function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
 // removePlannerCard renders when it removes something, but it also has a confirm you can
 // decline — and then the menu is closed in state and still on screen. Render for that case.
@@ -4195,7 +4207,7 @@ function _cardRzGroup(card,above){
     .filter(el=>el.classList&&el.classList.contains('pcard')&&!el.classList.contains('pdrag'))
     .map(el=>({el,r:el.getBoundingClientRect()})).filter(x=>x.r.height);
   const groups=_rowGroups(live.map(x=>({top:x.r.top,h:x.r.height,
-    free:!cardDef(x.el.dataset.cardid)?.matchH})));
+    free:!!cardDef(x.el.dataset.cardid)?.minH})));
   let gi=groups.findIndex(g=>g.some(i=>live[i].el===card));
   // Every measurable card is in a group now, its own if it opted out of matching its neighbours.
   // Only a card with no height at all -- a hidden view, a test with no layout -- is missing.
@@ -4306,8 +4318,21 @@ function _cardRzEnd(commit){
   s.card.classList.remove('rz');
   _cardGuideHide();
   if(commit){
+    // Dropped back onto the row's own floor, the row rejoins the packing pass instead of being
+    // pinned at the height it happens to be. This is the way out of a chosen height, and it is
+    // the gesture rather than a menu item: minH is now the whole of what "this card's height is
+    // its own" means (see _packPass), so clearing it is how a card goes back to matching its
+    // neighbours. _cardRzApply floors px at s.floor, so a release anywhere at or just above the
+    // floor is a release ON it -- one-sided, and the same PGRID_SNAP the width drag catches at.
+    const home=s.px<=s.floor+PGRID_SNAP;
     // Stored in body heights, which is the space def.minH is written back out in by mkCard.
-    s.parts.forEach(p=>{ const c=cardDef(p.id); if(c) c.minH=Math.max(1,s.px-p.chrome); });
+    s.parts.forEach(p=>{ const c=cardDef(p.id); if(!c) return;
+      if(home) delete c.minH; else c.minH=Math.max(1,s.px-p.chrome); });
+    // The inline heights the drag was previewing with have to come off too, or a row that has
+    // just been told to level itself stays pinned at the drag's pixels until the next render.
+    if(home) s.parts.forEach(p=>{ p.el.style.minHeight=''; p.bd.style.minHeight='';
+      p.bd.style.height=''; p.bd.style.flex='';
+      if(p.cv) cvFit(p.bd.querySelector('.cv-surface')); });
     _cardsDirty();
   } else {
     s.parts.forEach(p=>{
@@ -4507,9 +4532,7 @@ function _cardRzxStart(e,id,left){
   // right-edge drag, including the dead zone -- one arithmetic, mirrored, not two.
   const def=cardDef(id)||{};
   // The drag works in the tracks that are on screen, which below 1500px is not what a span is
-  // stored in; scale converts back on commit. q is the quantum: under "Match width" a card
-  // snaps to a whole visual quarter, which is 6 tracks at every breakpoint because each one
-  // keeps 6 sub-columns to a column. Free width snaps to a single track.
+  // stored in; scale converts back on commit.
   const scale=PGRID_COLS/cols, wide=cols>=PGRID_COLS;
   const span=_cardGridSpan(cardSpan(def),cols);
   // Below full width the card flows -- the stored start is not in force -- so the only cap is
@@ -4525,13 +4548,30 @@ function _cardRzxStart(e,id,left){
   const all=cardDefs(),me=all.findIndex(c=>c.id===id);
   const max=!wide?cols:Math.max(1,me<0?(left?endCol:cols-cardCol(def)+1)
     :(left?endCol-cardFreeLeft(all,me)+1:cardFreeRight(all,me)));
-  const q=def.matchW?PGRID_SUB:1;
-  // Never narrower than the content fits, rounded up to the quantum in force so a "Match width"
-  // card still lands on a whole column. Capped by max, because a card whose content does not fit
-  // the grid at all is already scrolling, and refusing to let it be resized would be worse than
-  // letting it be as wide as there is room for.
+  // The quantum used to be the whole of the width mode: 6 tracks under "Match width", 1 under
+  // free. It is now always 1 -- every card is free to a single sub-column -- and the aligning
+  // the mode used to do is done by magnets instead, which is the difference between a card that
+  // can only be a quarter and a card that lands on a quarter when you take it near one.
+  const q=1;
+  // Never narrower than the content fits. Capped by max, because a card whose content does not
+  // fit the grid at all is already scrolling, and refusing to let it be resized would be worse
+  // than letting it be as wide as there is room for.
   const min=Math.min(max,Math.ceil(_cardMinSpan(card,cols,pitch,edge)/q)*q);
-  _cardRzx={id,card,grid,cols,pitch,gap,edge,scale,wide,max,min,q,
+  // What the drag catches on, strongest first. rank breaks ties, and it is not arbitrary: a
+  // neighbour's edge is a constraint the layout will enforce whether or not you wanted it, so
+  // it outranks a quarter, which is only tidiness, which in turn outranks matching another
+  // card's width. Spans outside [min,max] are dropped here rather than clamped, or the magnet
+  // would pull towards a width the drag is not allowed to reach.
+  const cand=new Map();
+  const add=(n,rank)=>{ n=Math.round(n);
+    if(n<Math.max(1,min)||n>max) return;
+    if(!cand.has(n)||cand.get(n)<rank) cand.set(n,rank); };
+  add(max,2);
+  for(let n=PGRID_SUB;n<=cols;n+=PGRID_SUB) add(n,1);
+  // Another card's width, so two cards can be made to match by feel rather than by arithmetic.
+  all.forEach((c,i)=>{ if(i!==me) add(_cardGridSpan(cardSpan(c),cols),0); });
+  const snap=[...cand].map(([n,rank])=>({n,rank}));
+  _cardRzx={id,card,grid,cols,pitch,gap,edge,scale,wide,max,min,q,snap,tol:PGRID_SNAP,
             left:r.left,right:r.right,w:r.width,
             lf:!!left,endCol,span,start:span,
             was:[card.style.width,card.style.marginLeft,card.style.minHeight]};
@@ -4554,8 +4594,9 @@ function def_span(id){ return cardSpan(cardDef(id)||{}) }
 // dead on the midpoint, so a pixel of hand jitter there toggled the span on every mousemove
 // and relaid out the whole grid each time. Pure, so the arithmetic is testable without layout.
 // The whole thing is counted in quanta rather than tracks, so the dead zone scales with the
-// step: under "Match width" it is a fifth of a quarter-column, under free width a fifth of a
-// sub-column, and neither has a different feel from the other.
+// step. The magnet is applied after the dead zone rather than instead of it: the dead zone is
+// what stops a pixel of hand jitter toggling a span, and a magnet with no dead zone under it
+// would simply move the flicker to the edge of the tolerance.
 function _cardRzxSpan(x,s){
   const q=Math.max(1,s.q||1);
   // Distance measured from whichever edge is standing still. The dead zone is written once and
@@ -4565,8 +4606,31 @@ function _cardRzxSpan(x,s){
   let n=cur;
   if(f>cur+0.6) n=Math.floor(f+0.4);
   else if(f<cur-0.4) n=Math.ceil(f-0.4);
-  return Math.max(1,Math.round(n))*q;
+  return _cardRzxSnap(Math.max(1,Math.round(n))*q,f*q,s);
 }
+// The magnet. raw is the span the pointer rounds to; fspan is where the pointer actually is, in
+// fractional tracks, and the distance is measured against THAT rather than against raw -- or a
+// candidate would appear to catch from a whole track away on one side and not at all on the
+// other. Pure: the candidates and the tolerance are handed in, so the feel of the magnet is
+// testable without a grid to drag on.
+function _cardRzxSnap(raw,fspan,s){
+  const list=s&&s.snap;
+  if(!list||!list.length||!s.pitch) return raw;
+  // Tolerance is given in pixels because that is the unit a hand works in; converted here so the
+  // magnet feels the same at every breakpoint, where a track is a different number of pixels.
+  const tol=(s.tol==null?PGRID_SNAP:s.tol)/s.pitch;
+  let best=raw,bd=tol,br=-1;
+  list.forEach(c=>{
+    const d=Math.abs(c.n-fspan);
+    if(d>tol) return;
+    // Nearest wins; on a tie the stronger kind of alignment does, which is what rank is for.
+    if(d<bd-1e-9||(d<=bd+1e-9&&c.rank>br)){ bd=d; br=c.rank; best=c.n; }
+  });
+  return best;
+}
+// Whether a span is one the drag caught on, which is the only thing the guide needs to know to
+// draw itself solid instead of dashed. Kept out of _cardRzxSpan so that stays pure.
+function _cardRzxCaught(span,s){ return !!(s&&s.snap&&s.snap.some(c=>c.n===span)) }
 document.addEventListener('mousemove',e=>{
   if(!_cardRzx) return;
   const s=_cardRzx, card=s.card;
@@ -4588,8 +4652,12 @@ document.addEventListener('mousemove',e=>{
   // The same dashed guide the height drag draws against a neighbour's bottom edge, turned
   // on its side: this is the column boundary the card will snap back to when you let go.
   const gr=s.grid.getBoundingClientRect(), g=_cardGuide();
+  // Solid means caught: the card is on a whole quarter, on its neighbour's edge, or level with
+  // another card. Without this the magnet is invisible and the drag feels like it is fighting
+  // you rather than helping -- you can see the card stop, but not what it stopped on.
+  const on=_cardRzxCaught(span,s);
   g.style.cssText=`position:fixed;pointer-events:none;z-index:60;width:0;`
-    +`border-left:1px dashed var(--edit);top:${gr.top}px;height:${gr.height}px;`
+    +`border-left:${on?'2px solid':'1px dashed'} var(--edit);top:${gr.top}px;height:${gr.height}px;`
     +`left:${s.lf?s.right-_cardRzxW(span,s):s.left+_cardRzxW(span,s)}px;display:block`;
 });
 // commit false restores the inline styles the drag borrowed and leaves the def alone. Without
