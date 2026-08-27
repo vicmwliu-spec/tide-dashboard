@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0827-a15">
+<meta name="build" content="0827-a16">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -96,20 +96,16 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    or prose and table rows read at different sizes in the same card. Whole pixels, not 1.6 of
    13px, for the device-pixel-rounding reason spelled out above .rt-table td. */
 .quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden}
-.quote-ta::placeholder{color:var(--text3)}
 /* ── Priority ── */
 .priority-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .priority-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);white-space:nowrap;margin-top:3px;flex-shrink:0}
 .priority-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden;word-break:break-word;min-height:1.4em}
-.priority-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Notes ── */
 .notes-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .notes-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden;word-break:break-word;min-height:1.4em}
-.notes-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Intention ── */
 .intention-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;margin-bottom:0;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow);min-height:80px}
 .intention-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);resize:none;line-height:20px;overflow:hidden;word-break:break-word;min-height:1.4em}
-.intention-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 /* ── Top row ── */
 .top-row{display:flex;gap:14px;margin-bottom:14px;align-items:stretch}
 .top-row .intention-card,.top-row .quote-card,.top-row .priority-card,.top-row .notes-card{flex:1;width:0;margin-bottom:0}
@@ -367,7 +363,6 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* A blank title is a real choice, so it shows nothing at rest. It still has to be
    findable, so hovering the card puts a faint prompt in the space it would occupy. */
 .pcard-lbled:empty{min-width:44px;display:inline-block;min-height:12px}
-.pcard:hover .pcard-lbled:empty::before{content:'+ title';opacity:.5;font-size:9px;letter-spacing:.05em}
 .pcard-lbled:empty:focus::before{content:none}
 .pcard-bd{padding:8px 16px 14px;min-height:80px;flex:1}
 /* A block at the very top of a card sits at exactly the body's top padding, so
@@ -632,7 +627,6 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .grp-row th{height:30px;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;border-bottom:2px solid var(--border)}
 .grp-th{text-align:center;padding:0 8px;border-left:2px solid var(--border);border-right:2px solid var(--border) !important}
 .grp-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700}
-#tb-name::placeholder{color:var(--text3);opacity:.55}
 .grp-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;outline:1.5px solid transparent}
 .grp-dot.lum-light{outline-color:rgba(0,0,0,0.18)}
 .grp-dot.lum-dark{outline-color:rgba(255,255,255,0.25)}
@@ -965,7 +959,6 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .cv-box:hover{border-color:var(--border)}
 .cv-box.cv-sel{border-color:var(--cvc,#3B82F6)}
 .cv-bd{outline:none;min-height:18px;font-size:14px;line-height:1.55;color:var(--text1);word-wrap:break-word}
-.cv-bd:empty::before{content:'Type…';color:var(--text3)}
 /* The overlay. Same discipline as #rt-ctl: fixed, transparent to the pointer
    except where a control actually is. */
 #cv-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
@@ -990,7 +983,6 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 #rt-slash .rt-empty{padding:8px 10px;font-size:12px;color:var(--text3)}
 /* Richtext contenteditable */
 .quote-ta{flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:13px;font-weight:400;color:var(--text1);line-height:20px;word-break:break-word;min-height:1.4em}
-.quote-ta[contenteditable=true]:empty::before{content:attr(data-placeholder);color:var(--text3);pointer-events:none}
 
 /* ── Annual ── */
 .annual-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
@@ -1368,7 +1360,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0827-a15';
+const RT_BUILD = '0827-a16';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -2735,7 +2727,7 @@ function msEditorHTML(){
     const sub=d===null?'—':d<0?'passed':d===0?'today':
       `${d} day${d===1?'':'s'} · ${w} week${w===1?'':'s'}`;
     return `<div class="ms-row${d!==null&&d<0?' past':''}">
-      <input class="ms-nm" type="text" value="${esc(m.name)}" placeholder="Name"
+      <input class="ms-nm" type="text" value="${esc(m.name)}"
         onchange="msSet('${m.id}','name',this.value.trim()||'Milestone');msEditorFill()">
       <input class="ms-dt" type="date" value="${esc(m.date||'')}"
         onchange="msSet('${m.id}','date',this.value);msEditorFill()">
@@ -2746,7 +2738,7 @@ function msEditorHTML(){
   }).join('');
   return `<div class="ws-t">Countdowns</div>${rows}
     <div class="ms-row ms-new">
-      <input class="ms-nm" id="ms-new-nm" type="text" placeholder="Wedding">
+      <input class="ms-nm" id="ms-new-nm" type="text">
       <input class="ms-dt" id="ms-new-dt" type="date">
       <button class="ms-ok" onclick="msAddFromEditor()">Add</button></div>`;
 }
@@ -3216,7 +3208,7 @@ function journalCardBody(id){
           onkeydown="richtextKD(event)"
           oninput="saveCard('${id}',rtOnInput(this))"></div>
         <div class="jr-srch">
-          <input class="jr-q" type="text" placeholder="Search entries…" value="${_esc(s.q)}"
+          <input class="jr-q" type="text" value="${_esc(s.q)}"
             oninput="jrSearch('${id}',this.value)"/>
         </div>
       </div>
@@ -5477,7 +5469,7 @@ function openTimeBlockModal(block){
       <button onclick="closeTimeBlockModal()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;line-height:1;padding:2px 6px">✕</button>
     </div>
     ${grps.length?`<div style="margin-bottom:12px"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">From Group</div><div style="display:flex;gap:5px;flex-wrap:wrap">${groupChips}</div></div>`:''}
-    <div style="margin-bottom:14px"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Block Name</div><input id="tb-name" type="text" placeholder="e.g. Morning Flow…" value="${esc(b.name||'')}" oninput="tbNameInput(this)" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none;--ph-color:var(--text3)"/></div>
+    <div style="margin-bottom:14px"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Block Name</div><input id="tb-name" type="text" value="${esc(b.name||'')}" oninput="tbNameInput(this)" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none"/></div>
     <div style="display:flex;gap:10px;margin-bottom:14px">
       <div style="flex:1"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Start</div><input id="tb-start" type="time" value="${toTime(b.startMin)}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none"/></div>
       <div style="flex:1"><div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:5px">End</div><input id="tb-end" type="time" value="${toTime(b.endMin)}" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface2);color:var(--text1);font-family:var(--font);font-size:13px;box-sizing:border-box;outline:none"/></div>
@@ -5992,16 +5984,16 @@ function buildHabitHeaderRow(groups,editable,weekIndex){
             <span style="font-size:10px;color:var(--text3);user-select:none">Daily target</span>
             <input type="number" min="1" max="20" class="wk-target-in" value="${h.dailyTarget||1}" onchange="setHabitDailyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per day"/>
             <span style="font-size:10px;color:var(--text3);user-select:none;margin-left:8px">Weekly target</span>
-            <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" placeholder="0" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
+            <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
           </div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">Why</span>
-              <input value="${esc(h.why||'')}" placeholder="…" onchange="updateHabitField('${h.id}','why',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+              <input value="${esc(h.why||'')}" onchange="updateHabitField('${h.id}','why',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">MVP</span>
-              <input value="${esc(h.mvp||'')}" placeholder="…" onchange="updateHabitField('${h.id}','mvp',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+              <input value="${esc(h.mvp||'')}" onchange="updateHabitField('${h.id}','mvp',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
             </div>
           </div>
         </div>`;
@@ -12117,16 +12109,16 @@ function buildHzTable(){
             <span style="font-size:10px;color:var(--text3);user-select:none">Daily target</span>
             <input type="number" min="1" max="20" class="wk-target-in" value="${h.dailyTarget||1}" onchange="setHabitDailyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per day"/>
             <span style="font-size:10px;color:var(--text3);user-select:none;margin-left:8px">Weekly target</span>
-            <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" placeholder="0" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
+            <input type="number" min="0" max="7" class="wk-target-in" value="${h.weeklyTarget||''}" onchange="setHabitWeeklyTarget('${h.id}',this.value)" onclick="event.stopPropagation()" title="Times per week"/>
           </div>
           <div style="display:flex;flex-direction:column;gap:3px;padding-left:16px;margin-top:5px">
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">Why</span>
-              <input value="${esc(h.why||'')}" placeholder="…" onchange="updateHabitField('${h.id}','why',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+              <input value="${esc(h.why||'')}" onchange="updateHabitField('${h.id}','why',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:10px;color:var(--text3);min-width:26px;user-select:none">MVP</span>
-              <input value="${esc(h.mvp||'')}" placeholder="…" onchange="updateHabitField('${h.id}','mvp',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
+              <input value="${esc(h.mvp||'')}" onchange="updateHabitField('${h.id}','mvp',this.value)" onclick="event.stopPropagation()" style="flex:1;background:none;border:none;border-bottom:1px solid var(--border2);outline:none;font-family:var(--font);font-size:11px;font-weight:400;color:var(--text2);padding:1px 0;min-width:0"/>
             </div>
           </div>
         </div>`;
