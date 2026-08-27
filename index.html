@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a8">
+<meta name="build" content="0825-a9">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -732,6 +732,29 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    never showed it was selected; a different property cannot be outranked, and the
    tint lays over whatever shade the cell already carries. */
 .rt-table td.rt-sel{box-shadow:inset 0 0 0 999px rgba(59,130,246,.20)}
+/* ── Live dates ──
+   The date a weekly table draws into its own header row. Lighter than the day name it
+   follows, and tabular figures so the columns of a week line up down the page. */
+.rt-dt{color:var(--text3);font-weight:400;font-variant-numeric:tabular-nums}
+/* Days already gone fade back so the days still ahead carry the eye. The width is
+   deliberately untouched: the weeks stacked in one of these tables share one colgroup, so
+   narrowing this week's Monday would narrow Monday in every week below it too. */
+.rt-table.rt-live td.rt-past{color:var(--text3)}
+.rt-table.rt-live td.rt-past.rt-hd{opacity:.7}
+/* Today is marked with a rule and the text colour, never a fill: the header rules above set
+   `background` at a higher specificity, so a fill on a header cell simply would not show —
+   the same trap .rt-sel documents. The colour is per-table, painted onto the element as a
+   custom property from its stored data-hl, so these rules stay static and fall back to the
+   app accent when nothing has been chosen. */
+.rt-table.rt-live td.rt-today{box-shadow:inset 2px 0 0 var(--rt-hl,var(--accent)),inset -2px 0 0 var(--rt-hl,var(--accent))}
+.rt-table.rt-live tr td.rt-today.rt-hd{box-shadow:inset 2px 2px 0 var(--rt-hl,var(--accent)),inset -2px 0 0 var(--rt-hl,var(--accent));color:var(--rt-hl,var(--accent))}
+.rt-table.rt-live td.rt-today .rt-dt{color:var(--rt-hl,var(--accent))}
+/* The swatch row in the table menu, borrowed wholesale from the time-block modal. */
+.rt-hlrow{display:flex;gap:5px;flex-wrap:wrap;padding:6px 10px 8px}
+.rt-hlsw{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0}
+.rt-hlsw.on{border-color:var(--text1)}
+.rt-hlcustom{position:relative;overflow:hidden;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
+.rt-hlcustom input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 /* Floating table controls — rendered on <body>, never saved into card HTML */
 #rt-ctl,#rt-tog-ctl{position:fixed;inset:0;pointer-events:none;z-index:900;display:none}
 /* z-index over the "space" strip below, which is 14px tall and covers the 4px band the column
@@ -1249,7 +1272,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a8';
+const RT_BUILD = '0825-a9';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -1415,7 +1438,7 @@ document.addEventListener('visibilitychange',()=>{
   // Never while this device owes a push, or the pull would overwrite the very work that has
   // not gone up yet — which is the failure this whole change is about.
   if(_syncTimer||_hasUnpushed()) return;
-  loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); });
+  loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); });
 });
 
 // One-time repair: the July 2026 recovery left every habit's skips corrupted
@@ -2176,7 +2199,9 @@ function render(){
   if(window.scrollY!==_sy) window.scrollTo(0,_sy);
   setTimeout(()=>{ if(window.scrollY!==_sy) window.scrollTo(0,_sy); },0);
   // Runs after the card editors have filled themselves in (they restore on a 0ms timer).
-  setTimeout(rtFreezeTables,0);
+  // rtPaintAllLive after rtFreezeTables, never inside it: freezing saves what it repairs, and
+  // a painted date is not a repair.
+  setTimeout(()=>{ rtFreezeTables(); rtPaintAllLive(); },0);
   // Same reason: cards are only their real height once their content has landed.
   packCards();
   setTimeout(packCards,0);
@@ -2397,7 +2422,30 @@ const CARD_TYPES=[
   {id:'timeline',name:'Timeline',blurb:'The month as a calendar — where you are in it, and in the quarter.'},
   {id:'canvas',name:'Canvas',blurb:'Click anywhere and type there. Drag things around; they line up as you go.'},
   {id:'journal',name:'Journal',blurb:'Your entries as a month you can page through — write, search, and read back.'},
+  {id:'weekly',name:'Weekly Outline',blurb:'Four weeks at a glance, with the dates kept current.'},
 ];
+// A Weekly Outline is a text card that starts with a live table — not a card type with a
+// renderer of its own. That is the whole trick: everything the tables already do keeps
+// working on it, and the dates are the only thing that had to be new.
+const WEEK_ROWS=['CAPABILITY','CAPACITY','CONNECTION','CURATION'];
+const WEEK_DAYS=['SAT','SUN','MON','TUE','WED','THU','FRI'];
+function weeklyTableHTML(weeks){
+  const n=WEEK_DAYS.length+1;
+  // Equal shares that add to exactly 100, so the first column carries the rounding rather
+  // than the table being a hair short.
+  const w=Math.floor(10000/n)/100, first=Math.round((100-w*(n-1))*100)/100;
+  const cols='<colgroup>'+Array.from({length:n},(_,i)=>
+    `<col style="width: ${i?w:first}%;">`).join('')+'</colgroup>';
+  const cell=(txt,hd)=>`<td contenteditable="true"${hd?' class="rt-hd"':''}>${txt||'<br>'}</td>`;
+  let body='';
+  for(let k=0;k<(weeks||4);k++){
+    body+='<tr>'+cell('',true)+WEEK_DAYS.map(d=>cell(d,true)).join('')+'</tr>';
+    body+=WEEK_ROWS.map(r=>'<tr>'+cell(r,true)+WEEK_DAYS.map(()=>cell('')).join('')+'</tr>').join('');
+  }
+  // No data-wk: the first paint anchors it to the week containing today.
+  return '<div class="rt-tw" contenteditable="false"><table class="rt-table rt-hopt rt-hr rt-hc rt-fixed rt-live">'
+    +cols+'<tbody>'+body+'</tbody></table></div><p><br></p>';
+}
 let _paddOpen=false;
 function _paddToggle(){ _paddOpen=!_paddOpen; render(); }
 // Anywhere outside the picker closes it, the same as any other menu on the page.
@@ -3824,6 +3872,7 @@ function addPlannerCard(type,at){
   : type==='timeline' ? {id,type:'timeline',label:'TIMELINE',span:PGRID_SUB,minH:0,cadence:'none'}
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2*PGRID_SUB,minH:320,cadence:'none'}
   : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2*PGRID_SUB,minH:420,cadence:'none'}
+  : type==='weekly' ? {id,type:'text',label:'WEEKLY OUTLINE',span:3*PGRID_SUB,minH:0,cadence:'none'}
   : {id,type:'text',label:'New card',span:PGRID_SUB,minH:0,cadence:'none'};
   // A card dropped into the middle of a band used to be given the column of the card above the
   // plus sign -- which is by definition at or behind the flow cursor, so it opened a band of its
@@ -3838,6 +3887,9 @@ function addPlannerCard(type,at){
   const sp=cardSpan(nd),end=last>=0&&bands[last]?bands[last].end:0;
   nd.col=bd<0?1:(end+sp<=PGRID_COLS?end+1:1);
   defs.splice(Math.max(0,last+1),0,nd);
+  // The body is stored HTML like any other text card's, so it goes in the same place a
+  // typed one would and needs nothing at render time.
+  if(type==='weekly') saveCard(id,weeklyTableHTML(4));
   _paddOpen=false; _pinsAt=null;
   _cardsDirty(); render();
 }
@@ -7305,6 +7357,294 @@ function rtStartQuarantine(){
   rtQuarantineAll();
 }
 
+// ─── Live dates on a weekly table ────────────────────────────────
+// A week table is written by hand: a row of day names, then the rows you plan under them,
+// repeated for as many weeks as you keep. The day names are already there and already in
+// your order -- SAT first, where D.weekStart says Monday -- so the week is read off the
+// header row rather than imposed on it. That also keeps D.weekStart alone, which matters:
+// setWeekStart rekeys every stored weekly bag through _applyWeekRemap.
+const _RT_DOW={SUN:0,MON:1,TUE:2,WED:3,THU:4,FRI:5,SAT:6,
+               SUNDAY:0,MONDAY:1,TUESDAY:2,WEDNESDAY:3,THURSDAY:4,FRIDAY:5,SATURDAY:6};
+const _RT_MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+// The cell's own word, with any date this code added stripped back off first -- otherwise
+// the second pass reads "SAT 22" and no longer recognises a day.
+function _rtCellWord(td){
+  const c=td.cloneNode(true);
+  c.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+  return (c.textContent||'').trim().toUpperCase();
+}
+// Which columns of a row are day names, as {col: dow}. A row qualifies as a week header
+// only if four or more of its cells are days, so a row that merely says "MON" in prose is
+// not mistaken for one.
+function rtLiveHead(tr){
+  const out={}; let n=0;
+  [...tr.children].forEach((td,i)=>{
+    const d=_RT_DOW[_rtCellWord(td)];
+    if(d!==undefined){ out[i]=d; n++; }
+  });
+  return n>=4?out:null;
+}
+// The week blocks of a table: each header row, and the rows belonging to it up to the next
+// one. Four weeks stacked in one table is four blocks, which is how these tables are
+// actually written -- not four separate tables.
+function rtLiveBlocks(t){
+  const out=[];
+  [...t.querySelectorAll('tr')].forEach(tr=>{
+    const h=rtLiveHead(tr);
+    if(h) out.push({head:tr,days:h,rows:[]});
+    else if(out.length) out[out.length-1].rows.push(tr);
+  });
+  return out;
+}
+
+function _rtMid(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function _rtISO(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function _rtParseISO(s){
+  const m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(s||'');
+  return m?new Date(+m[1],+m[2]-1,+m[3]):null;
+}
+function _rtAddDays(d,n){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()+n); }
+// The start of the week containing `d`, for a week that begins on day-of-week `dow`.
+function rtWeekStartOn(d,dow){ return _rtAddDays(_rtMid(d),-(((d.getDay()-dow)%7)+7)%7); }
+
+// Each block stores the date of its own first column, on its header row. Anchoring by
+// position instead -- first block is this week, second is next -- looks simpler and is
+// wrong: the week a block means would change the moment a week passed, and everything
+// written under "next week" would find itself sitting under this week's dates. A stored
+// anchor cannot do that. What you wrote on Tuesday the 25th stays on Tuesday the 25th.
+function rtLiveAnchor(b,prev,today){
+  const has=_rtParseISO(b.head.dataset.wk);
+  if(has) return has;
+  const cols=Object.keys(b.days).map(Number).sort((a,z)=>a-z);
+  const first=b.days[cols[0]];
+  // The first block anchors on the week containing today; each one after it follows the
+  // block above, so a table of four blocks is four consecutive weeks with nothing to set.
+  const d=prev?_rtAddDays(prev,7):rtWeekStartOn(today,first);
+  b.head.dataset.wk=_rtISO(d);
+  return d;
+}
+
+// The dates themselves. One chip per day cell, reading "SAT 22", with the month named only
+// where it changes -- "FRI 31", "SAT 1 SEP" -- so an ordinary week costs no extra width.
+// contenteditable="false" inside an editable cell has precedent in .rt-tog-c.
+function _rtDateChip(d,showMon){
+  const s=document.createElement('span');
+  s.className='rt-dt';s.setAttribute('contenteditable','false');
+  s.textContent=' '+d.getDate()+(showMon?' '+_RT_MON[d.getMonth()]:'');
+  return s;
+}
+// classList.toggle(cls,false) on a cell that has no class attribute *creates* one, empty --
+// and an empty class="" is a byte that was not there before, which shows up in the saved HTML
+// and in every undo comparison. Most of these cells carry no class at all, so this only ever
+// writes when the answer actually changes, and takes the attribute away again when it empties.
+function _rtMark(el,cls,on){
+  if(!el||!el.classList) return;
+  if(!!on===el.classList.contains(cls)) return;
+  el.classList[on?'add':'remove'](cls);
+  if(!el.classList.length) el.removeAttribute('class');
+}
+function rtPaintLive(t,today){
+  if(!t.classList.contains('rt-live')) return;
+  const now=_rtMid(today||new Date());
+  let prev=null;
+  rtLiveBlocks(t).forEach(b=>{
+    const start=rtLiveAnchor(b,prev,now); prev=start;
+    const cols=Object.keys(b.days).map(Number).sort((a,z)=>a-z);
+    const first=b.days[cols[0]];
+    let lastMon=-1;
+    cols.forEach(ci=>{
+      const off=(((b.days[ci]-first)%7)+7)%7;
+      const d=_rtAddDays(start,off);
+      const td=b.head.children[ci];
+      td.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+      td.appendChild(_rtDateChip(d,d.getMonth()!==lastMon));
+      lastMon=d.getMonth();
+      // Days already gone fade back so the days you can still act on carry the eye, and
+      // today is marked. The column *widths* are deliberately left alone: all the weeks in
+      // one table share one colgroup, so narrowing this week's Monday would narrow Monday
+      // in every week below it too.
+      const past=d<now, isToday=+d===+now;
+      [td,...b.rows.map(r=>r.children[ci])].forEach(c=>{
+        if(!c) return;
+        _rtMark(c,'rt-past',past);
+        _rtMark(c,'rt-today',isToday);
+      });
+    });
+  });
+}
+// Everything above is drawn, not written. This takes it back out again, so what reaches
+// storage and the undo stack is the day names you typed plus the rt-live class and each
+// block's anchor -- and nothing else.
+function _rtStripLive(c){
+  c.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+  c.querySelectorAll('.rt-past,.rt-today').forEach(n=>{
+    n.classList.remove('rt-past','rt-today');
+    if(!n.classList.length) n.removeAttribute('class');
+  });
+}
+
+// ─── Rows and weeks ──────────────────────────────────────────────
+// The generic row tools already in the file are not week-aware: rtAddRow appends to the
+// bottom of the *table*, which in a four-week table lands inside the fourth week only. These
+// keep the weeks parallel, so a fifth category is a fifth category everywhere and the weeks
+// stay comparable down the page. The generic tools are left exactly as they are, so a
+// one-off row in a single week is still there when that is what you want.
+
+// The index in rtRows(t) of every block's header row.
+function _rtBlockAt(t){
+  const rows=rtRows(t),out=[];
+  rows.forEach((tr,i)=>{ if(rtLiveHead(tr)) out.push(i); });
+  return out;
+}
+// How many rows each block holds, header included. Blocks can differ if rows were added by
+// hand; each one is measured rather than assumed.
+function _rtBlockLen(t,i){
+  const at=_rtBlockAt(t),rows=rtRows(t);
+  return (i+1<at.length?at[i+1]:rows.length)-at[i];
+}
+// Add a row at the same offset within every block. Bottom-up, so an insert never shifts the
+// index of a block still to be done.
+function rtWeekAddRow(t,off,label){
+  const at=_rtBlockAt(t);
+  if(!at.length) return false;
+  for(let i=at.length-1;i>=0;i--){
+    const len=_rtBlockLen(t,i);
+    // off is measured from the header row; 0 is the header itself, which never moves.
+    const o=Math.max(1,Math.min(off==null?len:off,len));
+    const tr=rtAddRow(t,at[i]+o);
+    if(tr&&label&&tr.cells[0]){
+      tr.cells[0].textContent=label;
+      rtHdSet(tr.cells[0],true);
+    }
+  }
+  return true;
+}
+// And remove that offset from every block. It will not take a header row, and it will not
+// empty a block.
+function rtWeekDelRow(t,off){
+  const at=_rtBlockAt(t);
+  if(!at.length||off<1) return false;
+  if(_rtBlockLen(t,0)<=2) return false;
+  const idxs=[];
+  at.forEach((s,i)=>{ if(off<_rtBlockLen(t,i)) idxs.push(s+off); });
+  if(!idxs.length) return false;
+  rtDelRows(t,idxs);
+  return true;
+}
+// The offset of a row within its own block, or -1. Used to turn "the row the caret is in"
+// into "that row in every week".
+function rtWeekOffOf(t,tr){
+  const rows=rtRows(t),i=rows.indexOf(tr);
+  if(i<0) return -1;
+  const at=_rtBlockAt(t);
+  let s=-1;
+  at.forEach(a=>{ if(a<=i) s=a; });
+  return s<0?-1:i-s;
+}
+
+// A new week takes the *shape* of the last one -- its day names and its row labels -- and
+// none of its content. The anchor is set here rather than left to the paint, so the week it
+// means is fixed the moment it is created and cannot drift afterwards.
+function rtWeekAdd(t){
+  const bs=rtLiveBlocks(t);
+  if(!bs.length) return false;
+  const last=bs[bs.length-1];
+  const body=t.tBodies[0];
+  const head=last.head.cloneNode(true);
+  head.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+  [...head.children].forEach(td=>{ _rtMark(td,'rt-past',false); _rtMark(td,'rt-today',false); });
+  const prev=_rtParseISO(last.head.dataset.wk);
+  if(prev) head.dataset.wk=_rtISO(_rtAddDays(prev,7));
+  body.appendChild(head);
+  last.rows.forEach(r=>{
+    const tr=r.cloneNode(true);
+    [...tr.children].forEach((td,i)=>{
+      _rtMark(td,'rt-past',false); _rtMark(td,'rt-today',false);
+      // The row label is the shape; everything else is what was written in that week.
+      if(i>0) td.innerHTML='<br>';
+    });
+    body.appendChild(tr);
+  });
+  return true;
+}
+// Removing a week removes what is written in it, so unlike everything else here it asks
+// first -- and names the week, so what is about to go is something you read rather than
+// something you find out.
+function rtWeekLabel(b){
+  const s=_rtParseISO(b.head.dataset.wk);
+  return s?_RT_MON[s.getMonth()]+' '+s.getDate():'';
+}
+function rtWeekDel(t,i){
+  const at=_rtBlockAt(t);
+  if(at.length<2||i<0||i>=at.length) return false;
+  const len=_rtBlockLen(t,i),idxs=[];
+  for(let k=0;k<len;k++) idxs.push(at[i]+k);
+  rtDelRows(t,idxs);
+  return true;
+}
+// Keep `want` weeks standing at or after this week, so a week passing quietly puts a fresh
+// one on the end rather than leaving you short. Nothing already written is touched: weeks
+// that have gone stay where they are and simply read as past.
+function rtWeekTopUp(t,today,want){
+  const now=_rtMid(today||new Date());
+  let added=false;
+  for(let guard=0;guard<60;guard++){
+    const bs=rtLiveBlocks(t);
+    if(!bs.length) break;
+    const ahead=bs.filter(b=>{
+      const s=_rtParseISO(b.head.dataset.wk);
+      return s&&_rtAddDays(s,7)>now;
+    }).length;
+    if(ahead>=(want||4)) break;
+    if(!rtWeekAdd(t)) break;
+    added=true;
+  }
+  return added;
+}
+
+// Paint every live table on the page. Kept out of rtFreezeTables deliberately: that function
+// calls rtFire when it changes anything, and rtFire saves — which is the one thing none of
+// this may ever do. Nothing here is content, so nothing here is a reason to write.
+function rtPaintAllLive(){
+  document.querySelectorAll('.rt-table.rt-live').forEach(t=>{
+    const hl=t.dataset.hl;
+    if(hl) t.style.setProperty('--rt-hl',hl); else t.style.removeProperty('--rt-hl');
+    rtPaintLive(t);
+  });
+}
+
+// ─── The day rolling over ────────────────────────────────────────
+// `now` is captured once at load and never refreshed, so a tab left open overnight keeps
+// yesterday as today — in isNow and goToday as much as here. One timer to the next local
+// midnight, which then re-arms itself. Local, and recomputed each time rather than added in
+// 24h steps, so it stays right across a daylight-saving change.
+let _rtDayT=null,_rtDayOn='';
+function _rtMsToMidnight(){
+  const n=new Date(),m=new Date(n.getFullYear(),n.getMonth(),n.getDate()+1);
+  return Math.max(1000,m-n);
+}
+function startDayRollover(){
+  const t=todayStr();
+  // Re-checked rather than only armed, so a laptop that was asleep at midnight catches up the
+  // moment it wakes and the tab comes back.
+  if(_rtDayOn&&_rtDayOn!==t){ _rtDayOn=t; _rtRollDay(); }
+  else if(!_rtDayOn) _rtDayOn=t;
+  if(_rtDayT) clearTimeout(_rtDayT);
+  _rtDayT=setTimeout(()=>{ _rtDayT=null; _rtDayOn=todayStr(); _rtRollDay(); startDayRollover(); },_rtMsToMidnight());
+}
+function _rtRollDay(){
+  now=new Date();
+  // A week passing quietly puts a fresh one on the end, so the run of weeks ahead never
+  // shortens. Weeks that have gone are left exactly where they are.
+  let grew=false;
+  document.querySelectorAll('.rt-table.rt-live').forEach(t=>{ if(rtWeekTopUp(t,now,4)) grew=true; });
+  if(grew) document.querySelectorAll(RT_HOSTS).forEach(h=>{ if(h.querySelector('.rt-table.rt-live')) rtFire(h); });
+  render();
+}
+
 // Guard first: deleting the last block in a toggle is an input event, and if the
 // container isn't restocked before this returns, the emptied toggle is saved as a
 // dead end and can never be typed into again.
@@ -7349,11 +7689,17 @@ function rtHTML(el){
   if(!el) return '';
   const sel=!!el.querySelector('.rt-sel');
   const fgn=!!_rtForeignNodes(el).length||!!el.querySelector('[pwa2-uuid],[pwa-fake-editor]');
+  // Dates are drawn, not written, and this is the function that decides what was written. It
+  // covers the undo stack for free, because _rtSnap comes through here too — and that matters
+  // as much as storage does: snapshots of identical text stop comparing equal once something
+  // is repainting the DOM between them.
+  const lv=!!el.querySelector('.rt-dt,.rt-past,.rt-today');
   // The common keystroke still clones nothing.
-  if(!sel&&!fgn) return el.innerHTML;
+  if(!sel&&!fgn&&!lv) return el.innerHTML;
   const c=el.cloneNode(true);
   if(sel) c.querySelectorAll('.rt-sel').forEach(td=>_rtUnpaint(td));
   if(fgn) _rtStripForeign(c);
+  if(lv) _rtStripLive(c);
   return c.innerHTML;
 }
 
@@ -9409,6 +9755,90 @@ function rtShowCtl(t){
       };
       m.appendChild(row);
     });
+    // Live dates, and the weekly tools that only mean anything once a table has weeks in it.
+    // A table with no day-name header row shows none of this, so an ordinary table's menu is
+    // exactly as long as it was.
+    const wks=rtLiveBlocks(t);
+    if(wks.length){
+      const lrow=document.createElement('div');lrow.className='rt-item';
+      const lon=t.classList.contains('rt-live');
+      lrow.innerHTML='<span class="rt-ck">'+(lon?'✓':'')+'</span><span></span>';
+      lrow.lastElementChild.textContent='Live dates';
+      lrow.onclick=()=>{
+        if(lon){ t.classList.remove('rt-live'); _rtStripLive(t); t.style.removeProperty('--rt-hl'); }
+        else { t.classList.add('rt-live'); rtPaintAllLive(); }
+        rtFire(rtHost(t)); rtShowCtl(t);
+      };
+      m.appendChild(lrow);
+      if(lon){
+        // The swatch row from the time-block modal, so picking a colour looks the same
+        // wherever you do it. The choice lives on the table as data-hl, which means each
+        // outline keeps its own and it travels with the card when one is duplicated.
+        const hr=document.createElement('div');hr.className='rt-hlrow';
+        const cur=t.dataset.hl||'';
+        const pick=v=>{
+          if(v) t.dataset.hl=v; else delete t.dataset.hl;
+          rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
+        };
+        const dflt=document.createElement('button');
+        dflt.className='rt-hlsw'+(cur?'':' on');dflt.title='Default';
+        dflt.style.background='var(--accent)';dflt.onclick=()=>pick('');
+        hr.appendChild(dflt);
+        TB_COLORS.forEach(c=>{
+          const b=document.createElement('button');
+          b.className='rt-hlsw'+(cur===c?' on':'');b.style.background=c;b.title=c;
+          b.onclick=()=>pick(c);
+          hr.appendChild(b);
+        });
+        const cb=document.createElement('button');
+        cb.className='rt-hlsw rt-hlcustom'+(cur&&!TB_COLORS.includes(cur)?' on':'');
+        cb.title='Custom colour';
+        const ci=document.createElement('input');ci.type='color';ci.value=cur||'#2563EB';
+        ci.oninput=()=>{ t.dataset.hl=ci.value; rtPaintAllLive(); };
+        ci.onchange=()=>pick(ci.value);
+        cb.appendChild(ci);hr.appendChild(cb);
+        m.appendChild(hr);
+      }
+      const sepW=document.createElement('div');sepW.className='rt-sep';m.appendChild(sepW);
+      // Rows go into every week at once, so a fifth category is a fifth category everywhere
+      // and the weeks stay comparable down the page. The + buttons on the table still add a
+      // row to one week only, for when that is what you want.
+      // rtActiveCells already falls back to the caret's cell when nothing is selected,
+      // so "the row I am in" needs nothing else.
+      const cell=rtActiveCells()[0];
+      const inTr=cell&&cell.closest?cell.closest('tr'):null;
+      const off=inTr?rtWeekOffOf(t,inTr):-1;
+      const wact=[
+        ['⊕','Add row to every week',()=>{
+          const label=prompt('Name the new row (it is added to every week):','');
+          if(label===null) return;
+          rtWeekAddRow(t,off>0?off+1:null,label.trim());
+          rtPaintAllLive(); rtFire(rtHost(t));
+        },true],
+        ['⊖','Remove this row from every week',()=>{
+          if(off<1) return;
+          rtWeekDelRow(t,off); rtPaintAllLive(); rtFire(rtHost(t));
+        },off>0],
+        ['⊕','Add next week',()=>{ rtWeekAdd(t); rtPaintAllLive(); rtFire(rtHost(t)); },true],
+        ['⊖','Remove last week',()=>{
+          const bs=rtLiveBlocks(t);
+          if(bs.length<2) return;
+          const lb=rtWeekLabel(bs[bs.length-1]);
+          // This one deletes what is written in it, so unlike everything else here it asks —
+          // and names the week, so what is about to go is something you read first.
+          if(!confirm('Remove the week of '+(lb||'the last block')+' and everything in it?')) return;
+          rtWeekDel(t,bs.length-1); rtPaintAllLive(); rtFire(rtHost(t));
+        },wks.length>1],
+      ];
+      wact.forEach(([ic,label,fn,on])=>{
+        const row=document.createElement('div');row.className='rt-item'+(on?'':' rt-off');
+        row.innerHTML='<span class="rt-ck"></span><span></span>';
+        row.firstElementChild.textContent=ic;
+        row.lastElementChild.textContent=label;
+        if(on) row.onclick=()=>{ _rtMenu=false; fn(); rtHideCtl(); };
+        m.appendChild(row);
+      });
+    }
     const sep=document.createElement('div');sep.className='rt-sep';m.appendChild(sep);
     // The label says which columns it will touch, so the scoping is something you read
     // before you commit to it rather than something you find out afterwards.
@@ -11813,7 +12243,7 @@ document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;}
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); });
+loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); });
 </script>
 </body>
 </html>
