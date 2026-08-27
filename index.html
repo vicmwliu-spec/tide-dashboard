@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0827-a14">
+<meta name="build" content="0827-a15">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -192,6 +192,53 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .tl-d.now{box-shadow:inset 0 0 0 2px var(--tlc,var(--edit));border-color:transparent;color:var(--text1);font-weight:600}
 .tl-d.now.sel{color:#fff}
 .tl-pad{border-color:transparent;background:transparent;cursor:default}
+/* A countdown's day. Its own color, carried in on --msc, and a ring rather than a fill so the
+   day the page is showing (.sel, filled) still wins where the two land together. */
+.tl-d.tl-ms{box-shadow:inset 0 0 0 2px var(--msc,var(--tlc,var(--edit)));border-color:transparent;
+  color:var(--text1);font-weight:600}
+.tl-d.tl-ms.sel{box-shadow:none}
+/* The month captions in the "until" view. A range crosses month boundaries, and without a name
+   on each block the weeks run together into one undifferentiated column. */
+.tl-until{max-height:none}
+.tl-mcap{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text3);margin:5px 0 1px 26px}
+.tl-mcap:first-of-type{margin-top:1px}
+/* The chip row. Wraps rather than widening the card, because how many countdowns you keep is
+   not a decision about how wide this card is. Name first, count after: the name is the thing
+   worth looking forward to and the number is the detail. Nothing here is ever red. */
+.tl-ms-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.tl-ms-chip{display:inline-flex;align-items:baseline;gap:5px;max-width:100%;
+  border:1px solid var(--border);background:transparent;border-radius:999px;padding:2px 9px;
+  font-family:var(--font);font-size:10px;color:var(--text2);cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s}
+.tl-ms-chip:hover{border-color:var(--msc,var(--tlc,var(--edit)));color:var(--text1)}
+.tl-ms-chip .tl-ms-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-ms-chip .tl-ms-c{font-size:9px;color:var(--text3);font-variant-numeric:tabular-nums}
+/* Selected: the chip takes its own color, which is the same color ringing its day in the grid
+   above, so the chip and the date read as one statement. */
+.tl-ms-chip.on{border-color:var(--msc,var(--tlc,var(--edit)));color:var(--msc,var(--tlc,var(--edit)))}
+.tl-ms-chip.on .tl-ms-c{color:inherit;opacity:.75}
+/* Passed. The same quiet fade a spent day gets -- a date going by is not a failure. */
+.tl-ms-chip.past{color:var(--text3);border-color:transparent;background:var(--surface2)}
+.tl-ms-add{border:1px dashed var(--border);background:transparent;border-radius:999px;
+  width:22px;height:20px;line-height:1;font-family:var(--font);font-size:12px;color:var(--text3);
+  cursor:pointer;padding:0}
+.tl-ms-add:hover{border-color:var(--text3);color:var(--text1)}
+#ms-pop{position:fixed;z-index:9990;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:10px 12px;min-width:280px}
+#ms-pop .ms-row{display:grid;grid-template-columns:1fr auto 22px 18px;gap:5px;align-items:center;
+  margin-bottom:6px}
+#ms-pop .ms-row.past{opacity:.55}
+#ms-pop .ms-sub{grid-column:1/-1;font-size:9px;color:var(--text3);font-variant-numeric:tabular-nums;
+  margin-top:-2px}
+#ms-pop input{font-family:var(--font);font-size:11px;color:var(--text1);background:transparent;
+  border:1px solid var(--border);border-radius:6px;padding:3px 6px;min-width:0}
+#ms-pop input.ms-cl{padding:0;width:22px;height:22px;cursor:pointer}
+#ms-pop .ms-x,#ms-pop .ms-ok{border:1px solid var(--border);background:transparent;border-radius:6px;
+  font-family:var(--font);color:var(--text3);cursor:pointer;padding:2px 0;font-size:11px}
+#ms-pop .ms-x:hover,#ms-pop .ms-ok:hover{border-color:var(--text3);color:var(--text1)}
+#ms-pop .ms-ok{grid-column:3/-1;padding:2px 6px}
+#ms-pop .ms-new{border-top:1px solid var(--border);padding-top:8px;margin-bottom:0}
 /* Month paging. The chevrons borrow the header's .nav-btn idiom — transparent until
    hovered — so the card reads as the same app rather than a widget with its own manners.
    The label between them is a button too: while the card is browsing away from the
@@ -749,6 +796,12 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    The date a weekly table draws into its own header row. Lighter than the day name it
    follows, and tabular figures so the columns of a week line up down the page. */
 .rt-dt{color:var(--text3);font-weight:400;font-variant-numeric:tabular-nums}
+/* A countdown landing in this week, named in the day head that carries it. Quiet: it is a fact
+   about the week, not an alarm about it, so it takes the countdown's own color at low weight
+   and there is no alert state anywhere in this rule. */
+.rt-ms{display:block;font-size:9px;font-weight:600;letter-spacing:.02em;line-height:1.2;
+  color:var(--rt-ms,var(--accent));opacity:.9;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:100%}
 /* Days already gone fade back so the days still ahead carry the eye -- dimmed AND washed,
    because a dim alone left the cell looking identical to a live one and the boundary between
    done and ahead had to be hunted for. The width is deliberately untouched: the weeks stacked
@@ -1257,13 +1310,16 @@ function defaultData(){
     weekStart:1,   // 0=Sun … 6=Sat. Part of D, not localStorage: it decides which days a stored
                    // week number covers, so two devices must never disagree about it.
     chartColors:{overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null},
+    // Dates you are counting toward. Global rather than per card: a wedding is not a property of
+    // a Calendar card, and the Weekly Outline needs one place to read them from.
+    milestones:[],
   };
 }
 
 // ─────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────
-let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(typeof d.weekStart!=='number'||d.weekStart<0||d.weekStart>6)d.weekStart=1;if(d.cards&&!d.cards.data)d.cards.data={};if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
+let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(!Array.isArray(d.milestones))d.milestones=[];if(typeof d.weekStart!=='number'||d.weekStart<0||d.weekStart>6)d.weekStart=1;if(d.cards&&!d.cards.data)d.cards.data={};if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
 let darkMode = localStorage.getItem('tide_dark')==='1';
 if(darkMode) document.documentElement.classList.add('dark');
 const now = new Date();
@@ -1312,7 +1368,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0827-a14';
+const RT_BUILD = '0827-a15';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -2488,7 +2544,7 @@ const CARD_TYPES=[
   {id:'text',  name:'Text',   blurb:'Write anything — lists, checkboxes, tables.'},
   {id:'habits',name:'Habits', blurb:'Today’s levers as pills you tap. Each card keeps its own set.'},
   {id:'clock', name:'Clock',  blurb:'Today’s shape: the dial and your blocks with times.'},
-  {id:'timeline',name:'Timeline',blurb:'The month as a calendar — where you are in it, and in the quarter.'},
+  {id:'timeline',name:'Calendar',blurb:'The month as a calendar, and the countdown to any date you set.'},
   {id:'canvas',name:'Canvas',blurb:'Click anywhere and type there. Drag things around; they line up as you go.'},
   {id:'journal',name:'Journal',blurb:'Your entries as a month you can page through — write, search, and read back.'},
   {id:'weekly',name:'Weekly Outline',blurb:'Four weeks at a glance, with the dates kept current.'},
@@ -2562,6 +2618,61 @@ function goDate(y,m,d){ PD=new Date(y,m,d); _syncPD(); _navRender(); }
 // The card's color is yours: D.chartColors.tl_<id> if you have set one, and the
 // app's own accent if you haven't.
 function timelineAccent(id){ return (id&&D.chartColors&&D.chartColors['tl_'+id])||gradeAccent(); }
+
+// ─── COUNTDOWNS ──────────────────────────────────────────────────
+// A milestone is a name and a date: {id,name,date:'YYYY-MM-DD',color}. They live on D rather
+// than on a card, so every Calendar card shows the same set and the Weekly Outline can mark
+// them too. A card stores only `until` — which one it is currently spanning to, if any.
+//
+// Two counts, and the second is the point. Days are a fact about the calendar; WEEKS are a fact
+// about your agency, because the week is the unit the Weekly Outline plans in — "2 more weekly
+// outlines" says how many planning cycles are left to spend on this, which a shrinking number
+// of days does not. So the week count is measured in the Outline's own weeks, off WS(), and not
+// as days/7: a Sunday milestone is this week or next depending on which day a week starts on,
+// and the two cards must never disagree about that.
+function milestones(){
+  if(!Array.isArray(D.milestones)) D.milestones=[];
+  return D.milestones.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+}
+function milestone(id){ return (D.milestones||[]).find(m=>m.id===id)||null; }
+function msDate(ms){ return ms?_rtParseISO(ms.date):null; }
+function msColor(ms){ return (ms&&ms.color)||gradeAccent(); }
+// Whole days, midnight to midnight. Math.round rather than floor because an hour of DST between
+// the two ends makes the quotient 23/24 or 25/24 of a day, and truncating that is an off-by-one
+// twice a year.
+function msDaysTo(ms,from){
+  const d=msDate(ms); if(!d) return null;
+  return Math.round((d-_rtMid(from||new Date()))/86400000);
+}
+function msWeeksTo(ms,from){
+  const d=msDate(ms); if(!d) return null;
+  const a=rtWeekStartOn(_rtMid(from||new Date()),WS()), b=rtWeekStartOn(d,WS());
+  return Math.round((b-a)/604800000);
+}
+// Exactly this day, or nothing. What the Weekly Outline paints off.
+function milestoneOn(d){ const k=_rtISO(d); return (D.milestones||[]).find(m=>m.date===k)||null; }
+function msAdd(name,date){
+  if(!Array.isArray(D.milestones)) D.milestones=[];
+  const m={id:'ms'+Date.now().toString(36)+Math.floor(Math.random()*46656).toString(36),
+           name:name||'Milestone',date};
+  D.milestones.push(m); _cardsDirty(); render(); return m;
+}
+function msSet(id,f,v){ const m=milestone(id); if(!m||m[f]===v) return; m[f]=v; _cardsDirty(); render(); }
+// A card spanning to a deleted milestone would show a month view with no way to say why, so the
+// reference goes with it.
+function msDelete(id){
+  D.milestones=(D.milestones||[]).filter(m=>m.id!==id);
+  cardDefs().forEach(c=>{ if(c.until===id) delete c.until });
+  _cardsDirty(); render();
+}
+// Clicking the chip that is already spanned puts the card back on the month — one control,
+// both directions, the way the month label is also the way home from browsing.
+function tlUntil(id,msid){
+  const c=cardDef(id); if(!c) return;
+  if(c.until===msid) delete c.until; else c.until=msid;
+  _cardsDirty(); tlRepaint(id);
+}
+
 // How many months a card is browsing away from the dashboard's own month. Per card id, so
 // two timeline cards page independently, and in memory only: a peek that outlived a reload
 // would leave the card months from everything else with nothing on screen explaining why.
@@ -2609,6 +2720,58 @@ function openWeekStartMenu(anchor){
   const want=r.left>innerWidth/2?r.right-pr.width:r.left;
   pop.style.left=Math.max(8,Math.min(want,innerWidth-pr.width-8))+'px';
   const away=()=>{ closeWeekStartMenu(); document.removeEventListener('click',away); };
+  setTimeout(()=>document.addEventListener('click',away),0);
+}
+
+// The one place countdowns are added, renamed, redated, recolored and removed. Built on the
+// #ws-pop idiom above rather than a new kind of dialog, and refilled in place after every edit
+// so the day and week counts beside each row stay true while you are still typing dates in.
+function closeMsEditor(){ const el=document.getElementById('ms-pop'); if(el) el.remove(); }
+function msEditorHTML(){
+  const rows=milestones().map(m=>{
+    const d=msDaysTo(m),w=msWeeksTo(m);
+    // A date that has been and gone reads as been and gone. No red, no "overdue": a countdown
+    // that shames you for the date passing is a worse thing than no countdown.
+    const sub=d===null?'—':d<0?'passed':d===0?'today':
+      `${d} day${d===1?'':'s'} · ${w} week${w===1?'':'s'}`;
+    return `<div class="ms-row${d!==null&&d<0?' past':''}">
+      <input class="ms-nm" type="text" value="${esc(m.name)}" placeholder="Name"
+        onchange="msSet('${m.id}','name',this.value.trim()||'Milestone');msEditorFill()">
+      <input class="ms-dt" type="date" value="${esc(m.date||'')}"
+        onchange="msSet('${m.id}','date',this.value);msEditorFill()">
+      <input class="ms-cl" type="color" value="${esc(msColor(m))}" title="Color"
+        onchange="msSet('${m.id}','color',this.value);msEditorFill()">
+      <button class="ms-x" title="Remove" onclick="msDelete('${m.id}');msEditorFill()">&times;</button>
+      <div class="ms-sub">${sub}</div></div>`;
+  }).join('');
+  return `<div class="ws-t">Countdowns</div>${rows}
+    <div class="ms-row ms-new">
+      <input class="ms-nm" id="ms-new-nm" type="text" placeholder="Wedding">
+      <input class="ms-dt" id="ms-new-dt" type="date">
+      <button class="ms-ok" onclick="msAddFromEditor()">Add</button></div>`;
+}
+function msEditorFill(){ const el=document.getElementById('ms-pop'); if(el) el.innerHTML=msEditorHTML(); }
+function msAddFromEditor(){
+  const n=document.getElementById('ms-new-nm'),d=document.getElementById('ms-new-dt');
+  if(!d||!d.value) return;              // a countdown with no date is not a countdown
+  msAdd(((n&&n.value)||'').trim()||'Milestone',d.value);
+  msEditorFill();
+}
+function openMsEditor(ev,anchor){
+  if(ev) ev.stopPropagation();
+  if(document.getElementById('ms-pop')){ closeMsEditor(); return; }
+  const pop=document.createElement('div');
+  pop.id='ms-pop';
+  pop.onclick=e=>e.stopPropagation();
+  pop.innerHTML=msEditorHTML();
+  document.body.appendChild(pop);
+  const a=anchor||(ev&&ev.currentTarget)||null;
+  const r=a&&a.getBoundingClientRect?a.getBoundingClientRect():{bottom:80,left:80,right:80};
+  const pr=pop.getBoundingClientRect();
+  pop.style.top=Math.max(8,Math.min(r.bottom+6,innerHeight-pr.height-8))+'px';
+  const want=r.left>innerWidth/2?r.right-pr.width:r.left;
+  pop.style.left=Math.max(8,Math.min(want,innerWidth-pr.width-8))+'px';
+  const away=()=>{ closeMsEditor(); document.removeEventListener('click',away); };
   setTimeout(()=>document.addEventListener('click',away),0);
 }
 
@@ -2738,8 +2901,79 @@ function monthGridRows(y,m,cell,wk){
     return `<div class="tl-wk">${gut}<div class="tl-days">${cells.join('')}</div></div>`;
   }).join('');
 }
+// The chip row: every countdown, name first. The name is what carries anticipation — "Wedding" is
+// a different thing to look at than "D-16" — so the count follows it rather than leading it, and
+// the count is given in weeks as well as days because weeks are the unit you plan in.
+// Clicking a chip spans the grid to that date; clicking the same chip again comes back.
+function tlChips(id){
+  const cur=(cardDef(id)||{}).until||'';
+  const list=milestones();
+  const chips=list.map(m=>{
+    const d=msDaysTo(m),w=msWeeksTo(m);
+    const cnt=d===null?'':d<0?'passed':d===0?'today':`${d}d`;
+    const wk=(d===null||d<=0)?'':` · ${w}w`;
+    const tip=d===null?m.name:d<0?`${m.name} — passed`:d===0?`${m.name} — today`
+      :`${m.name} — ${d} day${d===1?'':'s'}, ${w===0?'this week':`${w} weekly outline${w===1?'':'s'} left`}`;
+    return `<button class="tl-ms-chip${m.id===cur?' on':''}${d!==null&&d<0?' past':''}"
+      style="--msc:${esc(msColor(m))}" onclick="tlUntil('${id}','${m.id}')" title="${esc(tip)}"
+      ><span class="tl-ms-n">${esc(m.name)}</span><span class="tl-ms-c">${cnt}${wk}</span></button>`;
+  }).join('');
+  return `<div class="tl-ms-row">${chips}<button class="tl-ms-add" onclick="openMsEditor(event)"
+    title="${list.length?'Edit countdowns':'Add a countdown'}">+</button></div>`;
+}
+// The "until" view: the same month grid, drawn once per month from THIS month through the one the
+// date falls in, ending on the date itself. monthGridRows already cuts a month into the weeks the
+// rest of the app uses, so a range is that function called in a loop rather than a second grid
+// builder that could disagree with the first about where a week begins.
+//
+// It spans from today's month, not the month the dashboard is paged to: the countdown is from now.
+function _tlUntilBody(id,un,ud){
+  const ty=ud.getFullYear(),tm=ud.getMonth(),tday=ud.getDate();
+  const d=msDaysTo(un),w=msWeeksTo(un);
+  const nowY=now.getFullYear(),nowM=now.getMonth(),nowD=now.getDate();
+  let g='';
+  for(let k=0;k<48;k++){
+    const b=new Date(nowY,nowM+k,1),yy=b.getFullYear(),mm=b.getMonth();
+    const last=yy===ty&&mm===tm;
+    g+=`<div class="tl-mcap">${MON[mm]}${yy!==nowY?' '+yy:''}</div>`;
+    g+=monthGridRows(yy,mm,n=>{
+      // The view ends on the date. Days past it are held as padding rather than dropped, so the
+      // last week keeps the shape of a week instead of collapsing to the left.
+      if(last&&n>tday) return '<div class="tl-d tl-pad"></div>';
+      const cls=['tl-d'];
+      if(yy<nowY||(yy===nowY&&(mm<nowM||(mm===nowM&&n<nowD)))) cls.push('past');
+      if(yy===nowY&&mm===nowM&&n===nowD) cls.push('now');
+      // Every countdown inside the range is marked, not only the one being spanned to: the
+      // point of seeing eight weeks at once is seeing what else is in them.
+      const ms=milestoneOn(new Date(yy,mm,n));
+      if(ms) cls.push('tl-ms');
+      return `<button class="${cls.join(' ')}"${ms?` style="--msc:${esc(msColor(ms))}" title="${esc(ms.name)}"`:''
+        } onclick="goDate(${yy},${mm},${n})">${n}</button>`;
+    });
+    if(last) break;
+  }
+  // The label is the way back, exactly as the month label is the way back from browsing.
+  const nav=`<div class="tl-nav"><button class="tl-ml on" onclick="tlUntil('${id}','${un.id}')"
+      title="Back to ${MON[CM]} ${CY}">${esc(un.name)}</button></div>`;
+  return `${nav}<div class="tl-grid tl-until" style="--msc:${esc(msColor(un))}"
+      >${weekHeadStrip(true)}${g}</div>${tlChips(id)}
+    <div class="tl-note" contenteditable="true" data-cardid="${id}"
+      onkeydown="richtextKD(event)"
+      oninput="saveCard('${id}',rtOnInput(this))"></div>
+    <div class="tl-foot">
+      <div class="tl-pos">
+        <div class="tl-day"><b>${d}</b><span class="tl-dt">day${d===1?'':'s'} to ${esc(un.name)}</span></div>
+        <span class="tl-rem">${w===0?'this week':`${w} more weekly outline${w===1?'':'s'}`}</span></div>
+    </div>`;
+}
 function timelineCardBody(id){
   const ac=timelineAccent(id);
+  const _def=cardDef(id);
+  const _un=_def&&_def.until?milestone(_def.until):null;
+  const _ud=_un?msDate(_un):null;
+  // A date that has been and gone has nothing to span to, so the card falls back to the month and
+  // the chip simply reads "passed" — rather than drawing a range that ends behind today.
+  if(_ud&&msDaysTo(_un)>=0) return _tlUntilBody(id,_un,_ud);
   // Anchored on CY/CM — the month the rest of the page is showing — plus this card's own
   // browse offset. It used to read PD, which the header's month arrows never move, so
   // paging the header to September left this card sitting on August.
@@ -2759,7 +2993,12 @@ function timelineCardBody(id){
     if(isPastMo||(today&&n<today)) cls.push('past');
     if(n===today) cls.push('now');
     if(sel&&n===sel) cls.push('sel');
-    return `<button class="${cls.join(' ')}" onclick="goDate(${y},${m},${n})">${n}</button>`;
+    // A countdown's own day, marked in the month it falls in whether or not the card is
+    // spanning to it -- the date is a fact about the month, not about the chip being selected.
+    const _ms=milestoneOn(new Date(y,m,n));
+    if(_ms) cls.push('tl-ms');
+    return `<button class="${cls.join(' ')}"${_ms?` style="--msc:${esc(msColor(_ms))}" title="${esc(_ms.name)}"`:''
+      } onclick="goDate(${y},${m},${n})">${n}</button>`;
   });
   const q=Math.floor(m/3);
   // All three months named, current one marked. Bars followed by a month name read
@@ -2786,7 +3025,7 @@ function timelineCardBody(id){
     : `<div class="tl-day"><b>${days}</b><span class="tl-dt">days</span></div>`;
   // Emitted empty and filled by tlAfter, the way the journal's commitments pane is: the content
   // has to be in the document before rtFreezeTables can do anything with a table in it.
-  return `${nav}<div class="tl-grid">${hd}${rows}</div>
+  return `${nav}<div class="tl-grid">${hd}${rows}</div>${tlChips(id)}
     <div class="tl-note" contenteditable="true" data-cardid="${id}"
       onkeydown="richtextKD(event)"
       oninput="saveCard('${id}',rtOnInput(this))"></div>
@@ -3628,6 +3867,9 @@ function mkPlannerCard(def,ix,grid){
       if(_tbClockTimer)clearInterval(_tbClockTimer);
       _tbClockTimer=setInterval(buildClockSVG,60000);
     },0);
+  // 'timeline' is what this type is STORED as, and stays so: the card is called the Calendar
+  // everywhere you can see it, but renaming the stored value would be a one-way rewrite of
+  // everyone's data to buy a word. The color key is 'tl_<id>' and never contained the type.
   }else if(def.type==='timeline'){
     // The color rides in as a custom property, so every marked state inside picks
     // it up from one place instead of each button carrying its own inline style.
@@ -3908,7 +4150,7 @@ function addPlannerCard(type,at){
     // hidden:[] and not undefined — an empty array means "showing everything",
     // where a missing key means "inherit the old global hideToday flags".
   : type==='clock'  ? clockCardDef(id)
-  : type==='timeline' ? {id,type:'timeline',label:'TIMELINE',span:PGRID_SUB,minH:0,cadence:'none'}
+  : type==='timeline' ? {id,type:'timeline',label:'CALENDAR',span:PGRID_SUB,minH:0,cadence:'none'}
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2*PGRID_SUB,minH:320,cadence:'none'}
   : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2*PGRID_SUB,minH:420,cadence:'none'}
   : type==='weekly' ? {id,type:'text',label:'WEEKLY OUTLINE',span:3*PGRID_SUB,minH:0,cadence:'none'}
@@ -7513,6 +7755,7 @@ const _RT_MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV'
 function _rtCellWord(td){
   const c=td.cloneNode(true);
   c.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+  c.querySelectorAll('.rt-ms').forEach(n=>n.remove());
   return (c.textContent||'').trim().toUpperCase();
 }
 // Which columns of a row are day names, as {col: dow}. A row qualifies as a week header
@@ -7577,6 +7820,17 @@ function _rtDateChip(d,showMon){
   s.textContent=' '+d.getDate()+(showMon?' '+_RT_MON[d.getMonth()]:'');
   return s;
 }
+// The Calendar card's countdowns, shown where you are actually planning. A week containing the
+// wedding says so while you are writing that week's plan, which is the moment it is any use.
+// Drawn exactly as the date chips are -- _rtStripLive takes it back out again -- so it costs no
+// storage, appears in no undo comparison, and cannot round-trip wrong.
+function _rtMsChip(ms){
+  const s=document.createElement('span');
+  s.className='rt-ms';s.setAttribute('contenteditable','false');
+  s.style.setProperty('--rt-ms',msColor(ms));
+  s.textContent=ms.name;
+  return s;
+}
 // classList.toggle(cls,false) on a cell that has no class attribute *creates* one, empty --
 // and an empty class="" is a byte that was not there before, which shows up in the saved HTML
 // and in every undo comparison. Most of these cells carry no class at all, so this only ever
@@ -7619,6 +7873,13 @@ function rtPaintLive(t,today){
         chips.forEach(n=>n.remove());
         td.appendChild(want);
       }
+      // Same write-only-when-changed test as the chip above, for the same reason: a repaint
+      // that touches nothing cannot move the caret out from under someone typing.
+      const ms=milestoneOn(d),mc=td.querySelectorAll('.rt-ms');
+      if(!ms){ mc.forEach(n=>n.remove()); }
+      else if(mc.length!==1||mc[0].textContent!==ms.name){
+        mc.forEach(n=>n.remove()); td.appendChild(_rtMsChip(ms));
+      }
       _rtEdit(td,false);
       lastMon=d.getMonth();
       // Days already gone fade back so the days you can still act on carry the eye, and
@@ -7644,6 +7905,7 @@ function rtPaintLive(t,today){
 // block's anchor -- and nothing else.
 function _rtStripLive(c){
   c.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+  c.querySelectorAll('.rt-ms').forEach(n=>n.remove());
   // Every cell in these tables is written contenteditable="true"; the lock above is the only
   // thing that ever says otherwise, so taking it off is putting the attribute back.
   c.querySelectorAll('td[contenteditable="false"]').forEach(td=>td.setAttribute('contenteditable','true'));
@@ -7722,6 +7984,7 @@ function rtWeekAdd(t){
   const body=t.tBodies[0];
   const head=last.head.cloneNode(true);
   head.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+  head.querySelectorAll('.rt-ms').forEach(n=>n.remove());
   [...head.children].forEach(td=>{ _rtMark(td,'rt-past',false); _rtMark(td,'rt-today',false); });
   const prev=_rtParseISO(last.head.dataset.wk);
   if(prev) head.dataset.wk=_rtISO(_rtAddDays(prev,7));
