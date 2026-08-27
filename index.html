@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a12">
+<meta name="build" content="0827-a13">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -23,13 +23,13 @@
   --text2:#555555;
   --text3:#999999;
   --accent:#2563EB;
-  /* "This is editable" is its own idea and gets its own colour. The accent blue
+  /* "This is editable" is its own idea and gets its own color. The accent blue
      read like a browser focus ring; this is the teal the app already uses for
      --grade, so edit mode borrows from the palette instead of adding to it. */
   --edit:#4E9B8A;
   --edit-soft:#EAF3F1;
   /* An open card only needs to read as open, so its outline is the resting border a
-     few shades down rather than a colour. --edit itself stays: the Timeline and the
+     few shades down rather than a color. --edit itself stays: the Timeline and the
      drag placeholder are meant to carry the accent. */
   --edit-line:#9CA3AF;
   --today-bg:#EFF6FF;
@@ -157,7 +157,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pgrid,.pgrid>*{overflow-anchor:none}
 /* Timeline card: the month as a calendar, weeks numbered as the rest of the app
    numbers them. Days are buttons — clicking one moves the page to that day.
-   Every marked state reads --tlc, which the card sets from your chosen colour;
+   Every marked state reads --tlc, which the card sets from your chosen color;
    the fallback is only there so the rules stand up on their own. */
 .tlcard{display:flex;flex-direction:column;gap:8px;padding:4px 16px 14px}
 .tl-grid{display:flex;flex-direction:column;gap:3px}
@@ -195,7 +195,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* Month paging. The chevrons borrow the header's .nav-btn idiom — transparent until
    hovered — so the card reads as the same app rather than a widget with its own manners.
    The label between them is a button too: while the card is browsing away from the
-   dashboard's month it turns the card's colour and takes you back. */
+   dashboard's month it turns the card's color and takes you back. */
 .tl-nav{display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:2px}
 .tl-nb{background:none;border:none;cursor:pointer;color:var(--text3);padding:1px 7px;
   border-radius:4px;font-size:14px;line-height:1;font-family:var(--font);transition:background .12s,color .12s}
@@ -219,7 +219,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    Three roles, three classes. "Day" is the same 9px tracked eyebrow as the weekday
    heads and the quarter mark, so the footer speaks the card's own label language
    instead of being a bold sentence in the middle of it; the number takes --tlc, the
-   exact colour filling the selected chip above, so the two read as one statement. */
+   exact color filling the selected chip above, so the two read as one statement. */
 .tl-pos{display:flex;flex-direction:column;gap:3px;line-height:1.3}
 .tl-day{display:flex;align-items:baseline;gap:5px}
 .tl-dl{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
@@ -372,7 +372,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pgrip::after{content:'';width:40px;height:3px;border-radius:3px;background:var(--border)}
 .pgrip:hover::after,.pcard.rz .pgrip::after{background:var(--edit-line)}
 /* The other two edges. Both reuse the base grip above and only move it, so the four cannot drift
-   apart in size, colour or hover behaviour. Each overlaps the outer 3px of the matching .pins
+   apart in size, color or hover behaviour. Each overlaps the outer 3px of the matching .pins
    insert band, which sits at z-index 6 and therefore still wins the pointer — the same overlap
    the original two grips already had, not a new one. */
 .pgrip-t{top:-3px;bottom:auto}
@@ -403,7 +403,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
   box-shadow:var(--shadow-md);padding:5px;display:flex;flex-direction:column;gap:1px}
 .pm-i{font-size:12px;padding:6px 9px;display:flex;align-items:center;gap:7px}
 .pm-sep{height:1px;background:var(--border);margin:4px 2px}
-/* A mode, not an action: the tick sits in the same leading slot the Colour item's dot uses, so
+/* A mode, not an action: the tick sits in the same leading slot the Color item's dot uses, so
    the two items line up under their heading and the unticked one still reads as a choice.
    Same width and blue as the table options menu's .rt-ck, which is the tick this echoes. */
 .pm-lbl{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);padding:6px 9px 2px}
@@ -758,9 +758,9 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    the dates are drawn, so without them the one part you asked to fade most would be the one
    part the wash never reached: .rt-table.rt-hopt tr td.rt-hd sets its own background at a
    higher specificity and would win. Same trap .rt-today documents below.
-   A wash, not a fill: an inline background from the colour picker beats a stylesheet rule, so
-   a cell you have coloured keeps your colour and still recedes on the opacity. That is the
-   right way round, and it is why the dim lives on opacity rather than on colour. */
+   A wash, not a fill: an inline background from the color picker beats a stylesheet rule, so
+   a cell you have colored keeps your color and still recedes on the opacity. That is the
+   right way round, and it is why the dim lives on opacity rather than on color. */
 .rt-table.rt-live td.rt-past{opacity:.42;background:var(--rt-past-bg)}
 .rt-table.rt-live tr td.rt-past.rt-hd{opacity:.58;background:var(--rt-past-bg)}
 /* A week that has gone entirely steps back as one block, rather than seven columns each
@@ -777,9 +777,9 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* The row labels are a key down the side, not four headings. Quieter than the words written
    in the week, so the eye goes to the week. */
 .rt-table.rt-live tr td:first-child{font-size:11px;letter-spacing:.06em;color:var(--text2)}
-/* Today is marked with a rule and the text colour, never a fill: the header rules above set
+/* Today is marked with a rule and the text color, never a fill: the header rules above set
    `background` at a higher specificity, so a fill on a header cell simply would not show —
-   the same trap .rt-sel documents. The colour is per-table, painted onto the element as a
+   the same trap .rt-sel documents. The color is per-table, painted onto the element as a
    custom property from its stored data-hl, so these rules stay static and fall back to the
    app accent when nothing has been chosen. */
 .rt-table.rt-live td.rt-today{box-shadow:inset 2px 0 0 var(--rt-hl,var(--accent)),inset -2px 0 0 var(--rt-hl,var(--accent))}
@@ -1312,7 +1312,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a12';
+const RT_BUILD = '0827-a13';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -2381,7 +2381,8 @@ function _packPass(){
     // you drag its height, and from then on the height you dragged to is its own -- which is
     // what minH already recorded, and the two were mutually exclusive even when both existed.
     const items=live.map(x=>({top:x.r.top,h:x.r.height,
-      free:!x.el.classList.contains('pcard')||!!cardDef(x.el.dataset.cardid)?.minH}));
+      free:!x.el.classList.contains('pcard')||!!cardDef(x.el.dataset.cardid)?.minH
+           ||_cardRzFree(x.el)}));
     _rowTargets(items).forEach((t,i)=>{
       if(t>Math.round(items[i].h)) live[i].el.style.minHeight=t+'px';
     });
@@ -2558,7 +2559,7 @@ function goDate(y,m,d){ PD=new Date(y,m,d); _syncPD(); _navRender(); }
 // a WK n anywhere else are the same week. Today is ringed, the day the page is
 // showing is filled, and the quarter underneath names all three of its months so
 // nothing points anywhere — it says where August sits, not what it is building to.
-// The card's colour is yours: D.chartColors.tl_<id> if you have set one, and the
+// The card's color is yours: D.chartColors.tl_<id> if you have set one, and the
 // app's own accent if you haven't.
 function timelineAccent(id){ return (id&&D.chartColors&&D.chartColors['tl_'+id])||gradeAccent(); }
 // How many months a card is browsing away from the dashboard's own month. Per card id, so
@@ -2946,11 +2947,11 @@ function jrPicker(id){
   });
   const lbl=`${MON[m]} ${y}`;
   const home=!(y===now.getFullYear()&&m===now.getMonth());
-  // The colour dot rides beside the arrows rather than sitting behind the ⋯: it is the one
+  // The color dot rides beside the arrows rather than sitting behind the ⋯: it is the one
   // setting whose effect is entirely in this grid — the day dots, the chip on the entry you
   // are reading — so it belongs where you can see what it does. --tlc is already on the card.
   return `<div class="tl-nav">
-      <button class="chart-color-dot jr-dot" style="background:var(--tlc)" title="Card colour"
+      <button class="chart-color-dot jr-dot" style="background:var(--tlc)" title="Card color"
         onclick="event.stopPropagation();openChartColorPop(event,'tl_${id}')"></button>
       <button class="tl-nb" onclick="jrStep('${id}',-1)" title="Previous month">&#8249;</button>
       <button class="tl-ml${home?' off':''}" onclick="jrToday('${id}')"
@@ -3353,7 +3354,7 @@ function cvShowCtl(box){
     el.style.width=w+'px'; el.style.height=h+'px';
   });
 }
-// A canvas borrows the app's accent unless the card has its own colour, the same
+// A canvas borrows the app's accent unless the card has its own color, the same
 // key scheme the Timeline uses — so the guides match the card they are drawn on.
 function cvAccent(card){
   const id=card&&card.dataset.cardid;
@@ -3628,7 +3629,7 @@ function mkPlannerCard(def,ix,grid){
       _tbClockTimer=setInterval(buildClockSVG,60000);
     },0);
   }else if(def.type==='timeline'){
-    // The colour rides in as a custom property, so every marked state inside picks
+    // The color rides in as a custom property, so every marked state inside picks
     // it up from one place instead of each button carrying its own inline style.
     body=`<div class="pcard-bd tlcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
     foot='';
@@ -3638,7 +3639,7 @@ function mkPlannerCard(def,ix,grid){
     // entry itself — but the editor still needs the post-render pass every rich-text host
     // gets: freeze the tables, seed the undo stack.
     // Same --tlc the timeline rides in on: the grid is the same grid, so the dot on a day
-    // you wrote and the chip on the day you are reading take the card's colour, not a
+    // you wrote and the chip on the day you are reading take the card's color, not a
     // second hard-coded one.
     body=`<div class="pcard-bd jrcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${journalCardBody(def.id)}</div>`;
     // No footer: templates live behind the ⋯ now, so the whole card is calendar and entry.
@@ -3755,7 +3756,7 @@ function _cardInsHTML(def,ix){
 
 // ── Card configuration ──
 // Everything a card can have done to it, in one menu per card, opened from the ⋯ in its
-// header. This replaced the edit mode: a second header with a boxed name field, a colour
+// header. This replaced the edit mode: a second header with a boxed name field, a color
 // dot, a convert link and a × in it, shown on every card at once the moment you entered the
 // mode. The menu holds the same actions and shows none of them until you ask.
 let _cardMenu=null;
@@ -3785,7 +3786,7 @@ function _cardMenuClose(){ if(_cardMenu){ _cardMenu=null; _cardMenuPaint(null); 
 // Anywhere outside the open menu closes it, the same as the add-card picker above.
 document.addEventListener('mousedown',e=>{
   if(!_cardMenu) return;
-  // The colour popup lives in <body>, outside the menu that opened it — closing on a click
+  // The color popup lives in <body>, outside the menu that opened it — closing on a click
   // into it would tear down the anchor the popup was positioned against.
   if(e.target.closest&&e.target.closest('.pcard-menu,.pcard-more,.color-popup')) return;
   _cardMenuClose();
@@ -3795,10 +3796,10 @@ function _cardMenuHTML(def){
   // No Rename here: the header label is contenteditable at rest, so clicking the title
   // already renames the card. A menu item for it is a second door to the same room.
   const id=def.id, it=[];
-  // A journal card wears its colour dot on the month row instead, beside the ‹ — one press
-  // rather than two, and it sits next to the grid the colour actually paints.
+  // A journal card wears its color dot on the month row instead, beside the ‹ — one press
+  // rather than two, and it sits next to the grid the color actually paints.
   if(def.type==='timeline'||def.type==='canvas'){
-    it.push(`<button class="padd-item pm-i" title="Colour" aria-label="Colour" onclick="_cardColour(event,'${id}')">
+    it.push(`<button class="padd-item pm-i" title="Color" aria-label="Color" onclick="_cardColor(event,'${id}')">
       <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span></button>`);
   }
   if(def.type==='journal') it.push(_jrMenuItems(id));
@@ -3826,7 +3827,7 @@ function _cardMenuHTML(def){
 }
 // Each item closes the menu first — through _cardMenuClose, which takes the node off the page.
 // Clearing _cardMenu alone used to be enough only because a render was coming to sweep it away.
-function _cardColour(e,id){ e.stopPropagation(); _cardMenuClose(); openChartColorPop(e,'tl_'+id); }
+function _cardColor(e,id){ e.stopPropagation(); _cardMenuClose(); openChartColorPop(e,'tl_'+id); }
 function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
 // Height and width used to be modes, set from the card menu and stored as matchH / matchW.
 // Both are gone -- see cardMenuHTML. What they controlled now falls out of what you actually
@@ -4225,11 +4226,21 @@ function _cardRzGroup(card,above){
     el.style.minHeight=''; if(bd){ bd.style.minHeight=''; bd.style.height=''; bd.style.flex=''; }
     return u;
   });
-  const floor=Math.max(60,...members.map(el=>el.getBoundingClientRect().height));
+  const hs=members.map(el=>el.getBoundingClientRect().height);
+  const floor=Math.max(60,...hs);
+  // ...and the dragged card's own, which is how far below the row it may go once it steps out of
+  // it. Zero when the card is not a member -- the top grip resizes the row above, and a row you
+  // are not in is not a row you can leave.
+  const mi=members.indexOf(card);
+  const self=mi<0?0:Math.max(60,hs[mi]);
   undo.forEach(([el,eh,bd,bm,bh,bf])=>{ el.style.minHeight=eh;
     if(bd){ bd.style.minHeight=bm; bd.style.height=bh; bd.style.flex=bf; } });
-  return {members,floor};
+  return {members,floor,self};
 }
+// True while a height drag is holding one card below its row. The card has no minH yet -- that is
+// only written on release -- so there is nothing in the data for _packPass to read, and the pass
+// would otherwise level the card straight back up to its neighbours under the pointer.
+function _cardRzFree(el){ return !!(_cardRz&&_cardRz.detached&&_cardRz.solo&&_cardRz.solo.el===el) }
 function _cardRzStart(e,id,above){
   e.preventDefault();
   const card=e.target.closest('.pcard');
@@ -4245,17 +4256,36 @@ function _cardRzStart(e,id,above){
             was:[el.style.minHeight,bd.style.minHeight,bd.style.height,bd.style.flex]};
   }).filter(Boolean);
   if(!parts.length) return;
-  _cardRz={parts,card,y:e.clientY,floor:g.floor,px:0,
+  // The card under the pointer, but only when there is a row to leave: a card that is already
+  // on its own is resized directly and has nothing to step out of.
+  const solo=parts.length>1&&g.self?parts.find(p=>p.el===card)||null:null;
+  _cardRz={parts,card,y:e.clientY,floor:g.floor,self:g.self,solo,detached:false,mv:parts,px:0,
            h:Math.max(...g.members.map(el=>el.getBoundingClientRect().height))};
   card.classList.add('rz');
 }
 // One place applies a row height, so the live preview and the commit cannot disagree about what
 // the row is currently showing.
 function _cardRzApply(s,px){
-  s.px=Math.max(s.floor,px);
+  // Two zones, and the row's own floor is the line between them. Above it the whole row moves, as
+  // it always has. Below it the row has run out of content to give and the drag switches to the
+  // one card you grabbed, which steps out of the row and is floored at its own content instead.
+  // Without this a short card beside a tall one could never be made short: the row's floor is the
+  // tall card's height, the short card is already sitting on it, and dragging down did nothing at
+  // all. Dragging back up past the floor puts the card back in the row.
+  const off=!!s.solo&&px<s.floor;
+  if(off!==s.detached){
+    // Whichever cards have just stopped following the pointer go back to bare, so the packing
+    // pass levels them from their own content rather than leaving them pinned at drag pixels.
+    (off?s.parts.filter(p=>p!==s.solo):[s.solo]).forEach(p=>{ if(!p) return;
+      p.el.style.minHeight=''; p.bd.style.minHeight=''; p.bd.style.height=''; p.bd.style.flex='';
+      if(p.cv) cvFit(p.bd.querySelector('.cv-surface')); });
+    s.detached=off;
+  }
+  s.mv=off?[s.solo]:s.parts;
+  s.px=Math.max(off?s.self:s.floor,px);
   // Cleared because packCards' own stretch would otherwise fight a drag that shortens the row:
   // the body is what the drag owns, and the card must be free to follow it down.
-  s.parts.forEach(p=>{ p.el.style.minHeight=''; _cardApplyH(p.bd,Math.max(1,s.px-p.chrome),p.cv); });
+  s.mv.forEach(p=>{ p.el.style.minHeight=''; _cardApplyH(p.bd,Math.max(1,s.px-p.chrome),p.cv); });
 }
 // Lining a card up with its neighbours by eye is guesswork at 4px row granularity,
 // so the drag snaps to the other cards' bottom edges — the same CV_SNAP tolerance
@@ -4295,10 +4325,10 @@ document.addEventListener('mousemove',e=>{
   // -- they all sit on the edge being dragged and would each snap it to itself.
   const grid=s.card.closest('.pgrid');
   const others=grid?[...grid.children]
-    .filter(el=>el.classList&&el.classList.contains('pcard')&&!s.parts.some(p=>p.el===el))
+    .filter(el=>el.classList&&el.classList.contains('pcard')&&!s.mv.some(p=>p.el===el))
     .map(el=>el.getBoundingClientRect()).filter(r=>r.height):[];
   // The row's bottom edge is what the pointer is holding, whichever grip started the drag.
-  const edge=Math.max(...s.parts.map(p=>p.el.getBoundingClientRect().bottom));
+  const edge=Math.max(...s.mv.map(p=>p.el.getBoundingClientRect().bottom));
   const snap=isFinite(edge)?_cardSnapBottom(edge,others):null;
   if(snap!=null){
     _cardRzApply(s,s.px+Math.round(snap-edge));
@@ -4324,13 +4354,18 @@ function _cardRzEnd(commit){
     // its own" means (see _packPass), so clearing it is how a card goes back to matching its
     // neighbours. _cardRzApply floors px at s.floor, so a release anywhere at or just above the
     // floor is a release ON it -- one-sided, and the same PGRID_SNAP the width drag catches at.
-    const home=s.px<=s.floor+PGRID_SNAP;
+    // Only while the row is still whole. A card held below its row was dragged there on purpose,
+    // and its own content floor is a height you would very often want to stop at -- reading a
+    // release there as "no chosen height" would snap it straight back up to its neighbours and
+    // leave the shortest useful height unreachable. The way back into the row is upwards, past
+    // the floor, which is the same edge and the same tolerance from the other side.
+    const home=!s.detached&&s.px<=s.floor+PGRID_SNAP;
     // Stored in body heights, which is the space def.minH is written back out in by mkCard.
-    s.parts.forEach(p=>{ const c=cardDef(p.id); if(!c) return;
+    s.mv.forEach(p=>{ const c=cardDef(p.id); if(!c) return;
       if(home) delete c.minH; else c.minH=Math.max(1,s.px-p.chrome); });
     // The inline heights the drag was previewing with have to come off too, or a row that has
     // just been told to level itself stays pinned at the drag's pixels until the next render.
-    if(home) s.parts.forEach(p=>{ p.el.style.minHeight=''; p.bd.style.minHeight='';
+    if(home) s.mv.forEach(p=>{ p.el.style.minHeight=''; p.bd.style.minHeight='';
       p.bd.style.height=''; p.bd.style.flex='';
       if(p.cv) cvFit(p.bd.querySelector('.cv-surface')); });
     _cardsDirty();
@@ -4760,7 +4795,7 @@ function toggleHabitFromCard(hid){ toggle(hid,PD.getDate()); }
 // Writes through to the real habit list — a set you compose is a different object
 // from a roster you're handed.
 // Distinct from _findHabit below, which returns the habit alone — the card needs
-// its group too, for the colour dot and for removal.
+// its group too, for the color dot and for removal.
 function _findHabitWithGroup(hid){
   for(const g of D.groups){ const h=g.habits.find(x=>x.id===hid); if(h) return {h,g}; }
   return null;
@@ -5889,7 +5924,7 @@ function partialUpdate(hid,day){
 // lived here. Every readout is a count now, so the only question a grade table was
 // still answering — "has anything started yet?" — is `poss > 0`, asked directly.
 // Nothing reads these any more — Fathom shows counts too. Kept only as the source
-// of FATHOM_COLOR below, which is still the checkbox colour.
+// of FATHOM_COLOR below, which is still the checkbox color.
 const FATHOM_GRADES=[
   {min:90,label:'Stoic',   color:'#6B7FA8',dcolor:'#6B7FA8'},
   {min:78,label:'Apex',    color:'#6B7FA8',dcolor:'#6B7FA8'},
@@ -8081,8 +8116,8 @@ let _rtSplit=false;
 // The row + opens a menu instead of acting, on a weekly table only — where "add a row"
 // is genuinely two questions.
 let _rtAddMenu=false;
-// The fill/text colour popover, opened from the selection bar.
-let _rtColour=false;
+// The fill/text color popover, opened from the selection bar.
+let _rtColor=false;
 
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
@@ -9019,18 +9054,18 @@ function rtHdSet(td,on){
   if(rtHdPos(td)!==!!on) td.classList.add(on?'rt-hd':'rt-nohd');
 }
 // The button's label: shaded only if every selected cell is.
-// A colour chosen by hand, which is not the same thing as rt-hd: that is a *semantic*
+// A color chosen by hand, which is not the same thing as rt-hd: that is a *semantic*
 // header shade that follows the theme, and it stays its own toggle. These are inline styles
 // on the cell, which means unlike everything the live paint draws they are STORED — so
 // _rtStripLive must leave them alone, and undo carries them with no extra machinery.
 // Reads rtActiveCells like rtShadeSel does, so a cell, a whole row and a whole column all
 // work through the grips that already select one.
-function rtColourSel(fill,text){
+function rtColorSel(fill,text){
   const cells=rtActiveCells();
   if(!cells.length) return false;
   const t=cells[0].closest('table'); if(!t) return false;
   cells.forEach(td=>{
-    // A tint, not the colour itself: a solid fill from this palette leaves the text on top
+    // A tint, not the color itself: a solid fill from this palette leaves the text on top
     // unreadable in one theme or the other, and the whole point is glancing at it.
     if(fill===null) td.style.removeProperty('background');
     else if(fill) td.style.background=_rgbaFromColor(fill,.16);
@@ -10018,7 +10053,7 @@ function rtShowCtl(t){
       };
       m.appendChild(lrow);
       if(lon){
-        // The swatch row from the time-block modal, so picking a colour looks the same
+        // The swatch row from the time-block modal, so picking a color looks the same
         // wherever you do it. The choice lives on the table as data-hl, which means each
         // outline keeps its own and it travels with the card when one is duplicated.
         const hr=document.createElement('div');hr.className='rt-hlrow';
@@ -10039,9 +10074,9 @@ function rtShowCtl(t){
         });
         const cb=document.createElement('button');
         cb.className='rt-hlsw rt-hlcustom'+(cur&&!TB_COLORS.includes(cur)?' on':'');
-        cb.title='Custom colour';
+        cb.title='Custom color';
         const ci=document.createElement('input');ci.type='color';ci.value=cur||'#2563EB';
-        // rtFire, like every other control here. Without it a custom colour was painted and
+        // rtFire, like every other control here. Without it a custom color was painted and
         // then lost on the next reload -- never stored, and invisible to undo.
         ci.oninput=()=>{ t.dataset.hl=ci.value; rtPaintAllLive(); rtFire(rtHost(t)); };
         ci.onchange=()=>pick(ci.value);
@@ -10150,6 +10185,15 @@ function rtShowCtl(t){
     const room=window.innerHeight-16;
     if(mh2>room){ m.style.maxHeight=room+'px'; m.style.overflowY='auto'; m.style.top='8px'; }
     else if(tb.top+mh2>window.innerHeight-8) m.style.top=Math.max(8,window.innerHeight-8-mh2)+'px';
+    // And keep it off the table. The ⋯ sits in the gutter at the table's left edge, so a menu
+    // that opens rightward from it lies straight across the first column -- in a weekly outline
+    // that is the row labels and the first day, which is exactly what you are looking at while
+    // you choose. Open leftward instead, right edge flush with the button, so the table stays
+    // whole. Only when there is no room on the left does it fall back to opening rightward, and
+    // then it is clamped to the window the way the height above is.
+    const mw2=m.getBoundingClientRect().width;
+    if(gx+20-mw2>=8) m.style.left=(gx+20-mw2)+'px';
+    else if(gx+mw2>window.innerWidth-8) m.style.left=Math.max(8,window.innerWidth-8-mw2)+'px';
   }
   // "space" strips. A table flush against the top or bottom of the card has no
   // prose beside it to click into, and nothing is auto-inserted any more, so the
@@ -10208,11 +10252,11 @@ function rtShowCtl(t){
     // accident at best. rtAlignable does the whole test, so the bar stays quiet otherwise.
     if(s&&rtAlignable()) btns.push(['Align',rtAlignSelRows,
       'Snap the highlighted rows’ borders onto the other rows’. Highlight the whole table and the top row holds still.']);
-    // Colouring a whole column or row needs nothing else: the grips already select one.
+    // Coloring a whole column or row needs nothing else: the grips already select one.
     // Shade lives inside the popover rather than beside it — two buttons that both look
-    // like "make this cell a different colour" and mean different things is the confusing
+    // like "make this cell a different color" and mean different things is the confusing
     // arrangement, not the long menu.
-    btns.push(['Colour',()=>{ _rtColour=!_rtColour; rtShowCtl(t); }]);
+    btns.push(['Color',()=>{ _rtColor=!_rtColor; rtShowCtl(t); }]);
     if(btns.length){
       const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
       btns.forEach(([label,fn,tip])=>{
@@ -10262,7 +10306,7 @@ function rtShowCtl(t){
     // Fill and text in one place, because they are one decision. Drawn on the overlay like
     // the ⋯ menu and the split popover, and preventDefault throughout: a click that moves
     // focus would clear the very selection this acts on.
-    if(_rtColour&&act.length){
+    if(_rtColor&&act.length){
       const m=mk('rt-menu rt-colpop',`left:${Math.max(4,wr.left)}px;top:${tb.top+4}px`);
       m.onmousedown=e=>e.preventDefault();
       const strip=(label,apply)=>{
@@ -10272,7 +10316,7 @@ function rtShowCtl(t){
         const row=document.createElement('div');row.className='rt-hlrow';
         // The ten the time-block modal uses, and the conic-gradient custom swatch beside
         // them — the same palette and the same idiom as the highlight row in the ⋯ menu,
-        // rather than a second set of colours to keep in step.
+        // rather than a second set of colors to keep in step.
         TB_COLORS.forEach(c=>{
           const b=document.createElement('button');
           b.className='rt-hlsw';b.style.background=c;b.title=c;
@@ -10290,8 +10334,8 @@ function rtShowCtl(t){
         cw.appendChild(ci);row.appendChild(cw);
         m.appendChild(row);
       };
-      strip('Fill',c=>rtColourSel(c,undefined));
-      strip('Text',c=>rtColourSel(undefined,c));
+      strip('Fill',c=>rtColorSel(c,undefined));
+      strip('Text',c=>rtColorSel(undefined,c));
       const item=(label,fn)=>{
         const row=document.createElement('div');row.className='rt-item';
         row.innerHTML='<span class="rt-ck"></span><span></span>';
@@ -10302,7 +10346,7 @@ function rtShowCtl(t){
       };
       const sep=document.createElement('div');sep.className='rt-sep';m.appendChild(sep);
       item(rtSelShaded()?'Unshade':'Shade',rtShadeSel);
-      item('Clear colour',()=>rtColourSel(null,null));
+      item('Clear color',()=>rtColorSel(null,null));
     }
   }
   // A table is width:100% inside its wrapper, so tb.right and wr.right are the same line and
@@ -10352,7 +10396,7 @@ let _rtHideT=null,_rtRaf=null;
 function rtCtlCancelHide(){ if(_rtHideT){ clearTimeout(_rtHideT); _rtHideT=null; } }
 function rtScheduleHide(){
   // Never pull the controls out from under an in-flight drag or an open menu.
-  if(_rtRz||_rtMv||_rtTwMv||_rtMenu||_rtSplit||_rtAddMenu||_rtColour) return;
+  if(_rtRz||_rtMv||_rtTwMv||_rtMenu||_rtSplit||_rtAddMenu||_rtColor) return;
   rtCtlCancelHide(); _rtHideT=setTimeout(()=>{ _rtHideT=null; rtHideCtl(); },250);
 }
 // ── column resize ──
@@ -10970,7 +11014,7 @@ document.addEventListener('mouseover',e=>{
 document.addEventListener('mousedown',e=>{
   if(!e.target.closest) return;
   if(e.target.closest('#rt-slash')) return;
-  if(!e.target.closest('#rt-ctl')){ rtSlashClose(); if(_rtMenu||_rtSplit||_rtAddMenu||_rtColour){ _rtMenu=false; _rtSplit=false; _rtAddMenu=false; _rtColour=false; if(_rtCtlTable) rtShowCtl(_rtCtlTable); } }
+  if(!e.target.closest('#rt-ctl')){ rtSlashClose(); if(_rtMenu||_rtSplit||_rtAddMenu||_rtColor){ _rtMenu=false; _rtSplit=false; _rtAddMenu=false; _rtColor=false; if(_rtCtlTable) rtShowCtl(_rtCtlTable); } }
   const td=e.target.closest('.rt-table td');
   if(td){ _rtDrag={t:td.closest('table'),start:td}; rtClearSel(); return; }
   _rtDrag=null;
@@ -11037,7 +11081,7 @@ document.addEventListener('paste',e=>{
     // and its data-st, and rtFire's input event hands it to rtNormalizeLists like a typed
     // list. The other common case is the one from the report: text copied out of Word into
     // a shaded cell, which used to return here, straight to the browser's own paste, and
-    // kept every inline colour. Both fall through to the prose branch, the same sanitizer.
+    // kept every inline color. Both fall through to the prose branch, the same sanitizer.
   }
   // A whole copied table only ever lands in prose — dropping one inside a cell is not
   // something the grid can hold, so from a cell this stays out of the way.
