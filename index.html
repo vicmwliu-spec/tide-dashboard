@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0827-a13">
+<meta name="build" content="0827-a14">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1312,7 +1312,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0827-a13';
+const RT_BUILD = '0827-a14';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -3697,7 +3697,7 @@ function mkPlannerCard(def,ix,grid){
   // All four edges. The horizontal pair set a height, which here is the row's and not the card's,
   // so they say so; the top one reaches the row above, because a card's top cannot move without
   // moving what sits over it. On the topmost row _cardRzStart finds nothing above and does nothing.
-  d.innerHTML=head+body+foot+`<div class="pgrip pgrip-q" title="Drag to set this row's height · double-click to reset"
+  d.innerHTML=head+body+foot+`<div class="pgrip pgrip-q" title="Drag to set the height · double-click to level it with its row"
     onmousedown="_cardRzStart(event,'${def.id}')" ondblclick="setCardHeight('${def.id}',0)"></div>
     <div class="pgrip pgrip-t pgrip-q" title="Drag to set the height of the row above"
     onmousedown="_cardRzStart(event,'${def.id}',true)"></div>
@@ -3880,7 +3880,15 @@ function setCardSpan(id,v,card){
   if(card){ _cardApplySpan(card,cardCol(c),cardSpan(c)); packCards(); }
   else render();
 }
-function setCardHeight(id,px){ const c=cardDef(id); if(c){ c.minH=Math.max(0,Math.round(px)); _cardsDirty(); render(); } }
+// Zero is not a height, it is the absence of one, and minH absent is what "level me with my row"
+// means everywhere else (see _packPass). Storing a 0 said the same thing a second way, and two
+// encodings of one state is exactly how matchH earned its removal.
+function setCardHeight(id,px){
+  const c=cardDef(id); if(!c) return;
+  const n=Math.max(0,Math.round(px));
+  if(n) c.minH=n; else delete c.minH;
+  _cardsDirty(); render();
+}
 // `at` is where in the list the card goes — from the ⊕ in a card's bottom gap. Left out,
 // it appends, which is what the picker at the end of the grid always did.
 function addPlannerCard(type,at){
@@ -4354,12 +4362,24 @@ function _cardRzEnd(commit){
     // its own" means (see _packPass), so clearing it is how a card goes back to matching its
     // neighbours. _cardRzApply floors px at s.floor, so a release anywhere at or just above the
     // floor is a release ON it -- one-sided, and the same PGRID_SNAP the width drag catches at.
-    // Only while the row is still whole. A card held below its row was dragged there on purpose,
-    // and its own content floor is a height you would very often want to stop at -- reading a
-    // release there as "no chosen height" would snap it straight back up to its neighbours and
-    // leave the shortest useful height unreachable. The way back into the row is upwards, past
-    // the floor, which is the same edge and the same tolerance from the other side.
-    const home=!s.detached&&s.px<=s.floor+PGRID_SNAP;
+    // Only while the row is still whole, and only while there is a row to rejoin.
+    //
+    // A card held below its row was dragged there on purpose, and its own content floor is a
+    // height you would very often want to stop at -- reading a release there as "no chosen height"
+    // would snap it straight back up to its neighbours and leave the shortest useful height
+    // unreachable. The way back into the row is upwards, past the floor, which is the same edge
+    // and the same tolerance from the other side.
+    //
+    // parts.length is the other half of that, and it is the half a13 missed. A card with a stored
+    // minH is free, and _rowGroups gives every free card a group of its own -- so the moment a
+    // card has a height of its own, s.floor stops being the row's floor and becomes the card's own
+    // content. Dragging it as short as it will go then lands exactly on the rejoin, which threw
+    // the height away and levelled the card with its neighbours again: "make this as small as it
+    // goes" and "put this back in its row" were the same gesture with opposite outcomes, and the
+    // smallest height was the one height a card could not keep. With one member the floor means
+    // only "as short as I go", and that height is stored like any other. The deliberate way back
+    // is the double-click the grip has always advertised.
+    const home=!s.detached&&s.parts.length>1&&s.px<=s.floor+PGRID_SNAP;
     // Stored in body heights, which is the space def.minH is written back out in by mkCard.
     s.mv.forEach(p=>{ const c=cardDef(p.id); if(!c) return;
       if(home) delete c.minH; else c.minH=Math.max(1,s.px-p.chrome); });
