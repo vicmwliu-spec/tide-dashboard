@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0825-a9">
+<meta name="build" content="0825-a10">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1272,7 +1272,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0825-a9';
+const RT_BUILD = '0825-a10';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -2512,7 +2512,7 @@ function tlRepaint(id){
 function tlAfter(id){
   setTimeout(()=>{
     const n=document.querySelector(`.tlcard[data-cardid="${id}"] .tl-note`);
-    if(n){ n.innerHTML=cardHTML(id)||''; rtFreezeTables(); rtSeedUndo(n); }
+    if(n){ n.innerHTML=cardHTML(id)||''; rtFreezeTables(); rtPaintHost(n); rtSeedUndo(n); }
   },0);
 }
 // The weekday header, in the order the week actually runs, and the control that sets that
@@ -2945,11 +2945,11 @@ function jrBlur(id){
 function jrAfter(id){
   setTimeout(()=>{
     const ed=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-ed`);
-    if(ed){ rtFreezeTables(); rtSeedUndo(ed); }
+    if(ed){ rtFreezeTables(); rtPaintHost(ed); rtSeedUndo(ed); }
     // The commitments pane restores from the card's own slot, the way a text card's body
     // does — emitted here rather than inline so rtFreezeTables runs after the content is in.
     const cm=document.querySelector(`.jrcard[data-cardid="${id}"] .jr-commit`);
-    if(cm){ cm.innerHTML=cardHTML(id)||''; rtFreezeTables(); rtSeedUndo(cm); }
+    if(cm){ cm.innerHTML=cardHTML(id)||''; rtFreezeTables(); rtPaintHost(cm); rtSeedUndo(cm); }
     jrFit(id);
   },0);
 }
@@ -3590,6 +3590,7 @@ function mkPlannerCard(def,ix,grid){
       const surf=el.querySelector('.cv-surface');
       if(surf){
         cvFit(surf);
+        rtPaintHost(surf);
         // Boxes saved before uids existed get one now; it persists from the next
         // save on. rtSeedUndo only clears a history that disagrees with what's on
         // screen, so restoring the same content a box already had leaves it alone.
@@ -3615,7 +3616,9 @@ function mkPlannerCard(def,ix,grid){
     // rtFreezeTables runs after the content is in.
     setTimeout(()=>{
       const el=document.getElementById('card-'+def.id);
-      if(el){ el.innerHTML=html||''; rtSeedUndo(el); }
+      // Painted here rather than left to render()'s own 0ms pass: that only works because of
+      // which timer was registered first, which is ordering and not intent.
+      if(el){ el.innerHTML=html||''; rtPaintHost(el); rtSeedUndo(el); }
     },0);
   }
 
@@ -7446,6 +7449,16 @@ function _rtMark(el,cls,on){
   el.classList[on?'add':'remove'](cls);
   if(!el.classList.length) el.removeAttribute('class');
 }
+// A day cell is not yours to lose. While the table is live the cells that name a day are
+// contenteditable="false", which is what refuses backspace, typing, paste, cut and drag --
+// the browser doing it, rather than a keydown branch trying to name every way in. Like the
+// chips and the marks it is drawn, not written: _rtStripLive puts "true" back, so storage
+// still reads contenteditable="true" and untick Live dates gives the row back as you typed it.
+function _rtEdit(td,on){
+  if(!td) return;
+  const want=on?'true':'false';
+  if(td.getAttribute('contenteditable')!==want) td.setAttribute('contenteditable',want);
+}
 function rtPaintLive(t,today){
   if(!t.classList.contains('rt-live')) return;
   const now=_rtMid(today||new Date());
@@ -7459,8 +7472,16 @@ function rtPaintLive(t,today){
       const off=(((b.days[ci]-first)%7)+7)%7;
       const d=_rtAddDays(start,off);
       const td=b.head.children[ci];
-      td.querySelectorAll('.rt-dt').forEach(n=>n.remove());
-      td.appendChild(_rtDateChip(d,d.getMonth()!==lastMon));
+      // Write only where the answer changed, exactly as _rtMark does. A cell already reading
+      // what it should keeps the very node it had, which is what makes a repaint free enough
+      // to run on every keystroke and safe enough to run while someone is typing: the caret
+      // cannot be moved out from under them by a paint that touches nothing.
+      const chips=td.querySelectorAll('.rt-dt'),want=_rtDateChip(d,d.getMonth()!==lastMon);
+      if(chips.length!==1||chips[0].textContent!==want.textContent){
+        chips.forEach(n=>n.remove());
+        td.appendChild(want);
+      }
+      _rtEdit(td,false);
       lastMon=d.getMonth();
       // Days already gone fade back so the days you can still act on carry the eye, and
       // today is marked. The column *widths* are deliberately left alone: all the weeks in
@@ -7480,6 +7501,9 @@ function rtPaintLive(t,today){
 // block's anchor -- and nothing else.
 function _rtStripLive(c){
   c.querySelectorAll('.rt-dt').forEach(n=>n.remove());
+  // Every cell in these tables is written contenteditable="true"; the lock above is the only
+  // thing that ever says otherwise, so taking it off is putting the attribute back.
+  c.querySelectorAll('td[contenteditable="false"]').forEach(td=>td.setAttribute('contenteditable','true'));
   c.querySelectorAll('.rt-past,.rt-today').forEach(n=>{
     n.classList.remove('rt-past','rt-today');
     if(!n.classList.length) n.removeAttribute('class');
@@ -7608,12 +7632,27 @@ function rtWeekTopUp(t,today,want){
 // Paint every live table on the page. Kept out of rtFreezeTables deliberately: that function
 // calls rtFire when it changes anything, and rtFire saves — which is the one thing none of
 // this may ever do. Nothing here is content, so nothing here is a reason to write.
-function rtPaintAllLive(){
-  document.querySelectorAll('.rt-table.rt-live').forEach(t=>{
+function _rtPaintIn(root){
+  if(!root||!root.querySelectorAll) return;
+  root.querySelectorAll('.rt-table.rt-live').forEach(t=>{
     const hl=t.dataset.hl;
     if(hl) t.style.setProperty('--rt-hl',hl); else t.style.removeProperty('--rt-hl');
     rtPaintLive(t);
   });
+}
+function rtPaintAllLive(){ _rtPaintIn(document); }
+// One editor's worth. Anything that rewrites an editor's innerHTML from storage brings the
+// table back bare -- stored HTML has no dates in it, and correctly so -- so every such path
+// repaints behind itself rather than waiting for the next full render.
+function rtPaintHost(h){ _rtPaintIn(h); }
+// Coalesced, so a burst of typing costs one pass. The backstop behind every other call site:
+// whatever damages a chip, it is right again within the tick. Painting never calls rtFire, so
+// none of this can trigger a save -- the invariant the whole feature rests on.
+let _rtPaintT=null;
+function rtRepaintSoon(h){
+  if(!h) return;
+  if(_rtPaintT) clearTimeout(_rtPaintT);
+  _rtPaintT=setTimeout(()=>{ _rtPaintT=null; rtPaintHost(h); },0);
 }
 
 // ─── The day rolling over ────────────────────────────────────────
@@ -7648,7 +7687,10 @@ function _rtRollDay(){
 // Guard first: deleting the last block in a toggle is an input event, and if the
 // container isn't restocked before this returns, the emptied toggle is saved as a
 // dead end and can never be typed into again.
-function rtOnInput(el){ rtGuardBlocks(el); rtNormalizeLists(el); rtSlashUpdate(el); rtPushUndo(el); return rtHTML(el); }
+// The html is taken before the repaint is queued, so what is saved is what was typed and
+// never what was drawn -- the repaint lands after this has already returned.
+function rtOnInput(el){ rtGuardBlocks(el); rtNormalizeLists(el); rtSlashUpdate(el); rtPushUndo(el);
+  const html=rtHTML(el); rtRepaintSoon(el); return html; }
 
 // What an editor is worth saving as. `rt-sel` is the paint on the live cell selection, not
 // something you wrote: it lives in the same DOM that innerHTML serialises, so saving while a
@@ -7857,6 +7899,9 @@ function rtUndo(h,redo){
     // guards before anything can be done with it. Without this the first undo of a table
     // edit brought the markup back inert — no handles, no controls — until a render.
     rtFreezeTables();
+    // The stack holds stripped html -- no dates in it, by design -- so without this one Ctrl+Z
+    // blanked every date in the card. Before _rtSeek, so the caret is sought in the finished DOM.
+    rtPaintHost(h);
     _rtSeek(h,st.s[ni].c);
     rtFire(h);
   } finally { _rtRestoring=false; }
@@ -9144,11 +9189,22 @@ function rtAlignSelRows(){
   rtFire(rtHost(plan.t)); rtShowCtl(plan.t);
   return true;
 }
+// Is this cell one of the day names of a live block?
+function _rtIsDayCell(td){
+  const t=td&&td.closest&&td.closest('table');
+  if(!t||!t.classList.contains('rt-live')) return false;
+  const tr=td.parentElement,h=tr&&rtLiveHead(tr);
+  return !!h&&h[[...tr.children].indexOf(td)]!==undefined;
+}
 function rtDeleteSelection(){
   const s=rtSelShape(),host=rtHost(s.t);
   if(s.kind==='rows') rtDelRows(s.t,s.fullRows);
   else if(s.kind==='cols') rtDelCols(s.t,s.fullCols);
-  else _rtSel.forEach(td=>{ td.innerHTML='<br>'; });
+  // A day cell is locked against the browser, not against TIDE's own delete. Clearing one
+  // would take the name the week is read from, so the rest of the selection clears and it
+  // does not. Removing a whole row is left alone: that is structural, and it has its own
+  // menu item in Remove last week.
+  else _rtSel.forEach(td=>{ if(!_rtIsDayCell(td)) td.innerHTML='<br>'; });
   rtClearSel();
   rtFire(host);
 }
@@ -9764,6 +9820,9 @@ function rtShowCtl(t){
       const lon=t.classList.contains('rt-live');
       lrow.innerHTML='<span class="rt-ck">'+(lon?'✓':'')+'</span><span></span>';
       lrow.lastElementChild.textContent='Live dates';
+      // The one thing about this that is not self-evident: while it is on, the day names and
+      // the dates cannot be edited. Said here because here is where you turn it off.
+      lrow.title='Dates kept current. While this is on the day names cannot be edited — turn it off to change them.';
       lrow.onclick=()=>{
         if(lon){ t.classList.remove('rt-live'); _rtStripLive(t); t.style.removeProperty('--rt-hl'); }
         else { t.classList.add('rt-live'); rtPaintAllLive(); }
