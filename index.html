@@ -569,6 +569,19 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hlist-eye{background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:2px 5px;border-radius:4px;font-family:var(--font);flex-shrink:0}
 .hlist-eye.on{color:var(--accent)}
 .hlist-eye:hover{background:var(--border)}
+.hlist-grp{margin-top:6px}
+.hlist-grp:first-child{margin-top:0}
+.hlist-grp input.nm{font-weight:600;background:transparent;border-color:transparent}
+.hlist-grp input.nm:hover{border-color:var(--border)}
+.hlist-hab{padding-left:14px;flex-wrap:wrap}
+.hlist-hab input.nm{min-width:90px}
+.hlist-row i.hlist-dot{width:12px;height:12px;cursor:pointer;box-shadow:0 0 0 2px var(--surface2);transition:transform .12s}
+.hlist-row i.hlist-dot:hover{transform:scale(1.2)}
+.hlist-sel,.hlist-num{font-family:var(--font);font-size:12px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 4px;outline:none;flex-shrink:0}
+.hlist-sel{max-width:110px}
+.hlist-num{width:44px}
+.hlist-sel:focus,.hlist-num:focus{border-color:var(--accent)}
+.hlist-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 /* Fewer columns as the window narrows, so a card never gets too thin to read —
    4 quarters above 1500px, then 3, then 2, then 1, at 6 sub-columns each.
    Only the track count is set here. Rescaling each card's span into those tracks, and
@@ -748,8 +761,19 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pcard-bd .rt-tw{margin-left:-12px;width:calc(100% + 12px)}
 /* Daily Schedule's live "now" line/shading — positioned in document.body like #rt-ctl,
    never inside .rt-tw, so it's never part of what gets saved. */
-.rt-sched-fill{position:fixed;pointer-events:none;background:linear-gradient(to right,var(--accent),transparent);opacity:.10;z-index:1}
-.rt-sched-line{position:fixed;pointer-events:none;width:2px;background:var(--accent);box-shadow:0 0 4px var(--accent);z-index:2}
+.rt-sn{position:fixed;pointer-events:none;z-index:2}
+.rt-sn-slot{height:2px;border-radius:2px;background:var(--sc);opacity:.85}
+.rt-sn-tail{z-index:1;background:linear-gradient(to right,transparent,color-mix(in srgb,var(--sc) 16%,transparent))}
+.rt-sn-line{width:2px;border-radius:1px;background:var(--sc);box-shadow:0 0 6px color-mix(in srgb,var(--sc) 45%,transparent)}
+.rt-sn-dot,.rt-sn-knob{border-radius:50%;background:var(--sc);z-index:3}
+.rt-sn-dot{width:6px;height:6px}
+.rt-sn-knob{width:8px;height:8px;box-shadow:0 0 0 2px var(--bg,#fff)}
+.rt-sn-dot::after,.rt-sn-knob::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--sc);animation:rt-sn-pulse 2.4s ease-out infinite}
+@keyframes rt-sn-pulse{0%{transform:scale(1);opacity:.55}80%,100%{transform:scale(3);opacity:0}}
+.rt-sn-track{height:3px;border-radius:3px;background:color-mix(in srgb,var(--sc) 15%,transparent)}
+.rt-sn-fill{height:3px;border-radius:3px;background:linear-gradient(to right,color-mix(in srgb,var(--sc) 10%,transparent),var(--sc))}
+.rt-sn-pill{z-index:4;padding:1px 6px;border-radius:8px;background:var(--sc);color:#fff;font:600 10px/14px system-ui,-apple-system,sans-serif;letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+@media (prefers-reduced-motion:reduce){.rt-sn-dot::after,.rt-sn-knob::after{animation:none;opacity:0}}
 /* Gap only between a pair you deliberately made, which is why both halves carry the
    class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
    table to sit under another, or paste one beside one, and the second was shunted 10px
@@ -2594,6 +2618,25 @@ function scheduleTableHTML(){
   return '<div class="rt-tw" contenteditable="false"><table class="rt-table rt-hopt rt-hr rt-fixed rt-timeline">'
     +cols+'<tbody><tr>'+hd+'</tr><tr>'+row+'</tr></tbody></table></div><p><br></p>';
 }
+// Cards added before def.sched existed are recognised by what they hold.
+function _isSchedCard(def){
+  if(def.sched) return true;
+  const bag=(D.cards.data||{})[def.id];
+  return !!bag&&Object.values(bag).some(h=>typeof h==='string'&&h.includes('rt-timeline'));
+}
+// A day with nothing typed yet starts from the latest earlier day's table with its tasks
+// cleared, so slots you renamed or resized carry forward. Shown, not saved: typing saves it.
+function schedSeedHTML(def){
+  const bag=(D.cards.data||{})[def.id]||{};
+  const cur=cardPeriodKey(def.cadence,PD);
+  const prev=Object.keys(bag).filter(k=>k<cur&&typeof bag[k]==='string'&&bag[k].includes('rt-timeline')).sort().pop();
+  if(!prev) return scheduleTableHTML();
+  const d=document.createElement('div'); d.innerHTML=bag[prev];
+  const t=d.querySelector('.rt-table.rt-timeline'), tw=t&&t.closest('.rt-tw');
+  if(!tw) return scheduleTableHTML();
+  [...t.rows].slice(1).forEach(tr=>[...tr.cells].forEach(td=>{ td.innerHTML='<br>'; }));
+  return tw.outerHTML+'<p><br></p>';
+}
 let _paddOpen=false;
 function _paddToggle(){ _paddOpen=!_paddOpen; render(); }
 // Anywhere outside the picker closes it, the same as any other menu on the page.
@@ -3940,7 +3983,7 @@ function mkPlannerCard(def,ix,grid){
     // be the only way in is gone with the edit mode that gated it.
     foot='';
   }else{
-    const html=cardHTML(def.id);
+    const html=cardHTML(def.id)||(_isSchedCard(def)?schedSeedHTML(def):'');
     body=`<div class="pcard-bd notes-ta" style="${mh}" id="card-${def.id}" contenteditable="true"
         oninput="saveCard('${def.id}',rtOnInput(this))" onkeydown="richtextKD(event)"></div>`;
     // Nothing in a text card's footer any more: it never starts a new period, so
@@ -4076,7 +4119,7 @@ function _cardMenuHTML(def){
       >Convert to ${to}</button>`);
   }
   if(def.type==='habits'&&!def.editing){
-    it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">Choose levers</button>`);
+    it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">Edit levers</button>`);
   }
   // There were four items here -- Match height / Free height, Match width / Free width -- and
   // they are gone. Asking someone to choose a sizing mode before resizing is asking them to
@@ -4177,7 +4220,7 @@ function addPlannerCard(type,at){
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2*PGRID_SUB,minH:320,cadence:'none'}
   : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2*PGRID_SUB,minH:420,cadence:'none'}
   : type==='weekly' ? {id,type:'text',label:'WEEKLY OUTLINE',span:3*PGRID_SUB,minH:0,cadence:'none'}
-  : type==='schedule' ? {id,type:'text',label:'DAILY SCHEDULE',span:2*PGRID_SUB,minH:0,cadence:'day'}
+  : type==='schedule' ? {id,type:'text',label:'DAILY SCHEDULE',span:2*PGRID_SUB,minH:0,cadence:'day',sched:true}
   : {id,type:'text',label:'New card',span:PGRID_SUB,minH:0,cadence:'none'};
   // A card dropped into the middle of a band used to be given the column of the card above the
   // plus sign -- which is by definition at or behind the flow cursor, so it opened a band of its
@@ -5055,17 +5098,33 @@ function habitCardBody(def){
   // end up with nothing on it and no way back. Renaming and removing a lever live inside
   // the chooser rather than behind a global mode: opening it is already the explicit "I am
   // configuring this card" that the mode used to stand for.
+  // The editor reads D.groups, the live list every edit below writes to, rather than the
+  // day's snapshot, so a rename or a move shows up the moment it's made.
   if(def.editing){
-    return `<div class="hlist">${rows.map(({h,g})=>{
-      const off=hid.includes(h.id);
-      return `<div class="hlist-row">
-        <i style="background:${g.color}"></i>
-        <input class="nm" value="${_esc(h.name)}" onchange="renameHabitInline('${h.id}',this.value)"/>
+    const live=D.groups.map(g=>({g,hs:g.habits.filter(h=>!h.archived)})).filter(x=>!x.g._default||x.hs.length);
+    const opts=gid=>live.map(({g})=>`<option value="${g.id}"${g.id===gid?' selected':''}>${_esc(g.name)}</option>`).join('');
+    return `<div class="hlist">${live.map(({g,hs})=>`
+      <div class="hlist-row hlist-grp">
+        <i class="hlist-dot" style="background:${g._default?gradeAccent():g.color}"${g._default?'':` title="Group color" onclick="openColorPop(event,'${g.id}')"`}></i>
+        <input class="nm" value="${_esc(g.name)}" onchange="renameGroupInline('${g.id}',this.value)"/>
+        <button class="hlist-eye" title="Add a lever to this group" onclick="addHabitFromCard('${g.id}')">+ Lever</button>
+        ${g._default?'':`<button class="pcard-x" title="Delete group (its levers are kept)" onclick="deleteGroup('${g.id}')">🗑</button>`}
+      </div>
+      ${hs.map(h=>{
+        const off=hid.includes(h.id);
+        return `<div class="hlist-row hlist-hab">
+        <i class="hlist-dot" style="background:${habitColor(h,g)}" title="Lever color" onclick="openHabitColorPop(event,'${h.id}')"></i>
+        <input class="nm" data-hid="${h.id}" value="${_esc(h.name)}" onchange="renameHabitInline('${h.id}',this.value)"/>
+        <select class="hlist-sel" title="Group" onchange="moveHabitToGroup('${h.id}',this.value)">${opts(g.id)}</select>
+        <input class="hlist-num" type="number" min="1" max="99" value="${h.dailyTarget||1}" title="Times per day" onchange="setHabitDailyTarget('${h.id}',this.value)"/>
         <button class="hlist-eye${off?'':' on'}" title="${off?'Tracked, but hidden on this card':'Showing on this card'}"
           onclick="toggleHabitShowHere('${def.id}','${h.id}')">${off?'○':'◉'}</button>
-        <button class="pcard-x" title="Remove lever" onclick="removeHabitInline('${h.id}')">×</button>
-      </div>`;}).join('')}
-      <button class="pcard-lnk on" style="margin-top:6px" onclick="toggleHabitCardEdit('${def.id}')">Done</button>
+        <button class="pcard-x" title="Archive lever" onclick="archiveHabit('${g.id}','${h.id}')">×</button>
+      </div>`;}).join('')}`).join('')}
+      <div class="hlist-foot">
+        <button class="pcard-lnk" onclick="addGroup()">+ Add group</button>
+        <button class="pcard-lnk on" onclick="toggleHabitCardEdit('${def.id}')">Done</button>
+      </div>
     </div>`;
   }
   const shown=rows.filter(({h})=>!hid.includes(h.id));
@@ -5074,7 +5133,7 @@ function habitCardBody(def){
   return `<div class="hpills">${shown.map(({h,g})=>{
     const cnt=chkCount(h.id,day),tgt=Math.max(1,habitTarget(h.id,day)),skp=isSkip(h.id,day);
     const frac=skp?0:Math.min(cnt,tgt)/tgt;
-    const {bg,bd}=_chkFillParts(g.color,frac,skp);
+    const {bg,bd}=_chkFillParts(habitColor(h,g),frac,skp);
     const checked=!skp&&frac>=1&&cnt>0;
     const numLbl=(tgt>=5&&cnt>0&&frac<1&&!skp)?`<span style="font-size:8px;font-weight:700;color:var(--text3);line-height:1">${cnt}</span>`:'';
     return `<button class="hpill${checked?' on':''}" onclick="toggleHabitFromCard('${h.id}')" title="Click to do/undo, hold to skip">
@@ -5101,10 +5160,21 @@ function toggleHabitShowHere(cid,hid){
   if(i<0) hidden.push(hid); else hidden.splice(i,1);
   _cardsDirty(); render();
 }
-function removeHabitInline(hid){
-  const f=_findHabitWithGroup(hid); if(!f) return;
-  if(!confirm(`Remove "${f.h.name}"? Its history is kept.`)) return;
-  f.g.habits=f.g.habits.filter(h=>h.id!==hid); save(); render();
+// renameGroup writes into month snapshots; the card edits the live list, like renameHabitInline.
+function renameGroupInline(gid,v){ const g=D.groups.find(g=>g.id===gid); if(g&&v.trim()){ g.name=v.trim(); save(); render(); } }
+function moveHabitToGroup(hid,gid){
+  const f=_findHabitWithGroup(hid), tgt=D.groups.find(g=>g.id===gid);
+  if(!f||!tgt||f.g===tgt) return;
+  f.g.habits.splice(f.g.habits.indexOf(f.h),1);
+  tgt.habits.push(f.h);
+  save(); render();
+}
+// addHabit, then put the caret in the new lever's name so it can be typed straight away.
+function addHabitFromCard(gid){
+  const g=D.groups.find(g=>g.id===gid); if(!g) return;
+  addHabit(gid);
+  const h=g.habits[g.habits.length-1]; if(!h) return;
+  setTimeout(()=>{ const i=document.querySelector(`.hlist input.nm[data-hid="${h.id}"]`); if(i){ i.focus(); i.select(); } },0);
 }
 
 // ─── TIME BLOCK CLOCK ────────────────────────────────────────────
@@ -8145,11 +8215,12 @@ function _rtSchedCont(){
   if(!el){ el=document.createElement('div'); el.id='rt-sched-now'; document.body.appendChild(el); }
   return el;
 }
-let _rtSchedKeySeq=0;
+let _rtSchedKeySeq=0; const _rtSchedKeys=new WeakMap();
 function rtPaintSchedule(t){
   const cont=_rtSchedCont();
-  if(!t.dataset.schedKey) t.dataset.schedKey=String(++_rtSchedKeySeq);
-  const key=t.dataset.schedKey;
+  // Kept off the element (not a data- attribute) so it never ends up in saved card HTML.
+  if(!_rtSchedKeys.has(t)) _rtSchedKeys.set(t,String(++_rtSchedKeySeq));
+  const key=_rtSchedKeys.get(t);
   const hide=()=>cont.querySelectorAll(`[data-key="${key}"]`).forEach(e=>e.remove());
   // A past/future day's plan has no "now" to show — only today's schedule ever gets a line.
   const n=new Date();
@@ -8166,15 +8237,43 @@ function rtPaintSchedule(t){
   if(idx<0){ hide(); return; } // a gap between slots — nothing to anchor to
   // Actual on-screen rect, not the declared colgroup width, so a manually resized column
   // still gets the line in the right place.
-  const cr=cells[idx].getBoundingClientRect(),tr2=t.getBoundingClientRect();
+  const ls=t.dataset.ls||'line';
+  if(ls==='off'){ hide(); return; }
+  const cr=cells[idx].getBoundingClientRect(),tb=t.getBoundingClientRect();
+  const tw=t.closest('.rt-tw'), wr=tw?tw.getBoundingClientRect():tb;
+  // Visible window: the table clipped by its (horizontally scrollable) wrapper.
+  const L=Math.max(tb.left,wr.left),R=Math.min(tb.right,wr.right);
+  const T=Math.max(tb.top,wr.top),B=Math.min(tb.bottom,wr.bottom);
   const frac=(nowMin-slots[idx].start)/(slots[idx].end-slots[idx].start);
   const x=cr.left+frac*cr.width;
-  let fill=cont.querySelector(`.rt-sched-fill[data-key="${key}"]`);
-  let line=cont.querySelector(`.rt-sched-line[data-key="${key}"]`);
-  if(!fill){ fill=document.createElement('div'); fill.className='rt-sched-fill'; fill.dataset.key=key; cont.appendChild(fill); }
-  if(!line){ line=document.createElement('div'); line.className='rt-sched-line'; line.dataset.key=key; cont.appendChild(line); }
-  fill.style.cssText=`left:${tr2.left}px;top:${tr2.top}px;width:${Math.max(0,x-tr2.left)}px;height:${tr2.height}px`;
-  line.style.cssText=`left:${x-1}px;top:${tr2.top}px;height:${tr2.height}px`;
+  if(x<L||x>R||B<=T){ hide(); return; } // scrolled out of view
+  const hdB=Math.min(B,cr.bottom); // header/body boundary
+  const c=t.dataset.hl||'var(--accent)';
+  const want=new Set(ls==='bar'?['slot','track','fill','knob','pill']:['slot','tail','line','dot','pill']);
+  cont.querySelectorAll(`[data-key="${key}"]`).forEach(e=>{ if(!want.has(e.dataset.part)) e.remove(); });
+  const el=part=>{
+    let e=cont.querySelector(`[data-key="${key}"][data-part="${part}"]`);
+    if(!e){ e=document.createElement('div'); e.className='rt-sn rt-sn-'+part; e.dataset.key=key; e.dataset.part=part; cont.appendChild(e); }
+    return e;
+  };
+  const px=(o)=>Object.entries(o).map(([k,v])=>`${k}:${typeof v==='number'?v+'px':v}`).join(';')+`;--sc:${c}`;
+  // Current-slot underline on the active header cell.
+  const sL=Math.max(L,cr.left),sR=Math.min(R,cr.right);
+  el('slot').style.cssText=px({left:sL,top:hdB-2,width:Math.max(0,sR-sL)});
+  if(ls==='bar'){
+    el('track').style.cssText=px({left:L,top:hdB-1.5,width:R-L});
+    el('fill').style.cssText=px({left:L,top:hdB-1.5,width:Math.max(0,x-L)});
+    el('knob').style.cssText=px({left:x-4,top:hdB-4});
+  }else{
+    const tailW=Math.min(90,x-L);
+    el('tail').style.cssText=px({left:x-tailW,top:T,width:tailW,height:B-T});
+    el('line').style.cssText=px({left:x-1,top:T,height:B-T});
+    el('dot').style.cssText=px({left:x-3,top:hdB-3});
+  }
+  const pill=el('pill');
+  pill.textContent=n.getHours()%12===0?`12:${String(n.getMinutes()).padStart(2,'0')}`:`${n.getHours()%12}:${String(n.getMinutes()).padStart(2,'0')}`;
+  const pw=pill.offsetWidth||34;
+  pill.style.cssText=px({left:Math.max(L,Math.min(R-pw,x-pw/2)),top:tb.top-8});
 }
 // Removes overlay elements for schedule tables no longer in the document (card deleted,
 // content swapped to a different day) — run only on the full-document sweep, since a
@@ -8182,7 +8281,7 @@ function rtPaintSchedule(t){
 function _rtSchedCleanup(){
   const cont=document.getElementById('rt-sched-now');
   if(!cont) return;
-  const live=new Set([...document.querySelectorAll('.rt-table.rt-timeline')].map(t=>t.dataset.schedKey).filter(Boolean));
+  const live=new Set([...document.querySelectorAll('.rt-table.rt-timeline')].map(t=>_rtSchedKeys.get(t)).filter(Boolean));
   cont.querySelectorAll('[data-key]').forEach(e=>{ if(!live.has(e.dataset.key)) e.remove(); });
 }
 setInterval(rtPaintAllLive,30000);
@@ -10250,6 +10349,37 @@ function rtHideCtl(){
   if(el){ el.style.display='none'; el.innerHTML=''; }
   _rtCtlTable=null;
 }
+// The swatch row from the time-block modal, so picking a color looks the same wherever you
+// do it. The choice lives on the table as data-hl, so each table keeps its own and it
+// travels with the card when one is duplicated. Shared by Live dates and the Daily Schedule.
+function _rtHlRow(t){
+  const hr=document.createElement('div');hr.className='rt-hlrow';
+  const cur=t.dataset.hl||'';
+  const pick=v=>{
+    if(v) t.dataset.hl=v; else delete t.dataset.hl;
+    rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
+  };
+  const dflt=document.createElement('button');
+  dflt.className='rt-hlsw'+(cur?'':' on');dflt.title='Default';
+  dflt.style.background='var(--accent)';dflt.onclick=()=>pick('');
+  hr.appendChild(dflt);
+  TB_COLORS.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='rt-hlsw'+(cur===c?' on':'');b.style.background=c;b.title=c;
+    b.onclick=()=>pick(c);
+    hr.appendChild(b);
+  });
+  const cb=document.createElement('button');
+  cb.className='rt-hlsw rt-hlcustom'+(cur&&!TB_COLORS.includes(cur)?' on':'');
+  cb.title='Custom color';
+  const ci=document.createElement('input');ci.type='color';ci.value=cur||'#2563EB';
+  // rtFire, like every other control here. Without it a custom color was painted and
+  // then lost on the next reload -- never stored, and invisible to undo.
+  ci.oninput=()=>{ t.dataset.hl=ci.value; rtPaintAllLive(); rtFire(rtHost(t)); };
+  ci.onchange=()=>pick(ci.value);
+  cb.appendChild(ci);hr.appendChild(cb);
+  return hr;
+}
 function rtShowCtl(t){
   let el=document.getElementById('rt-ctl');
   if(!el){ el=document.createElement('div'); el.id='rt-ctl'; document.body.appendChild(el); }
@@ -10462,6 +10592,22 @@ function rtShowCtl(t){
       };
       m.appendChild(row);
     });
+    // Daily Schedule: how the "now" marker is drawn, and in what color.
+    if(t.classList.contains('rt-timeline')){
+      const sepL=document.createElement('div');sepL.className='rt-sep';m.appendChild(sepL);
+      const ls=t.dataset.ls||'line';
+      [['line','Live: Line'],['bar','Live: Bar'],['off','Live: Off']].forEach(([v,label])=>{
+        const row=document.createElement('div');row.className='rt-item';
+        row.innerHTML=`<span class="rt-ck">${ls===v?'✓':''}</span><span></span>`;
+        row.lastElementChild.textContent=label;
+        row.onclick=()=>{
+          if(v==='line') delete t.dataset.ls; else t.dataset.ls=v;
+          rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
+        };
+        m.appendChild(row);
+      });
+      if(ls!=='off') m.appendChild(_rtHlRow(t));
+    }
     // Live dates, and the weekly tools that only mean anything once a table has weeks in it.
     // A table with no day-name header row shows none of this, so an ordinary table's menu is
     // exactly as long as it was.
@@ -10480,37 +10626,7 @@ function rtShowCtl(t){
         rtFire(rtHost(t)); rtShowCtl(t);
       };
       m.appendChild(lrow);
-      if(lon){
-        // The swatch row from the time-block modal, so picking a color looks the same
-        // wherever you do it. The choice lives on the table as data-hl, which means each
-        // outline keeps its own and it travels with the card when one is duplicated.
-        const hr=document.createElement('div');hr.className='rt-hlrow';
-        const cur=t.dataset.hl||'';
-        const pick=v=>{
-          if(v) t.dataset.hl=v; else delete t.dataset.hl;
-          rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
-        };
-        const dflt=document.createElement('button');
-        dflt.className='rt-hlsw'+(cur?'':' on');dflt.title='Default';
-        dflt.style.background='var(--accent)';dflt.onclick=()=>pick('');
-        hr.appendChild(dflt);
-        TB_COLORS.forEach(c=>{
-          const b=document.createElement('button');
-          b.className='rt-hlsw'+(cur===c?' on':'');b.style.background=c;b.title=c;
-          b.onclick=()=>pick(c);
-          hr.appendChild(b);
-        });
-        const cb=document.createElement('button');
-        cb.className='rt-hlsw rt-hlcustom'+(cur&&!TB_COLORS.includes(cur)?' on':'');
-        cb.title='Custom color';
-        const ci=document.createElement('input');ci.type='color';ci.value=cur||'#2563EB';
-        // rtFire, like every other control here. Without it a custom color was painted and
-        // then lost on the next reload -- never stored, and invisible to undo.
-        ci.oninput=()=>{ t.dataset.hl=ci.value; rtPaintAllLive(); rtFire(rtHost(t)); };
-        ci.onchange=()=>pick(ci.value);
-        cb.appendChild(ci);hr.appendChild(cb);
-        m.appendChild(hr);
-      }
+      if(lon) m.appendChild(_rtHlRow(t));
       const sepW=document.createElement('div');sepW.className='rt-sep';m.appendChild(sepW);
       // Rows go into every week at once, so a fifth category is a fifth category everywhere
       // and the weeks stay comparable down the page. The + buttons on the table still add a
