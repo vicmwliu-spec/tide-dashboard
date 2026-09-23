@@ -8238,7 +8238,6 @@ function rtPaintSchedule(t){
   const frac=(nowMin-slots[idx].start)/(slots[idx].end-slots[idx].start);
   const x=cr.left+frac*cr.width;
   if(x<L||x>R||B<=T){ hide(); return; } // scrolled out of view
-  const hdB=Math.min(B,cr.bottom); // header/body boundary
   // Neutral ink, not the accent/custom color — pure "time has passed" shading that never
   // clashes with whatever color is picked elsewhere, and follows light/dark automatically.
   const px=(o)=>Object.entries(o).map(([k,v])=>`${k}:${typeof v==='number'?v+'px':v}`).join(';');
@@ -8247,10 +8246,11 @@ function rtPaintSchedule(t){
     if(!e){ e=document.createElement('div'); e.className='rt-sn rt-sn-'+part; e.dataset.key=key; e.dataset.part=part; cont.appendChild(e); }
     return e;
   };
-  // Current-slot outline: a border traced around the active header cell itself, rather than
-  // a separate line near it, so the current time block just looks like it has its own border.
+  // Current-slot outline: a border traced around the whole active column — the header cell
+  // and everything below it in that time slot, down to the bottom of the table — so the
+  // current block reads as one outlined region rather than just its label.
   const sL=Math.max(L,cr.left),sR=Math.min(R,cr.right),sT=Math.max(T,cr.top);
-  el('slot').style.cssText=px({left:sL,top:sT,width:Math.max(0,sR-sL),height:Math.max(0,hdB-sT)});
+  el('slot').style.cssText=px({left:sL,top:sT,width:Math.max(0,sR-sL),height:Math.max(0,B-sT)});
   // Ambient wash: a single gradient across the table's full visible width. A flat, very
   // faint tint up to a short feather just before "now", fading to nothing right at "now"
   // and staying transparent after — a soft sense of "this much of the day has gone" rather
