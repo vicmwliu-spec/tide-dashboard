@@ -746,6 +746,10 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    a shared column, so the cost there is 12px of width and not a change of proportion. */
 .rt-tw{overflow-x:auto;margin:10px 0;width:100%;padding-left:12px;display:inline-block;vertical-align:top}
 .pcard-bd .rt-tw{margin-left:-12px;width:calc(100% + 12px)}
+/* Daily Schedule's live "now" line/shading — positioned in document.body like #rt-ctl,
+   never inside .rt-tw, so it's never part of what gets saved. */
+.rt-sched-fill{position:fixed;pointer-events:none;background:linear-gradient(to right,var(--accent),transparent);opacity:.10;z-index:1}
+.rt-sched-line{position:fixed;pointer-events:none;width:2px;background:var(--accent);box-shadow:0 0 4px var(--accent);z-index:2}
 /* Gap only between a pair you deliberately made, which is why both halves carry the
    class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
    table to sit under another, or paste one beside one, and the second was shunted 10px
@@ -2542,6 +2546,7 @@ const CARD_TYPES=[
   {id:'canvas',name:'Canvas',blurb:'Click anywhere and type there. Drag things around; they line up as you go.'},
   {id:'journal',name:'Journal',blurb:'Your entries as a month you can page through — write, search, and read back.'},
   {id:'weekly',name:'Weekly Outline',blurb:'Four weeks at a glance, with the dates kept current.'},
+  {id:'schedule',name:'Daily Schedule',blurb:'Time blocks for the day, with a live line showing where you are now.'},
 ];
 // A Weekly Outline is a text card that starts with a live table — not a card type with a
 // renderer of its own. That is the whole trick: everything the tables already do keeps
@@ -2564,6 +2569,30 @@ function weeklyTableHTML(weeks){
   // No data-wk: the first paint anchors it to the week containing today.
   return '<div class="rt-tw" contenteditable="false"><table class="rt-table rt-hopt rt-hr rt-hc rt-fixed rt-live">'
     +cols+'<tbody>'+body+'</tbody></table></div><p><br></p>';
+}
+// A Daily Schedule is the same trick as a Weekly Outline: a text card seeded with a table,
+// this time opting into rtPaintAllSchedules' live "now" line/shading (rt-timeline) instead
+// of rtPaintAllLive's day-shading (rt-live) — the columns are hours instead of days.
+const SCHED_SLOTS=[
+  {label:'AM-12PM',start:0,   end:720},
+  {label:'12PM-2PM',start:720, end:840},
+  {label:'2PM-5PM', start:840, end:1020},
+  {label:'5PM-8PM', start:1020,end:1200},
+  {label:'8PM-11PM',start:1200,end:1380},
+  {label:'11PM-1AM',start:1380,end:1500},
+];
+function scheduleTableHTML(){
+  const total=SCHED_SLOTS[SCHED_SLOTS.length-1].end-SCHED_SLOTS[0].start;
+  const raw=SCHED_SLOTS.map(s=>(s.end-s.start)/total*100);
+  // Same rounding trick as weeklyTableHTML: the last column carries the remainder so the
+  // widths land on exactly 100 rather than drifting a hair short.
+  const w=raw.map(x=>Math.round(x*100)/100);
+  w[w.length-1]=Math.round((100-w.slice(0,-1).reduce((a,b)=>a+b,0))*100)/100;
+  const cols='<colgroup>'+w.map(p=>`<col style="width: ${p}%;">`).join('')+'</colgroup>';
+  const hd=SCHED_SLOTS.map(s=>`<td contenteditable="true" class="rt-hd">${s.label}</td>`).join('');
+  const row=SCHED_SLOTS.map(()=>'<td contenteditable="true"><br></td>').join('');
+  return '<div class="rt-tw" contenteditable="false"><table class="rt-table rt-hopt rt-hr rt-fixed rt-timeline">'
+    +cols+'<tbody><tr>'+hd+'</tr><tr>'+row+'</tr></tbody></table></div><p><br></p>';
 }
 let _paddOpen=false;
 function _paddToggle(){ _paddOpen=!_paddOpen; render(); }
@@ -4148,6 +4177,7 @@ function addPlannerCard(type,at){
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2*PGRID_SUB,minH:320,cadence:'none'}
   : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2*PGRID_SUB,minH:420,cadence:'none'}
   : type==='weekly' ? {id,type:'text',label:'WEEKLY OUTLINE',span:3*PGRID_SUB,minH:0,cadence:'none'}
+  : type==='schedule' ? {id,type:'text',label:'DAILY SCHEDULE',span:2*PGRID_SUB,minH:0,cadence:'day'}
   : {id,type:'text',label:'New card',span:PGRID_SUB,minH:0,cadence:'none'};
   // A card dropped into the middle of a band used to be given the column of the card above the
   // plus sign -- which is by definition at or behind the flow cursor, so it opened a band of its
@@ -4165,6 +4195,7 @@ function addPlannerCard(type,at){
   // The body is stored HTML like any other text card's, so it goes in the same place a
   // typed one would and needs nothing at render time.
   if(type==='weekly') saveCard(id,weeklyTableHTML(4));
+  if(type==='schedule') saveCard(id,scheduleTableHTML());
   _paddOpen=false; _pinsAt=null;
   _cardsDirty(); render();
 }
@@ -8081,8 +8112,80 @@ function _rtPaintIn(root){
     if(hl) t.style.setProperty('--rt-hl',hl); else t.style.removeProperty('--rt-hl');
     rtPaintLive(t);
   });
+  root.querySelectorAll('.rt-table.rt-timeline').forEach(rtPaintSchedule);
 }
-function rtPaintAllLive(){ _rtPaintIn(document); }
+function rtPaintAllLive(){ _rtPaintIn(document); _rtSchedCleanup(); }
+// ─── Daily Schedule: a live "now" line + elapsed shading over a schedule table ──────────
+// Like #rt-ctl (see its comment above), these overlay elements live in document.body, not
+// inside .rt-tw — anything inside the table gets serialized into the saved card HTML on
+// every edit, and a "now" position is never something that belongs in storage.
+// "9am-5pm", "AM-12PM" (a bare am/pm token means 12), crossing midnight ("11PM-1AM") all
+// parse; anything else returns null so the caller can just skip painting rather than guess.
+function _rtSlotTok(tok){
+  tok=(tok||'').trim();
+  let m=tok.match(/^(\d{1,2})\s*(am|pm)?$/i);
+  if(m) return {h:+m[1],p:m[2]?m[2].toLowerCase():null};
+  m=tok.match(/^(am|pm)$/i);
+  if(m) return {h:12,p:m[1].toLowerCase()};
+  return null;
+}
+function _rtParseSlot(label){
+  const parts=(label||'').split('-');
+  if(parts.length!==2) return null;
+  const a=_rtSlotTok(parts[0]),b=_rtSlotTok(parts[1]);
+  if(!a||!b||(!a.p&&!b.p)) return null;
+  if(!a.p) a.p=b.p; if(!b.p) b.p=a.p;
+  const to24=(h,p)=>{ const hh=h%12; return p==='pm'?hh+12:hh; };
+  let start=to24(a.h,a.p)*60,end=to24(b.h,b.p)*60;
+  if(end<=start) end+=1440;
+  return {start,end};
+}
+function _rtSchedCont(){
+  let el=document.getElementById('rt-sched-now');
+  if(!el){ el=document.createElement('div'); el.id='rt-sched-now'; document.body.appendChild(el); }
+  return el;
+}
+let _rtSchedKeySeq=0;
+function rtPaintSchedule(t){
+  const cont=_rtSchedCont();
+  if(!t.dataset.schedKey) t.dataset.schedKey=String(++_rtSchedKeySeq);
+  const key=t.dataset.schedKey;
+  const hide=()=>cont.querySelectorAll(`[data-key="${key}"]`).forEach(e=>e.remove());
+  // A past/future day's plan has no "now" to show — only today's schedule ever gets a line.
+  const n=new Date();
+  if(!(PD.getFullYear()===n.getFullYear()&&PD.getMonth()===n.getMonth()&&PD.getDate()===n.getDate())){ hide(); return; }
+  const tr=t.rows[0];
+  if(!tr){ hide(); return; }
+  const cells=[...tr.cells];
+  const slots=cells.map(c=>_rtParseSlot(c.textContent));
+  if(!slots.length||slots.some(s=>!s)){ hide(); return; } // an unparseable header just turns the line off
+  const nowMin=n.getHours()*60+n.getMinutes();
+  const spanStart=Math.min(...slots.map(s=>s.start)),spanEnd=Math.max(...slots.map(s=>s.end));
+  if(nowMin<spanStart||nowMin>spanEnd){ hide(); return; } // now falls outside the configured slots
+  const idx=slots.findIndex(s=>nowMin>=s.start&&nowMin<s.end);
+  if(idx<0){ hide(); return; } // a gap between slots — nothing to anchor to
+  // Actual on-screen rect, not the declared colgroup width, so a manually resized column
+  // still gets the line in the right place.
+  const cr=cells[idx].getBoundingClientRect(),tr2=t.getBoundingClientRect();
+  const frac=(nowMin-slots[idx].start)/(slots[idx].end-slots[idx].start);
+  const x=cr.left+frac*cr.width;
+  let fill=cont.querySelector(`.rt-sched-fill[data-key="${key}"]`);
+  let line=cont.querySelector(`.rt-sched-line[data-key="${key}"]`);
+  if(!fill){ fill=document.createElement('div'); fill.className='rt-sched-fill'; fill.dataset.key=key; cont.appendChild(fill); }
+  if(!line){ line=document.createElement('div'); line.className='rt-sched-line'; line.dataset.key=key; cont.appendChild(line); }
+  fill.style.cssText=`left:${tr2.left}px;top:${tr2.top}px;width:${Math.max(0,x-tr2.left)}px;height:${tr2.height}px`;
+  line.style.cssText=`left:${x-1}px;top:${tr2.top}px;height:${tr2.height}px`;
+}
+// Removes overlay elements for schedule tables no longer in the document (card deleted,
+// content swapped to a different day) — run only on the full-document sweep, since a
+// scoped repaint (one host) can't see whether other hosts' tables still exist.
+function _rtSchedCleanup(){
+  const cont=document.getElementById('rt-sched-now');
+  if(!cont) return;
+  const live=new Set([...document.querySelectorAll('.rt-table.rt-timeline')].map(t=>t.dataset.schedKey).filter(Boolean));
+  cont.querySelectorAll('[data-key]').forEach(e=>{ if(!live.has(e.dataset.key)) e.remove(); });
+}
+setInterval(rtPaintAllLive,30000);
 // One editor's worth. Anything that rewrites an editor's innerHTML from storage brings the
 // table back bare -- stored HTML has no dates in it, and correctly so -- so every such path
 // repaints behind itself rather than waiting for the next full render.
@@ -11281,8 +11384,8 @@ function rtReposition(){
   if(_rtRaf) return;
   _rtRaf=requestAnimationFrame(()=>{
     _rtRaf=null;
-    if(!_rtCtlTable) return;
-    if(document.contains(_rtCtlTable)) rtShowCtl(_rtCtlTable); else rtHideCtl();
+    if(_rtCtlTable){ if(document.contains(_rtCtlTable)) rtShowCtl(_rtCtlTable); else rtHideCtl(); }
+    document.querySelectorAll('.rt-table.rt-timeline').forEach(rtPaintSchedule);
   });
 }
 // ─── Dragging a toggle ───────────────────────────────────────────
