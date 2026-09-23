@@ -761,19 +761,9 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pcard-bd .rt-tw{margin-left:-12px;width:calc(100% + 12px)}
 /* Daily Schedule's live "now" line/shading — positioned in document.body like #rt-ctl,
    never inside .rt-tw, so it's never part of what gets saved. */
-.rt-sn{position:fixed;pointer-events:none;z-index:2}
-.rt-sn-slot{height:2px;border-radius:2px;background:var(--sc);opacity:.85}
-.rt-sn-tail{z-index:1;background:linear-gradient(to right,transparent,color-mix(in srgb,var(--sc) 16%,transparent))}
-.rt-sn-line{width:2px;border-radius:1px;background:var(--sc);box-shadow:0 0 6px color-mix(in srgb,var(--sc) 45%,transparent)}
-.rt-sn-dot,.rt-sn-knob{border-radius:50%;background:var(--sc);z-index:3}
-.rt-sn-dot{width:6px;height:6px}
-.rt-sn-knob{width:8px;height:8px;box-shadow:0 0 0 2px var(--bg,#fff)}
-.rt-sn-dot::after,.rt-sn-knob::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--sc);animation:rt-sn-pulse 2.4s ease-out infinite}
-@keyframes rt-sn-pulse{0%{transform:scale(1);opacity:.55}80%,100%{transform:scale(3);opacity:0}}
-.rt-sn-track{height:3px;border-radius:3px;background:color-mix(in srgb,var(--sc) 15%,transparent)}
-.rt-sn-fill{height:3px;border-radius:3px;background:linear-gradient(to right,color-mix(in srgb,var(--sc) 10%,transparent),var(--sc))}
-.rt-sn-pill{z-index:4;padding:1px 6px;border-radius:8px;background:var(--sc);color:#fff;font:600 10px/14px system-ui,-apple-system,sans-serif;letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.18)}
-@media (prefers-reduced-motion:reduce){.rt-sn-dot::after,.rt-sn-knob::after{animation:none;opacity:0}}
+.rt-sn{position:fixed;pointer-events:none;z-index:1}
+.rt-sn-slot{height:1.5px;background:var(--sc);opacity:.35}
+.rt-sn-wash{}
 /* Gap only between a pair you deliberately made, which is why both halves carry the
    class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
    table to sit under another, or paste one beside one, and the second was shunted 10px
@@ -8237,8 +8227,9 @@ function rtPaintSchedule(t){
   if(idx<0){ hide(); return; } // a gap between slots — nothing to anchor to
   // Actual on-screen rect, not the declared colgroup width, so a manually resized column
   // still gets the line in the right place.
-  const ls=t.dataset.ls||'line';
-  if(ls==='off'){ hide(); return; }
+  // Any explicitly saved value other than 'off' (including old 'line'/'bar' from before the
+  // ambient-wash redesign) still shows the indicator, rather than going silently blank.
+  if(t.dataset.ls==='off'){ hide(); return; }
   const cr=cells[idx].getBoundingClientRect(),tb=t.getBoundingClientRect();
   const tw=t.closest('.rt-tw'), wr=tw?tw.getBoundingClientRect():tb;
   // Visible window: the table clipped by its (horizontally scrollable) wrapper.
@@ -8249,31 +8240,27 @@ function rtPaintSchedule(t){
   if(x<L||x>R||B<=T){ hide(); return; } // scrolled out of view
   const hdB=Math.min(B,cr.bottom); // header/body boundary
   const c=t.dataset.hl||'var(--accent)';
-  const want=new Set(ls==='bar'?['slot','track','fill','knob','pill']:['slot','tail','line','dot','pill']);
-  cont.querySelectorAll(`[data-key="${key}"]`).forEach(e=>{ if(!want.has(e.dataset.part)) e.remove(); });
+  const px=(o)=>Object.entries(o).map(([k,v])=>`${k}:${typeof v==='number'?v+'px':v}`).join(';')+`;--sc:${c}`;
   const el=part=>{
     let e=cont.querySelector(`[data-key="${key}"][data-part="${part}"]`);
     if(!e){ e=document.createElement('div'); e.className='rt-sn rt-sn-'+part; e.dataset.key=key; e.dataset.part=part; cont.appendChild(e); }
     return e;
   };
-  const px=(o)=>Object.entries(o).map(([k,v])=>`${k}:${typeof v==='number'?v+'px':v}`).join(';')+`;--sc:${c}`;
-  // Current-slot underline on the active header cell.
+  // Current-slot underline on the active header cell — the one on-screen hint besides the wash.
   const sL=Math.max(L,cr.left),sR=Math.min(R,cr.right);
   el('slot').style.cssText=px({left:sL,top:hdB-2,width:Math.max(0,sR-sL)});
-  if(ls==='bar'){
-    el('track').style.cssText=px({left:L,top:hdB-1.5,width:R-L});
-    el('fill').style.cssText=px({left:L,top:hdB-1.5,width:Math.max(0,x-L)});
-    el('knob').style.cssText=px({left:x-4,top:hdB-4});
-  }else{
-    const tailW=Math.min(90,x-L);
-    el('tail').style.cssText=px({left:x-tailW,top:T,width:tailW,height:B-T});
-    el('line').style.cssText=px({left:x-1,top:T,height:B-T});
-    el('dot').style.cssText=px({left:x-3,top:hdB-3});
-  }
-  const pill=el('pill');
-  pill.textContent=n.getHours()%12===0?`12:${String(n.getMinutes()).padStart(2,'0')}`:`${n.getHours()%12}:${String(n.getMinutes()).padStart(2,'0')}`;
-  const pw=pill.offsetWidth||34;
-  pill.style.cssText=px({left:Math.max(L,Math.min(R-pw,x-pw/2)),top:tb.top-8});
+  // Ambient wash: a single gradient across the table's full visible width. A flat, very
+  // faint tint up to a short feather just before "now", fading to nothing right at "now"
+  // and staying transparent after — a soft sense of "this much of the day has gone" rather
+  // than a hard line or a moving marker.
+  const w=R-L;
+  const nowPct=w>0?((x-L)/w*100):0;
+  const featherPx=Math.min(80,Math.max(0,x-L));
+  const featherPct=w>0?(featherPx/w*100):0;
+  const tint=`color-mix(in srgb, ${c} 4%, transparent)`;
+  const grad=`linear-gradient(to right, ${tint} 0%, ${tint} ${Math.max(0,nowPct-featherPct)}%, transparent ${nowPct}%, transparent 100%)`;
+  const wash=el('wash');
+  wash.style.cssText=px({left:L,top:T,width:w,height:B-T})+`;background:${grad}`;
 }
 // Removes overlay elements for schedule tables no longer in the document (card deleted,
 // content swapped to a different day) — run only on the full-document sweep, since a
@@ -10595,18 +10582,17 @@ function rtShowCtl(t){
     // Daily Schedule: how the "now" marker is drawn, and in what color.
     if(t.classList.contains('rt-timeline')){
       const sepL=document.createElement('div');sepL.className='rt-sep';m.appendChild(sepL);
-      const ls=t.dataset.ls||'line';
-      [['line','Live: Line'],['bar','Live: Bar'],['off','Live: Off']].forEach(([v,label])=>{
-        const row=document.createElement('div');row.className='rt-item';
-        row.innerHTML=`<span class="rt-ck">${ls===v?'✓':''}</span><span></span>`;
-        row.lastElementChild.textContent=label;
-        row.onclick=()=>{
-          if(v==='line') delete t.dataset.ls; else t.dataset.ls=v;
-          rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
-        };
-        m.appendChild(row);
-      });
-      if(ls!=='off') m.appendChild(_rtHlRow(t));
+      const lsOn=t.dataset.ls!=='off';
+      const lsRow=document.createElement('div');lsRow.className='rt-item';
+      lsRow.innerHTML=`<span class="rt-ck">${lsOn?'✓':''}</span><span></span>`;
+      lsRow.lastElementChild.textContent='Live indicator';
+      lsRow.title='A soft shading across the table showing how far into the day you are.';
+      lsRow.onclick=()=>{
+        if(lsOn) t.dataset.ls='off'; else delete t.dataset.ls;
+        rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
+      };
+      m.appendChild(lsRow);
+      if(lsOn) m.appendChild(_rtHlRow(t));
     }
     // Live dates, and the weekly tools that only mean anything once a table has weeks in it.
     // A table with no day-name header row shows none of this, so an ordinary table's menu is
