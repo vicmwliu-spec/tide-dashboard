@@ -559,6 +559,8 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hpill i{width:8px;height:8px;border-radius:50%;flex-shrink:0;opacity:.45;font-style:normal}
 .hpill.on{background:var(--surface2);color:var(--text3);text-decoration:line-through}
 .hpill.on i{opacity:1}
+.hpill .hp-box{width:16px;height:16px;border-radius:4px;flex-shrink:0}
+.hpill .hp-box.checked::after{font-size:10px}
 .hlist{display:flex;flex-direction:column;gap:5px}
 .hlist-row{display:flex;align-items:center;gap:8px}
 .hlist-row i{width:8px;height:8px;border-radius:50%;flex-shrink:0;font-style:normal}
@@ -5039,9 +5041,13 @@ function habitCardBody(def){
   if(!shown.length) return `<button class="paddcard" style="width:100%;padding:12px 10px"
       onclick="toggleHabitCardEdit('${def.id}')">Choose what goes here</button>`;
   return `<div class="hpills">${shown.map(({h,g})=>{
-    const on=isChk(h.id,day);
-    return `<button class="hpill${on?' on':''}" onclick="toggleHabitFromCard('${h.id}')">
-      <i style="background:${g.color}"></i>${_esc(h.name)}</button>`;
+    const cnt=chkCount(h.id,day),tgt=Math.max(1,habitTarget(h.id,day)),skp=isSkip(h.id,day);
+    const frac=skp?0:Math.min(cnt,tgt)/tgt;
+    const {bg,bd}=_chkFillParts(g.color,frac,skp);
+    const checked=!skp&&frac>=1&&cnt>0;
+    const numLbl=(tgt>=5&&cnt>0&&frac<1&&!skp)?`<span style="font-size:8px;font-weight:700;color:var(--text3);line-height:1">${cnt}</span>`:'';
+    return `<button class="hpill${checked?' on':''}" onclick="toggleHabitFromCard('${h.id}')" title="Click to do/undo, hold to skip">
+      <span class="chk-box hp-box${checked?' checked':''}${skp?' skipped':''}" style="background:${bg};border-color:${bd}">${numLbl}</span>${_esc(h.name)}</button>`;
   }).join('')}</div>`;
 }
 function toggleHabitCardEdit(id){ const c=cardDef(id); if(c){ c.editing=!c.editing; _cardsDirty(); render(); } }
@@ -5173,32 +5179,54 @@ function buildClockSVG(){
   });
   // Detect time-range overlaps and assign radial lanes so both colors stay visible
   const _span=b=>((b.endMin-b.startMin)+1440)%1440;
-  // Overlap check that correctly handles midnight-crossing blocks
-  const _ovlp=(a,b)=>{
-    const aSpan=_span(a),bSpan=_span(b);
-    const relBS=((b.startMin-a.startMin)+1440)%1440;
-    const relBE=((b.endMin-a.startMin)+1440)%1440;
-    return relBS<aSpan||(relBE>0&&relBE<aSpan)||(relBS===0&&bSpan>0);
+  // A block is one or two linear [start,end) segments on a 0–1440 line; two segments
+  // when it crosses midnight. Half-open, so back-to-back blocks do not count as overlapping.
+  const _segs=b=>{
+    const n=_span(b); if(!n) return [];
+    const e=b.startMin+n;
+    return e<=1440?[[b.startMin,e]]:[[b.startMin,1440],[0,e-1440]];
   };
-  // Graph-coloring lane assignment — handles 3+ overlapping blocks correctly
+  const _ovlp=(a,b)=>_segs(a).some(([s1,e1])=>_segs(b).some(([s2,e2])=>s1<e2&&s2<e1));
   const ringW=TB_RO-TB_RI;
-  const lanes=new Array(blocks.length).fill(0);
+  // Overlap graph
+  const adj=blocks.map(()=>[]);
+  for(let i=0;i<blocks.length;i++)for(let j=i+1;j<blocks.length;j++){
+    if(_ovlp(blocks[i],blocks[j])){ adj[i].push(j); adj[j].push(i); }
+  }
+  // Connected components: only blocks that actually stack share a subdivided band, so a
+  // block overlapping nothing keeps the full ring width no matter what else is on the dial.
+  const cluster=new Array(blocks.length).fill(-1);
+  let nClusters=0;
+  for(let i=0;i<blocks.length;i++){
+    if(cluster[i]>=0) continue;
+    const stack=[i]; cluster[i]=nClusters;
+    while(stack.length){
+      const k=stack.pop();
+      adj[k].forEach(n=>{ if(cluster[n]<0){ cluster[n]=nClusters; stack.push(n); } });
+    }
+    nClusters++;
+  }
+  // Graph-coloring lane assignment — handles 3+ overlapping blocks correctly.
+  // -1 = unassigned, so a block only defers to neighbours that already have a lane.
+  const lanes=new Array(blocks.length).fill(-1);
   // Sort indices by span desc so larger blocks get lower (outer) lanes
   const bySpan=[...blocks.keys()].sort((a,b)=>_span(blocks[b])-_span(blocks[a]));
   bySpan.forEach(i=>{
     const used=new Set();
-    for(let j=0;j<blocks.length;j++){
-      if(j!==i&&lanes[j]>=0&&_ovlp(blocks[i],blocks[j])) used.add(lanes[j]);
-    }
+    adj[i].forEach(j=>{ if(lanes[j]>=0) used.add(lanes[j]); });
     let lane=0; while(used.has(lane)) lane++;
     lanes[i]=lane;
   });
-  const maxLane=Math.max(...lanes,0);
-  const laneCount=maxLane+1;
-  const laneH=ringW/laneCount;
+  // Lane count per cluster, not globally — one stacked pair must not thin the whole dial.
+  const cLanes=new Array(nClusters).fill(1);
+  blocks.forEach((_,i)=>{ cLanes[cluster[i]]=Math.max(cLanes[cluster[i]],lanes[i]+1); });
   // Lane 0 = outermost, lane N = innermost
-  const bRI=lanes.map(l=>Math.round(TB_RI+(laneCount-1-l)*laneH));
-  const bRO=lanes.map(l=>Math.round(TB_RI+(laneCount-l)*laneH));
+  const bRI=[],bRO=[];
+  blocks.forEach((_,i)=>{
+    const n=cLanes[cluster[i]],laneH=ringW/n;
+    bRI[i]=Math.round(TB_RI+(n-1-lanes[i])*laneH);
+    bRO[i]=Math.round(TB_RI+(n-lanes[i])*laneH);
+  });
   const _visColor=(color)=>_readableColor(color);
   const byStart=[...blocks.keys()].sort((a,b)=>blocks[a].startMin-blocks[b].startMin);
   defs='<defs>';
@@ -5216,7 +5244,9 @@ function buildClockSVG(){
     const durMin=span%60,durHr=Math.floor(span/60);
     const durStr=(durHr?durHr+'h ':'')+(durMin?durMin+'m':'');
     const arcStroke=_isLightColor(b.color)?'stroke="rgba(0,0,0,0.18)" stroke-width="1.5"':_isDarkColor(b.color)?'stroke="rgba(255,255,255,0.25)" stroke-width="1.5"':'';
-    const tipAttrs=`data-tbid="${b.id}" data-tipname="${esc(tbName(b))}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}"`;
+    // Name what this block stacks with, so a thin arc explains itself on hover.
+    const ovl=adj[idx].map(j=>tbName(blocks[j])).filter(Boolean).join(', ');
+    const tipAttrs=`data-tbid="${b.id}" data-tipname="${esc(tbName(b))}" data-tiptime="${fmtT(b.startMin)} – ${fmtT(b.endMin)}" data-tipdur="${durStr}" data-tipcolor="${b.color}"${ovl?` data-tipoverlap="${esc(ovl)}"`:''}`;
     arcs+=`<path d="${ap(bRI[idx],bRO[idx],a1,a2)}" fill="${b.color}" opacity=".68" ${arcStroke} style="cursor:grab;filter:drop-shadow(0 0 4px ${b.color}88);pointer-events:none" ${tipAttrs} class="tb-arc"/>`;
     if(span<MIN_HIT_MIN){
       const padMin=(MIN_HIT_MIN-span)/2;
@@ -5341,7 +5371,7 @@ function buildClockSVG(){
     svg_tip.addEventListener('mouseover',e=>{
       const a=e.target.closest('.tb-arc');
       if(a&&a.dataset.tipname&&!_tbDrag){
-        tbTip.innerHTML=`<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="width:8px;height:8px;border-radius:50%;background:${a.dataset.tipcolor};flex-shrink:0;display:inline-block"></span><span style="font-size:12px;font-weight:700;color:var(--text1);letter-spacing:-.01em">${a.dataset.tipname}</span></div><div style="font-size:11px;color:var(--text2);font-weight:500;padding-left:15px">${a.dataset.tiptime}</div><div style="font-size:10px;color:var(--text3);font-weight:500;padding-left:15px;margin-top:2px">${a.dataset.tipdur}</div>`;
+        tbTip.innerHTML=`<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="width:8px;height:8px;border-radius:50%;background:${a.dataset.tipcolor};flex-shrink:0;display:inline-block"></span><span style="font-size:12px;font-weight:700;color:var(--text1);letter-spacing:-.01em">${esc(a.dataset.tipname)}</span></div><div style="font-size:11px;color:var(--text2);font-weight:500;padding-left:15px">${esc(a.dataset.tiptime)}</div><div style="font-size:10px;color:var(--text3);font-weight:500;padding-left:15px;margin-top:2px">${esc(a.dataset.tipdur)}</div>${a.dataset.tipoverlap?`<div style="font-size:10px;color:var(--text3);font-weight:500;padding-left:15px;margin-top:3px;opacity:.85">Stacked with ${esc(a.dataset.tipoverlap)}</div>`:''}`;
         tbTip.style.display='block';
       } else tbTip.style.display='none';
     });
@@ -6130,8 +6160,21 @@ function doSkipToggle(hid,day,color){
     const dpEl=document.getElementById(`hzdp-${day}`);
     if(dpEl) dpEl.innerHTML=_dayCount(day);
     updStats();updateHzChart();updTide();
+    _refreshHabitCards(day);
   }
 }
+// The Habits card's pills are baked into HTML at render time, not reactive — repaint
+// any card showing today so a Do/Undo/Skip click reflects immediately, from either
+// the card itself or the Tracker grid, without a full render() or a page trip.
+function _refreshHabitCards(day){
+  if(day!==PD.getDate()) return;
+  cardDefs().forEach(def=>{
+    if(def.type!=='habits'||def.editing) return;
+    const el=document.getElementById(`hcard-${def.id}`);
+    if(el) el.innerHTML=habitCardBody(def);
+  });
+}
+function skipHabitFromCard(hid){ doSkipToggle(hid,PD.getDate(),_findHabitWithGroup(hid)?.g?.color||'var(--accent)'); }
 
 function updWeekBadges(day){
   const spans=getWeekSpans(CY,CM);
@@ -6168,6 +6211,7 @@ function partialUpdate(hid,day){
   updateChart();
   updTide();
   updWeekBadges(day);
+  _refreshHabitCards(day);
 }
 
 
@@ -6852,7 +6896,7 @@ function _syncPD(){ CY=PD.getFullYear(); CM=PD.getMonth(); }
 function stepDay(n){ PD=new Date(PD.getFullYear(),PD.getMonth(),PD.getDate()+n); _syncPD(); _navRender() }
 function prevMo(){if(view==='today')return stepDay(-1);CM===0?(CM=11,CY--):CM--;_navRender()}
 function nextMo(){if(view==='today')return stepDay(1);CM===11?(CM=0,CY++):CM++;_navRender()}
-function goToday(){PD=new Date(now.getFullYear(),now.getMonth(),now.getDate());CY=now.getFullYear();CM=now.getMonth();_navRender()}
+function goToday(){const n=new Date();now=n;PD=new Date(n.getFullYear(),n.getMonth(),n.getDate());CY=n.getFullYear();CM=n.getMonth();_navRender()}
 function _saveView(){ localStorage.setItem('tide_view',view); }
 function goMonth(m){CM=m;view='month';_saveView();_navRender()}
 function setView(v){
@@ -8073,7 +8117,13 @@ function startDayRollover(){
   _rtDayT=setTimeout(()=>{ _rtDayT=null; _rtDayOn=todayStr(); _rtRollDay(); startDayRollover(); },_rtMsToMidnight());
 }
 function _rtRollDay(){
+  // If the dashboard was parked on "today" naturally (not navigated to a specific
+  // other date), carry PD forward with it — otherwise a tab left open across
+  // midnight keeps writing habit completions to yesterday until the user manually
+  // navigates. A deliberate navigation to a past/future date is left untouched.
+  const wasToday=PD.getFullYear()===now.getFullYear()&&PD.getMonth()===now.getMonth()&&PD.getDate()===now.getDate();
   now=new Date();
+  if(wasToday){ PD=new Date(now.getFullYear(),now.getMonth(),now.getDate()); _syncPD(); }
   // A week passing quietly puts a fresh one on the end, so the run of weeks ahead never
   // shortens. Weeks that have gone are left exactly where they are.
   let grew=false;
@@ -12881,6 +12931,28 @@ document.addEventListener('touchstart',e=>{
 },{passive:true});
 document.addEventListener('touchmove',()=>{clearTimeout(_lpTimer);_lpTimer=null;},{passive:true});
 document.addEventListener('touchend',()=>{clearTimeout(_lpTimer);_lpTimer=null;},{passive:true});
+
+// Habits card: hold a pill to skip it, same 500ms long-press as the Tracker grid,
+// but independent of the grid's drag-select machinery — a card pill never spans a
+// range, so it only needs press-and-hold vs. a plain click.
+let _hpLpTimer=null,_hpLpFired=false;
+function _hpStart(e){
+  const c=e.target.closest('.hpill');
+  if(!c) return;
+  const m=c.getAttribute('onclick')?.match(/toggleHabitFromCard\('([^']+)'\)/);
+  if(!m) return;
+  clearTimeout(_hpLpTimer);_hpLpFired=false;
+  _hpLpTimer=setTimeout(()=>{ _hpLpFired=true; skipHabitFromCard(m[1]); },500);
+}
+function _hpCancel(){ clearTimeout(_hpLpTimer);_hpLpTimer=null; }
+document.addEventListener('mousedown',e=>{ if(e.button===0) _hpStart(e); },true);
+document.addEventListener('mouseup',_hpCancel,true);
+document.addEventListener('touchstart',_hpStart,{passive:true});
+document.addEventListener('touchmove',_hpCancel,{passive:true});
+document.addEventListener('touchend',_hpCancel,{passive:true});
+document.addEventListener('click',e=>{
+  if(_hpLpFired){ _hpLpFired=false; e.stopPropagation(); }
+},true);
 
 // ─────────────────────────────────────────
 //  BOOT
