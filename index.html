@@ -5043,8 +5043,7 @@ function habitCardBody(def){
   return `<div class="hpills">${shown.map(({h,g})=>{
     const cnt=chkCount(h.id,day),tgt=Math.max(1,habitTarget(h.id,day)),skp=isSkip(h.id,day);
     const frac=skp?0:Math.min(cnt,tgt)/tgt;
-    const {bg}=_chkFillParts(g.color,frac,skp);
-    const bd=g.color; // always shows the group's color, even before any progress — .skipped overrides this
+    const {bg,bd}=_chkFillParts(g.color,frac,skp);
     const checked=!skp&&frac>=1&&cnt>0;
     const numLbl=(tgt>=5&&cnt>0&&frac<1&&!skp)?`<span style="font-size:8px;font-weight:700;color:var(--text3);line-height:1">${cnt}</span>`:'';
     return `<button class="hpill${checked?' on':''}" onclick="toggleHabitFromCard('${h.id}')" title="Click to do/undo, hold to skip">
