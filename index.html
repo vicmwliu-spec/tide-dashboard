@@ -550,6 +550,10 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pm-sub-b:disabled{opacity:.28;cursor:default}
 .pm-sub-x:hover:not(:disabled){background:var(--red);color:#fff}
 .pm-sub-empty{font-size:11.5px;color:var(--text3);font-style:italic;padding:6px 9px;line-height:1.45}
+/* The star that marks a template as the card's default, auto-loaded into a blank day. */
+.pm-sub-star{opacity:.4}
+.pm-sub-star.on{opacity:1;color:var(--accent)}
+.pm-sub-star:hover:not(:disabled){background:var(--border);color:var(--accent)}
 /* The one setting a journal card wears in the open, beside the month arrows. */
 .jr-dot{margin-right:4px}
 /* Habits card — pills only. No streak, no count, no grade. */
@@ -3258,6 +3262,7 @@ function jrPicker(id){
 function journalCardBody(id){
   const s=jrState(id),nb=jrNb(id);
   const e={y:s.y,m:s.m,day:s.day,week:s.week};
+  if(!s.week) _jrSeedDefault(id,s.y,s.m,s.day,nb);
   const html=s.week?getWeekAARAt(s.y,s.m,s.week,nb):getAARAt(s.y,s.m,s.day,nb);
   const cap=s.week
     ? `Weekly review · ${jrLabel(e)}, ${s.y}`
@@ -3335,10 +3340,17 @@ addEventListener('resize',()=>{ for(const id in _jr) jrFit(id) });
 // show things you reach for a few times a month. Behind the ⋯ they cost nothing until asked for.
 function _jrMenuItems(id){
   const ts=D.aarTemplates||[];
+  const def=cardDefs().find(c=>c.id===id);
+  const defTid=def&&def.defaultTmpl;
   const rows=ts.length
-    ? ts.map((t,i)=>`<div class="pm-sub-row">
+    ? ts.map((t,i)=>{
+        const isDef=t.id===defTid;
+        return `<div class="pm-sub-row">
         <button class="pm-sub-load" title="Load into the open entry"
           onclick="_jrTmplLoad('${id}','${t.id}')">${esc(t.name)}</button>
+        <button class="pm-sub-b pm-sub-star${isDef?' on':''}"
+          title="${isDef?'Default for this card — click to unset':'Set as default: auto-loads into a blank day'}"
+          onclick="_jrTmplSetDefault('${id}','${t.id}')">${isDef?'&#9733;':'&#9734;'}</button>
         <button class="pm-sub-b" title="Rename"
           onclick="_jrTmplRename('${t.id}')">&#9998;</button>
         <button class="pm-sub-b" title="Move up" ${i===0?'disabled':''}
@@ -3347,7 +3359,7 @@ function _jrMenuItems(id){
           onclick="_jrTmplMove('${t.id}',1)">&#8595;</button>
         <button class="pm-sub-b pm-sub-x" title="Delete template"
           onclick="_jrTmplDelete('${t.id}')">&#10005;</button>
-      </div>`).join('')
+      </div>`}).join('')
     : `<div class="pm-sub-empty">No templates yet — write an entry and save it as one.</div>`;
   return `<button class="padd-item pm-i" onclick="_jrTmplSave('${id}')">Save as template</button>
     <button class="padd-item pm-i" onclick="_jrTmplClear('${id}')">Clear all</button>
@@ -3365,6 +3377,15 @@ function _jrTmplLoad(id,tid){ const ed=_jrEd(id); _cardMenuClose(); if(ed) loadA
 // Deleting and reordering leave the menu open — you rarely do just one — and repaint it so the
 // list on screen is the list in the data.
 function _jrTmplDelete(tid){ deleteAARTemplate(tid); }
+// Toggled, not just set: clicking the star of the template that is already the default
+// turns auto-fill off rather than requiring a second menu to clear it.
+function _jrTmplSetDefault(id,tid){
+  const def=cardDefs().find(c=>c.id===id);
+  if(!def) return;
+  def.defaultTmpl=(def.defaultTmpl===tid)?undefined:tid;
+  save();
+  _cardMenuRepaint();
+}
 // Renaming asks the same way saving a new one does, seeded with the name it has: the point is
 // usually to amend a name rather than to think of a fresh one.
 function _jrTmplRename(tid){
@@ -11817,6 +11838,24 @@ function _stampAARTemplate(editor,text){
   const b=_nbBag(md(y,m),editor.dataset.nb,true);
   if(editor.dataset.week){ (b.weekAarTmpl||(b.weekAarTmpl={}))[+editor.dataset.week]=text; }
   else if(editor.dataset.day){ (b.aarTmpl||(b.aarTmpl={}))[+editor.dataset.day]=text; }
+  save();
+}
+// Auto-applies a journal card's default template the first time a blank day is opened —
+// the render-time counterpart to clicking "Load" by hand. Writes through the same paths
+// (saveAAREntryAt + the aarTmpl stamp) so the day reads exactly like a manually loaded
+// template: no "written" dot until something is actually typed. Silently does nothing once
+// the day has any content, seeded or typed, or if the default template was since deleted.
+function _jrSeedDefault(id,y,m,day,nb){
+  const cur=getAARAt(y,m,day,nb);
+  if(cur&&cur!=='<br>') return;
+  const def=cardDefs().find(c=>c.id===id);
+  const tid=def&&def.defaultTmpl;
+  if(!tid) return;
+  const t=(D.aarTemplates||[]).find(t=>t.id===tid);
+  if(!t) return;
+  saveAAREntryAt(y,m,day,t.content,nb);
+  const b=_nbBag(md(y,m),nb,true);
+  (b.aarTmpl||(b.aarTmpl={}))[day]=aarText(t.content);
   save();
 }
 
