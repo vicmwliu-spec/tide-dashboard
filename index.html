@@ -4137,6 +4137,13 @@ function _cardMenuHTML(def){
       <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span></button>`);
   }
   if(def.type==='journal') it.push(_jrMenuItems(id));
+  // The same switch as the table's own ⋯ → Calendar view, here too: the card menu is where
+  // people look first, and the table's gutter button only shows while hovering the table.
+  const schedT=def.type==='text'&&document.querySelector(`#card-${id} .rt-table.rt-timeline`);
+  if(schedT){
+    it.push(`<button class="padd-item pm-i" onclick="_cardSchedCal('${id}')"
+      >${schedT.dataset.cal==='on'?'Show as table':'Show as calendar'}</button>`);
+  }
   // Text and canvas only: those two carry the same content in two shapes, so the trip is
   // lossless in both directions. There is nothing to carry into a habits or journal card.
   if(def.type==='text'||def.type==='canvas'){
@@ -4168,6 +4175,12 @@ function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
 // did: a card with a stored minH is a card whose height you chose, and a width drag magnetises
 // rather than quantising. migrateCardModes clears the two flags off every existing card.
 function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
+function _cardSchedCal(id){
+  _cardMenuClose();
+  const t=document.querySelector(`#card-${id} .rt-table.rt-timeline`); if(!t) return;
+  if(t.dataset.cal==='on') delete t.dataset.cal; else t.dataset.cal='on';
+  rtPaintAllLive(); rtFire(rtHost(t));
+}
 // removePlannerCard renders when it removes something, but it also has a confirm you can
 // decline — and then the menu is closed in state and still on screen. Render for that case.
 function _cardDelete(id){ _cardMenuClose(); removePlannerCard(id); if(cardDef(id)) render(); }
