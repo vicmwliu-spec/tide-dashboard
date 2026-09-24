@@ -164,7 +164,6 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
   font-size:12px;line-height:1;padding:4px 8px;cursor:pointer;font-family:var(--font)}
 .dc-btn:hover{background:var(--surface2);color:var(--text1)}
 .dc-btn.on{color:var(--text1);border-color:var(--text3)}
-.dc-z{min-width:26px;padding:4px 0}
 .dc-main{display:flex;min-width:0;border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
 .dc-lbls{flex-shrink:0;width:52px;border-right:1px solid var(--border);background:var(--surface)}
 .dc-lbl{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;
@@ -216,6 +215,8 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .dc-f-del{background:none;border:1px solid var(--border);border-radius:var(--r2);color:var(--red);font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}
 .dc-f-del:hover{background:var(--red);color:#fff;border-color:var(--red)}
 .padd-item.dc-mi,.pm-i.dc-mdays,.pm-i.dc-mhrs{display:flex}
+/* The swatch popup opens from inside the event editor, so it has to clear the editor's layer. */
+#cpop{z-index:9995}
 #dc-pop input:focus,#dc-pop select:focus,#dc-pop textarea:focus{outline:none;border-color:var(--text3)}
 .dc-mdays{gap:4px}
 .dc-mhrs{gap:4px;color:var(--text3)}
@@ -2899,14 +2900,11 @@ function dcBody(id){
       const d=_dcDate(k);
       return `<div class="dc-lbl${k===today?' today':''}" style="height:${_dcRowH(lays[i].lanes)}px"><b>${d.getDate()}</b>${wd(d)}</div>`;
     }).join('')}</div>`:'';
-  const zoom=fit?'':`<button class="dc-btn dc-z" title="Zoom out" onclick="dcZoom('${id}',-1)">−</button
-    ><button class="dc-btn dc-z" title="Zoom in" onclick="dcZoom('${id}',1)">+</button>`;
   return `<div class="dc-bar">
       <button class="dc-btn" title="Previous day (←)" onclick="stepDay(-1)">‹</button>
       <button class="dc-btn" title="Next day (→)" onclick="stepDay(1)">›</button>
       <span class="dc-title">${title}</span>
       <button class="dc-btn dc-today${keys.includes(today)?' on':''}" title="Today (T)" onclick="goToday()">Today</button>
-      <span style="flex:1"></span>${zoom}
     </div>
     <div class="dc-main">${lbls}<div class="dc-scroll${fit?' fit':''}"><div class="dc-track" style="width:${fit?'100%':Math.round(hrs*(def.zoom||64))+'px'}">
       <div class="dc-ruler" style="height:${DC_RULER}px">${ticks}<div class="dc-nowtag"></div></div>${rows}
@@ -3102,8 +3100,30 @@ function dcEdit(id,evId,k,focusTitle){
     <div class="dc-f-foot"><button class="dc-f-del">Delete</button></div>`;
   const $=s=>pop.querySelector(s);
   const commit=()=>{ save(); dcRepaint(id); };
-  $('.dc-f-title').addEventListener('input',e=>{ touch(); ev.title=e.target.value; commit(); });
-  $('.dc-f-notes').addEventListener('input',e=>{ touch(); ev.notes=e.target.value; save(); });
+  // "->" becomes → as you type, the way time-block names already do it.
+  $('.dc-f-title').addEventListener('input',e=>{ tbNameInput(e.target); touch(); ev.title=e.target.value; commit(); });
+  const notes=$('.dc-f-notes');
+  notes.addEventListener('input',()=>{ tbNameInput(notes); touch(); ev.notes=notes.value; save(); });
+  // Plain-text bullets: "- " or "* " at a line's start becomes "• ", Enter carries the bullet
+  // on (and on an empty bullet ends the list), Tab / Shift+Tab indent and outdent it.
+  notes.addEventListener('keydown',e=>{
+    const v=notes.value, p=notes.selectionStart;
+    if(p!==notes.selectionEnd) return;
+    const ls=v.lastIndexOf('\n',p-1)+1, le=(v.indexOf('\n',p)+1||v.length+1)-1;
+    const before=v.slice(ls,p), line=v.slice(ls,le);
+    const bul=line.match(/^(\s*)• /);
+    const put=(a,b,s,caret)=>{ e.preventDefault(); notes.setRangeText(s,a,b,'end');
+      if(caret!=null) notes.setSelectionRange(caret,caret);
+      notes.dispatchEvent(new Event('input')); };
+    if(e.key===' '&&/^\s*[-*]$/.test(before)) put(p-1,p,'• ');
+    else if(e.key==='Enter'&&!e.shiftKey&&bul&&p>=ls+bul[0].length){
+      if(line.trim()==='•') put(ls,le,'');
+      else put(p,p,'\n'+bul[0]);
+    }else if(e.key==='Tab'&&bul){
+      if(e.shiftKey){ const n=Math.min(2,bul[1].length); if(n) put(ls,ls+n,'',Math.max(ls,p-n)); else e.preventDefault(); }
+      else put(ls,ls,'  ',p+2);
+    }
+  });
   $('.dc-f-date').addEventListener('change',e=>{
     const v=e.target.value; if(!v) return;
     touch(); ev.date=_dcShift(ev.date,_dcDiff(k,v)); k=v;
