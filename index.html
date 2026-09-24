@@ -156,6 +156,70 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    Every marked state reads --tlc, which the card sets from your chosen color;
    the fallback is only there so the rules stand up on their own. */
 .tlcard{display:flex;flex-direction:column;gap:8px;padding:4px 16px 14px}
+/* Daily Calendar: time across, lanes down. Theme tokens only, so dark mode follows. */
+.dccard{display:flex;flex-direction:column;gap:8px;padding:4px 16px 14px;min-width:0}
+.dc-bar{display:flex;align-items:center;gap:4px;min-width:0}
+.dc-title{font-size:13px;font-weight:600;color:var(--text1);margin:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-btn{background:none;border:1px solid var(--border);border-radius:var(--r2);color:var(--text2);font:inherit;
+  font-size:12px;line-height:1;padding:4px 8px;cursor:pointer;font-family:var(--font)}
+.dc-btn:hover{background:var(--surface2);color:var(--text1)}
+.dc-btn.on{color:var(--text1);border-color:var(--text3)}
+.dc-z{min-width:26px;padding:4px 0}
+.dc-main{display:flex;min-width:0;border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
+.dc-lbls{flex-shrink:0;width:52px;border-right:1px solid var(--border);background:var(--surface)}
+.dc-lbl{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;
+  color:var(--text3);border-top:1px solid var(--border);box-sizing:border-box;text-transform:uppercase;letter-spacing:.3px}
+.dc-lbl b{font-size:15px;font-weight:600;color:var(--text2);letter-spacing:0}
+.dc-lbl.today b{color:var(--red)}
+.dc-scroll{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.dc-scroll.fit{overflow-x:hidden}
+.dc-track{position:relative;min-width:100%;user-select:none;touch-action:pan-x}
+.dc-ruler{position:relative;border-bottom:1px solid var(--border);overflow:hidden}
+.dc-tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border)}
+.dc-tick span{position:absolute;left:4px;top:4px;font-size:10px;color:var(--text3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.dc-tick.dim span{display:none}
+.dc-nowtag{display:none;position:absolute;top:3px;transform:translateX(-50%);z-index:2;background:var(--red);color:#fff;
+  font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dc-row{position:relative;box-sizing:border-box;border-top:1px solid var(--border);cursor:crosshair;
+  background-image:linear-gradient(to right,var(--border) 1px,transparent 1px);background-size:calc(100% / var(--hrs)) 100%}
+.dc-ruler+.dc-row{border-top:none}
+.dc-wash{display:none;position:absolute;inset:0;pointer-events:none}
+.dc-now{display:none;position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--red);z-index:3;pointer-events:none}
+.dc-now::before{content:'';position:absolute;top:-4px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--red)}
+.dc-ev{position:absolute;box-sizing:border-box;border-radius:5px;overflow:hidden;cursor:grab;z-index:1;
+  background:color-mix(in srgb,var(--c) 22%,var(--surface));border-left:3px solid var(--c);
+  padding:2px 6px 2px 5px;color:var(--text1);display:flex;flex-direction:column;justify-content:center;min-width:3px}
+.dc-ev:hover{background:color-mix(in srgb,var(--c) 32%,var(--surface))}
+.dc-ev.sel{box-shadow:0 0 0 2px var(--c),0 2px 8px rgba(0,0,0,.15);z-index:2}
+.dc-ev:active{cursor:grabbing}
+.dc-t,.dc-tm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.dc-t{font-size:12px;font-weight:600;line-height:1.25}
+.dc-tm{font-size:10.5px;color:var(--text2);line-height:1.25;font-variant-numeric:tabular-nums}
+.dc-rep{font-weight:400;color:var(--text3)}
+.dc-h{position:absolute;top:0;bottom:0;width:6px;cursor:ew-resize;z-index:1}
+.dc-hl{left:-3px}.dc-hr{right:0}
+.dc-ghost{--c:var(--dcc);opacity:.85;pointer-events:none;border-style:dashed}
+#dc-pop{position:fixed;z-index:9990;width:268px;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:10px;display:flex;flex-direction:column;gap:8px;font-family:var(--font)}
+#dc-pop input,#dc-pop select,#dc-pop textarea{font:inherit;font-size:12px;color:var(--text1);background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--r2);padding:5px 7px;min-width:0;box-sizing:border-box}
+#dc-pop .dc-f-title{font-size:14px;font-weight:600;background:none;border-color:transparent;padding:4px 2px}
+#dc-pop .dc-f-title:focus{border-color:var(--border)}
+#dc-pop textarea{resize:vertical;width:100%}
+.dc-f-row{display:flex;align-items:center;gap:6px;color:var(--text3);font-size:12px}
+.dc-f-row input[type=date]{flex:1}
+.dc-f-row input[type=time]{flex:1}
+.dc-f-row select{flex:1}
+.dc-f-link{background:none;border:none;color:var(--text3);font:inherit;font-size:11px;cursor:pointer;padding:0;text-decoration:underline}
+.dc-f-foot{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.dc-f-q{font-size:12px;color:var(--text2);margin-right:auto}
+.dc-f-del{background:none;border:1px solid var(--border);border-radius:var(--r2);color:var(--red);font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}
+.dc-f-del:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.padd-item.dc-mi,.pm-i.dc-mdays,.pm-i.dc-mhrs{display:flex}
+#dc-pop input:focus,#dc-pop select:focus,#dc-pop textarea:focus{outline:none;border-color:var(--text3)}
+.dc-mdays{gap:4px}
+.dc-mhrs{gap:4px;color:var(--text3)}
+.dc-mhrs select{font:inherit;font-size:12px;color:var(--text1);background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:2px 4px}
 .tl-grid{display:flex;flex-direction:column;gap:3px}
 .tl-hd,.tl-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;flex:1}
 .tl-hd{margin-left:26px}
@@ -763,43 +827,11 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    a shared column, so the cost there is 12px of width and not a change of proportion. */
 .rt-tw{overflow-x:auto;margin:10px 0;width:100%;padding-left:12px;display:inline-block;vertical-align:top}
 .pcard-bd .rt-tw{margin-left:-12px;width:calc(100% + 12px)}
-/* Daily Schedule's live "now" line/shading — positioned in document.body like #rt-ctl,
+/* Daily Outline's live "now" line/shading — positioned in document.body like #rt-ctl,
    never inside .rt-tw, so it's never part of what gets saved. */
 .rt-sn{position:fixed;pointer-events:none;z-index:1}
 .rt-sn-slot{box-sizing:border-box;border:1.5px solid color-mix(in srgb,var(--text1) 32%,transparent)}
 .rt-sn-wash{}
-/* Calendar view: per-block tint (a style-attribute custom property, so it's set the same way
-   colgroup widths already are and round-trips through saved HTML the same way) plus its
-   overlay controls — a swatch dot per block and a drag handle on each interior boundary.
-   Unlike .rt-sn above these need pointer-events, so they're a separate, clickable layer. */
-/* Every block has a color the moment the view is on: a picked one (--tbc, saved on the cell)
-   or else one from the palette by column (--tbc0, CSS only — nothing saved, so turning the view
-   off leaves the plain table exactly as it was). Blocks read as events rather than grid cells:
-   spaced apart, rounded, tinted, with a solid bar down the left edge. */
-.rt-table.rt-timeline[data-cal="on"]{border-collapse:separate;border-spacing:4px 0}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+1){--tbc0:#3B82F6}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+2){--tbc0:#8B5CF6}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+3){--tbc0:#10B981}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+4){--tbc0:#F59E0B}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+5){--tbc0:#EC4899}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+6){--tbc0:#14B8A6}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+7){--tbc0:#FACC15}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+8){--tbc0:#6366F1}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+9){--tbc0:#EF4444}
-.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+10){--tbc0:#06B6D4}
-.rt-table.rt-timeline[data-cal="on"] td{--cb:var(--tbc,var(--tbc0));border:none;border-left:3px solid var(--cb);background:color-mix(in srgb,var(--cb) 12%,var(--surface))}
-.rt-table.rt-timeline[data-cal="on"] tr:first-child td{background:color-mix(in srgb,var(--cb) 26%,var(--surface));border-radius:0 8px 0 0;font-size:12px}
-.rt-table.rt-timeline[data-cal="on"] tr:last-child td{border-radius:0 0 8px 0}
-.rt-table.rt-timeline[data-cal="on"] tr:only-child td{border-radius:0 8px 8px 0}
-/* Room above the table for the hour ruler the overlay draws there. */
-.rt-tw:has(> .rt-table.rt-timeline[data-cal="on"]){padding-top:16px}
-.rt-cal-tick{position:fixed;z-index:1;pointer-events:none;font-size:10px;line-height:12px;color:var(--text3,var(--text2));transform:translateX(-50%);white-space:nowrap;font-family:var(--font)}
-.rt-cal-grid{position:fixed;z-index:1;pointer-events:none;width:0;border-left:1px dashed color-mix(in srgb,var(--text1) 14%,transparent)}
-.rt-cal-sw{position:fixed;z-index:2;width:10px;height:10px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border);cursor:pointer;pointer-events:auto;background:var(--surface)}
-.rt-cal-sw:hover{box-shadow:0 0 0 1px var(--text2)}
-.rt-cal-handle{position:fixed;z-index:2;width:6px;cursor:col-resize;pointer-events:auto}
-.rt-cal-handle:hover{background:color-mix(in srgb,var(--text1) 10%,transparent)}
-.rt-cal-pop{display:none;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-md)}
 /* Gap only between a pair you deliberately made, which is why both halves carry the
    class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
    table to sit under another, or paste one beside one, and the second was shunted 10px
@@ -1370,7 +1402,7 @@ function defaultData(){
 let D = (()=>{ try{ const d=JSON.parse(localStorage.getItem(SK))||defaultData();if(!d.aarTemplates)d.aarTemplates=[];if(!d.fathom)d.fathom={items:[]};if(!d.timeBlocks)d.timeBlocks=[];if(!Array.isArray(d.milestones))d.milestones=[];if(typeof d.weekStart!=='number'||d.weekStart<0||d.weekStart>6)d.weekStart=1;if(d.cards&&!d.cards.data)d.cards.data={};if(!d.chartColors)d.chartColors={overall:null,ref:null,cumul:null,fill:null,seSuccess:null,seFailure:null,seMedian:null,sePath:null};else{if(!('seSuccess' in d.chartColors))Object.assign(d.chartColors,{seSuccess:null,seFailure:null,seMedian:null,sePath:null});}return d }catch{ return defaultData() } })();
 let darkMode = localStorage.getItem('tide_dark')==='1';
 if(darkMode) document.documentElement.classList.add('dark');
-const now = new Date();
+let now = new Date(); // let, not const: goToday refreshes it
 let CY = now.getFullYear();
 let CM = now.getMonth();
 let PD = new Date(now.getFullYear(),now.getMonth(),now.getDate()); // plan date — which period the cards show
@@ -1763,9 +1795,19 @@ function migrateCardModes(){
   if(dirty) saveLocal(); // boot migration: local only, never a push -- as migrateCardCols
   return dirty;
 }
+// Daily Schedule was renamed Daily Outline. Only a card still wearing the old default label
+// follows; one you named yourself keeps its name.
+function migrateSchedLabel(){
+  let dirty=false;
+  (cardDefs()||[]).forEach(c=>{
+    if(c.label==='DAILY SCHEDULE'&&_isSchedCard(c)){ c.label='DAILY OUTLINE'; dirty=true; }
+  });
+  if(dirty) saveLocal(); // boot migration: local only, never a push -- as migrateCardCols
+  return dirty;
+}
 function migrateAll(){
   repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard();
-  migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateCardModes();
+  migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateCardModes(); migrateSchedLabel();
   migrateJournalNotebooks();
   // Last: it rewrites card HTML, so every migration that moves cards between shapes runs first.
   migrateTableWidths();
@@ -2596,7 +2638,8 @@ const CARD_TYPES=[
   {id:'canvas',name:'Canvas',blurb:'Click anywhere and type there. Drag things around; they line up as you go.'},
   {id:'journal',name:'Journal',blurb:'Your entries as a month you can page through — write, search, and read back.'},
   {id:'weekly',name:'Weekly Outline',blurb:'Four weeks at a glance, with the dates kept current.'},
-  {id:'schedule',name:'Daily Schedule',blurb:'Time blocks for the day, with a live line showing where you are now.'},
+  {id:'schedule',name:'Daily Outline',blurb:'Time blocks for the day, with a live line showing where you are now.'},
+  {id:'dcal',name:'Daily Calendar',blurb:'Your day as a horizontal timeline — drag to create, move and resize events.'},
 ];
 // A Weekly Outline is a text card that starts with a live table — not a card type with a
 // renderer of its own. That is the whole trick: everything the tables already do keeps
@@ -2620,7 +2663,7 @@ function weeklyTableHTML(weeks){
   return '<div class="rt-tw" contenteditable="false"><table class="rt-table rt-hopt rt-hr rt-hc rt-fixed rt-live">'
     +cols+'<tbody>'+body+'</tbody></table></div><p><br></p>';
 }
-// A Daily Schedule is the same trick as a Weekly Outline: a text card seeded with a table,
+// A Daily Outline is the same trick as a Weekly Outline: a text card seeded with a table,
 // this time opting into rtPaintAllSchedules' live "now" line/shading (rt-timeline) instead
 // of rtPaintAllLive's day-shading (rt-live) — the columns are hours instead of days.
 const SCHED_SLOTS=[
@@ -2781,6 +2824,403 @@ function tlHome(id){ delete _tlMo[id]; tlRepaint(id); }
 function tlRepaint(id){
   const el=document.querySelector(`.tlcard[data-cardid="${id}"]`);
   if(el){ el.innerHTML=timelineCardBody(id); tlAfter(id); }
+}
+
+// ── Daily Calendar ──
+// A day planner in the Notion Calendar mould, turned on its side: time runs left to right and
+// overlapping events stack into lanes downward. Events are the card's own, in D.dcal[cardId]:
+//   {id,title,notes,date:'YYYY-MM-DD',start,end,color,rep,ex}
+// start/end are minutes past midnight (0–1440, on the 15-minute grid); color null means the
+// card's color; rep is null|'daily'|'weekdays'|'weekly', starting at `date`; ex lists the dates
+// a repeat was deleted from. The card follows the dashboard's plan date PD like the Outline does.
+const DC_LANE=36, DC_SNAP=15, DC_RULER=22;
+let _dcHover=null, _dcFocus=null, _dcSel=null; // _dcSel: {card, ev, date}
+const _dc={}, _dcUndo={};                      // per card: view state; undo snapshots
+function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||gradeAccent(); }
+function _dcList(id){ if(!D.dcal) D.dcal={}; return D.dcal[id]||(D.dcal[id]=[]); }
+function _dcKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function _dcDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
+function _dcShift(k,n){ const d=_dcDate(k); d.setDate(d.getDate()+n); return _dcKey(d); }
+function _dcDiff(a,b){ return Math.round((_dcDate(b)-_dcDate(a))/864e5); }
+function _dcFmt(m){
+  const h=Math.floor(m/60)%24, mm=m%60, h12=h%12||12;
+  return h12+(mm?':'+String(mm).padStart(2,'0'):'')+(h<12?'AM':'PM');
+}
+function dcOccurs(ev,k){
+  if((ev.ex||[]).includes(k)) return false;
+  if(ev.date===k) return true;
+  if(!ev.rep||k<ev.date) return false;
+  const dw=_dcDate(k).getDay();
+  if(ev.rep==='daily') return true;
+  if(ev.rep==='weekdays') return dw>0&&dw<6;
+  if(ev.rep==='weekly') return dw===_dcDate(ev.date).getDay();
+  return false;
+}
+function _dcWin(def){ return def.mode==='fit'?[def.fitStart??360,def.fitEnd??1440]:[0,1440]; }
+// Greedy lanes: each event takes the first lane whose last event has ended by its start.
+function _dcLay(id,k){
+  const occ=_dcList(id).filter(ev=>dcOccurs(ev,k)).sort((a,b)=>a.start-b.start||b.end-a.end)
+    .map(ev=>({ev,lane:0}));
+  const ends=[];
+  occ.forEach(o=>{ let l=ends.findIndex(t=>t<=o.ev.start); if(l<0){ l=ends.length; ends.push(0); } ends[l]=o.ev.end; o.lane=l; });
+  return {occ,lanes:Math.max(1,ends.length)};
+}
+function _dcRowH(lanes){ return lanes*DC_LANE+14; }
+function dcBody(id){
+  const def=cardDef(id); if(!def) return '';
+  const [w0,w1]=_dcWin(def), span=w1-w0, hrs=span/60, fit=def.mode==='fit';
+  const days=def.days||1, k0=_dcKey(PD), today=_dcKey(new Date());
+  const keys=Array.from({length:days},(_,i)=>_dcShift(k0,i));
+  const wd=d=>d.toLocaleDateString(undefined,{weekday:'short'});
+  const md=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  const d0=_dcDate(k0), dN=_dcDate(keys[days-1]);
+  const title=days===1?`${wd(d0)}, ${md(d0)}`:`${md(d0)} – ${md(dN)}`;
+  const pct=m=>((m-w0)/span*100).toFixed(4)+'%';
+  let ticks='';
+  for(let m=Math.ceil(w0/60)*60;m<w1;m+=60)
+    ticks+=`<div class="dc-tick" data-h="${m/60}" style="left:${pct(m)}"><span>${_rtFmtSlotEdge(m)}</span></div>`;
+  const lays=keys.map(k=>_dcLay(id,k));
+  const rows=keys.map((k,i)=>{
+    const {occ,lanes}=lays[i];
+    const blocks=occ.filter(o=>o.ev.end>w0&&o.ev.start<w1).map(o=>{
+      const ev=o.ev, a=Math.max(w0,ev.start), b=Math.min(w1,ev.end);
+      const sel=_dcSel&&_dcSel.card===id&&_dcSel.ev===ev.id&&_dcSel.date===k;
+      const c=ev.color||'var(--dcc)';
+      return `<div class="dc-ev${sel?' sel':''}${ev.rep?' rep':''}" data-ev="${ev.id}" data-date="${k}"
+        style="left:${pct(a)};width:${((b-a)/span*100).toFixed(4)}%;top:${o.lane*DC_LANE+4}px;height:${DC_LANE-4}px;--c:${c}"
+        title="${esc((ev.title||'(No title)')+' · '+_dcFmt(ev.start)+' – '+_dcFmt(ev.end))}"
+        ><div class="dc-h dc-hl"></div><div class="dc-t">${esc(ev.title||'(No title)')}${ev.rep?' <span class="dc-rep">↻</span>':''}</div
+        ><div class="dc-tm">${_dcFmt(ev.start)} – ${_dcFmt(ev.end)}</div><div class="dc-h dc-hr"></div></div>`;
+    }).join('');
+    return `<div class="dc-row${k===today?' today':''}" data-date="${k}" style="height:${_dcRowH(lanes)}px;--hrs:${hrs}"
+      ><div class="dc-wash"></div>${blocks}<div class="dc-now"></div></div>`;
+  }).join('');
+  const lbls=days>1?`<div class="dc-lbls"><div style="height:${DC_RULER}px"></div>${keys.map((k,i)=>{
+      const d=_dcDate(k);
+      return `<div class="dc-lbl${k===today?' today':''}" style="height:${_dcRowH(lays[i].lanes)}px"><b>${d.getDate()}</b>${wd(d)}</div>`;
+    }).join('')}</div>`:'';
+  const zoom=fit?'':`<button class="dc-btn dc-z" title="Zoom out" onclick="dcZoom('${id}',-1)">−</button
+    ><button class="dc-btn dc-z" title="Zoom in" onclick="dcZoom('${id}',1)">+</button>`;
+  return `<div class="dc-bar">
+      <button class="dc-btn" title="Previous day (←)" onclick="stepDay(-1)">‹</button>
+      <button class="dc-btn" title="Next day (→)" onclick="stepDay(1)">›</button>
+      <span class="dc-title">${title}</span>
+      <button class="dc-btn dc-today${keys.includes(today)?' on':''}" title="Today (T)" onclick="goToday()">Today</button>
+      <span style="flex:1"></span>${zoom}
+    </div>
+    <div class="dc-main">${lbls}<div class="dc-scroll${fit?' fit':''}"><div class="dc-track" style="width:${fit?'100%':Math.round(hrs*(def.zoom||64))+'px'}">
+      <div class="dc-ruler" style="height:${DC_RULER}px">${ticks}<div class="dc-nowtag"></div></div>${rows}
+    </div></div></div>`;
+}
+function _dcEl(id){ return document.querySelector(`.dccard[data-cardid="${id}"]`); }
+function dcRepaint(id){
+  const el=_dcEl(id); if(!el) return;
+  el.style.setProperty('--dcc',dcAccent(id));
+  el.innerHTML=dcBody(id); dcAfter(id);
+}
+function dcAfter(id){
+  const el=_dcEl(id), def=cardDef(id); if(!el||!def) return;
+  const st=_dc[id]||(_dc[id]={});
+  const sc=el.querySelector('.dc-scroll'), tr=el.querySelector('.dc-track');
+  if(!sc||!tr) return;
+  // Where the scroll was, or — the first time this card is seen — now a third of the way in
+  // when the view holds today, else 8AM: the start of a day, not midnight.
+  if(def.mode!=='fit'){
+    if(st.scroll==null){
+      const n=new Date(), pxm=(def.zoom||64)/60;
+      const holdsToday=[...el.querySelectorAll('.dc-row')].some(r=>r.classList.contains('today'));
+      st.scroll=holdsToday?(n.getHours()*60+n.getMinutes())*pxm-sc.clientWidth/3:480*pxm;
+    }
+    sc.scrollLeft=st.scroll;
+    // A repaint swaps this container out, and the scroll event queued by the line above can
+    // still arrive on the detached one — which reads 0 and would wipe the position.
+    sc.onscroll=()=>{ if(sc.isConnected) st.scroll=sc.scrollLeft; };
+  }
+  tr.addEventListener('pointerdown',e=>_dcDown(e,id));
+  sc.addEventListener('wheel',e=>{
+    if(!(e.ctrlKey||e.metaKey)||def.mode==='fit') return;
+    e.preventDefault();
+    dcZoom(id,e.deltaY<0?1:-1,e.clientX);
+  },{passive:false});
+  if(st.ro) st.ro.disconnect();
+  if(window.ResizeObserver){ st.ro=new ResizeObserver(()=>{ _dcTicks(id); dcPaintNow(id); }); st.ro.observe(sc); }
+  _dcTicks(id); dcPaintNow(id);
+}
+// Fewer hour labels as the hours get narrower, so they never collide.
+function _dcTicks(id){
+  const el=_dcEl(id), def=cardDef(id); if(!el||!def) return;
+  const tr=el.querySelector('.dc-track'); if(!tr) return;
+  const [w0,w1]=_dcWin(def), pxh=tr.clientWidth/((w1-w0)/60);
+  const step=[1,2,3,4,6].find(s=>pxh*s>=38)||6;
+  el.querySelectorAll('.dc-tick').forEach(t=>t.classList.toggle('dim',(+t.dataset.h)%step!==0));
+}
+// The now line and, when Progress shading is on, the same wash the Daily Outline draws —
+// both on today's row only.
+function dcPaintNow(id){
+  const el=_dcEl(id), def=cardDef(id); if(!el||!def) return;
+  const n=new Date(), k=_dcKey(n), nm=n.getHours()*60+n.getMinutes()+n.getSeconds()/60;
+  const [w0,w1]=_dcWin(def), pct=(nm-w0)/(w1-w0)*100, inWin=nm>=w0&&nm<=w1;
+  let shown=false;
+  el.querySelectorAll('.dc-row').forEach(r=>{
+    const line=r.querySelector('.dc-now'), wash=r.querySelector('.dc-wash');
+    const isT=r.dataset.date===k;
+    line.style.display=isT&&inWin?'block':'none';
+    if(isT&&inWin){ line.style.left=pct+'%'; shown=true; }
+    if(isT&&def.prog!==false&&nm>w0){
+      const p=Math.min(100,pct), w=r.clientWidth||1, x=p/100*w;
+      wash.style.background=_progGrad(p,Math.min(80,x)/w*100); wash.style.display='block';
+    }else wash.style.display='none';
+  });
+  const tag=el.querySelector('.dc-nowtag');
+  if(tag){ tag.style.display=shown?'block':'none'; if(shown){ tag.style.left=pct+'%'; tag.textContent=_dcFmt(Math.floor(nm)); } }
+}
+function dcPaintNowAll(){ document.querySelectorAll('.dccard').forEach(el=>dcPaintNow(el.dataset.cardid)); }
+function dcZoom(id,dir,atX){
+  const def=cardDef(id), el=_dcEl(id); if(!def||!el) return;
+  const sc=el.querySelector('.dc-scroll'), old=def.zoom||64;
+  const z=Math.max(24,Math.min(200,Math.round(dir>0?old*1.25:old/1.25)));
+  if(z===old) return;
+  // Keep the minute under the pointer (or the middle of the view) where it is.
+  const r=sc.getBoundingClientRect(), off=(atX??(r.left+r.width/2))-r.left;
+  const min=(sc.scrollLeft+off)/(old/60);
+  def.zoom=z; _cardsDirty();
+  (_dc[id]||(_dc[id]={})).scroll=min*(z/60)-off;
+  dcRepaint(id);
+}
+function _dcPush(id,snap){
+  const s=_dcUndo[id]||(_dcUndo[id]=[]);
+  s.push(snap??JSON.stringify(_dcList(id))); if(s.length>50) s.shift();
+}
+function dcUndo(id){
+  const s=_dcUndo[id]; if(!s||!s.length) return;
+  _dcList(id); D.dcal[id]=JSON.parse(s.pop());
+  _dcPopClose(); _dcSel=null; save(); dcRepaint(id);
+}
+function _dcNewId(){ return 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+// One gesture on the track: press on empty space and drag to create, press an event's body to
+// move it (across days too, in the multi-day view), or its edge to resize. A press that never
+// travels 4px is a click — on an event it opens the editor, on empty space it makes a
+// half-hour event there.
+function _dcDown(e,id){
+  if(e.button!==0||e.target.closest('.dc-ruler')) return;
+  const row=e.target.closest('.dc-row'); if(!row) return;
+  _dcFocus=id;
+  const def=cardDef(id); if(!def) return;
+  const [w0,w1]=_dcWin(def);
+  const track=()=>{ const el=_dcEl(id); return el&&el.querySelector('.dc-track'); };
+  const minAt=x=>{ const r=track().getBoundingClientRect(); return w0+(x-r.left)/r.width*(w1-w0); };
+  const snap=m=>Math.round(m/DC_SNAP)*DC_SNAP, clamp=m=>Math.max(0,Math.min(1440,m));
+  const evEl=e.target.closest('.dc-ev');
+  // A press that only closed the editor does just that, unless it landed on another event.
+  if(e.__dcClosed&&!evEl) return;
+  let mode='new', ev=null, orig=null;
+  if(evEl){
+    ev=_dcList(id).find(x=>x.id===evEl.dataset.ev); if(!ev) return;
+    mode=e.target.classList.contains('dc-hl')?'l':e.target.classList.contains('dc-hr')?'r':'move';
+    orig={start:ev.start,end:ev.end,date:ev.date};
+  }
+  e.preventDefault();
+  const x0=e.clientX,y0=e.clientY,m0=minAt(x0),date0=row.dataset.date;
+  const snapJ=JSON.stringify(_dcList(id));
+  let moved=false, ghost=null;
+  const mv=p=>{
+    if(!moved&&Math.hypot(p.clientX-x0,p.clientY-y0)<4) return;
+    moved=true;
+    const m=minAt(p.clientX);
+    if(mode==='new'){
+      let a=clamp(snap(Math.min(m0,m))), b=clamp(snap(Math.max(m0,m)));
+      if(b-a<DC_SNAP){ if(a+DC_SNAP<=1440) b=a+DC_SNAP; else a=b-DC_SNAP; }
+      if(!ghost){ ghost=document.createElement('div'); ghost.className='dc-ev dc-ghost'; row.appendChild(ghost); }
+      ghost.style.cssText=`left:${(a-w0)/(w1-w0)*100}%;width:${(b-a)/(w1-w0)*100}%;top:4px;height:${DC_LANE-4}px`;
+      ghost.dataset.a=a; ghost.dataset.b=b;
+      ghost.innerHTML=`<div class="dc-tm">${_dcFmt(a)} – ${_dcFmt(b)}</div>`;
+      return;
+    }
+    const d=snap(m-m0);
+    if(mode==='move'){
+      const len=orig.end-orig.start, s=Math.max(0,Math.min(1440-len,orig.start+d));
+      ev.start=s; ev.end=s+len;
+      const hit=document.elementFromPoint(p.clientX,p.clientY), r2=hit&&hit.closest('.dc-row');
+      if(r2&&r2.closest('.dccard')===_dcEl(id)) ev.date=_dcShift(orig.date,_dcDiff(date0,r2.dataset.date));
+    }else if(mode==='l') ev.start=Math.max(0,Math.min(orig.end-DC_SNAP,orig.start+d));
+    else ev.end=Math.min(1440,Math.max(orig.start+DC_SNAP,orig.end+d));
+    _dcSel={card:id,ev:ev.id,date:_dcShift(date0,_dcDiff(orig.date,ev.date))};
+    dcRepaint(id);
+  };
+  const up=()=>{
+    window.removeEventListener('pointermove',mv);
+    window.removeEventListener('pointerup',up);
+    window.removeEventListener('pointercancel',up);
+    if(mode==='new'){
+      let a,b;
+      if(ghost){ a=+ghost.dataset.a; b=+ghost.dataset.b; ghost.remove(); }
+      else{ a=clamp(Math.floor(m0/DC_SNAP)*DC_SNAP); b=Math.min(1440,a+30); if(b-a<30) a=b-30; }
+      _dcPush(id,snapJ);
+      const ne={id:_dcNewId(),title:'',notes:'',date:date0,start:a,end:b,color:null,rep:null,ex:[]};
+      _dcList(id).push(ne);
+      _dcSel={card:id,ev:ne.id,date:date0};
+      save(); dcRepaint(id); dcEdit(id,ne.id,date0,true);
+      return;
+    }
+    if(moved){
+      if(ev.start!==orig.start||ev.end!==orig.end||ev.date!==orig.date){ _dcPush(id,snapJ); save(); }
+      dcRepaint(id);
+    }else{
+      _dcSel={card:id,ev:ev.id,date:date0};
+      dcRepaint(id); dcEdit(id,ev.id,date0);
+    }
+  };
+  window.addEventListener('pointermove',mv);
+  window.addEventListener('pointerup',up);
+  window.addEventListener('pointercancel',up);
+}
+
+// ── The event editor ── anchored under the block, on <body> like the other popovers.
+function _dcPopClose(){ const p=document.getElementById('dc-pop'); if(p) p.remove(); }
+function dcEdit(id,evId,k,focusTitle){
+  _dcPopClose();
+  const ev=_dcList(id).find(x=>x.id===evId); if(!ev) return;
+  const snap=JSON.stringify(_dcList(id));
+  let pushed=false;
+  // One undo step per editing session, taken just before the first change.
+  const touch=()=>{ if(!pushed){ _dcPush(id,snap); pushed=true; } };
+  const hm=m=>String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  const pop=document.createElement('div');
+  pop.id='dc-pop';
+  pop.innerHTML=`<input class="dc-f-title" placeholder="Add title" value="${esc(ev.title||'')}">
+    <div class="dc-f-row"><input type="date" class="dc-f-date" value="${k}"></div>
+    <div class="dc-f-row"><input type="time" step="900" class="dc-f-s" value="${hm(ev.start)}"><span>–</span
+      ><input type="time" step="900" class="dc-f-e" value="${hm(ev.end)}"></div>
+    <div class="dc-f-row"><select class="dc-f-rep">
+        ${[['','Does not repeat'],['daily','Every day'],['weekdays','Every weekday'],['weekly','Every week']]
+          .map(([v,l])=>`<option value="${v}"${(ev.rep||'')===v?' selected':''}>${l}</option>`).join('')}
+      </select>
+      <span class="chart-color-dot dc-f-dot" title="Color" style="background:${ev.color||dcAccent(id)}"></span>
+      <button class="dc-f-link dc-f-reset"${ev.color?'':' hidden'}>Card color</button></div>
+    <textarea class="dc-f-notes" rows="3" placeholder="Notes">${esc(ev.notes||'')}</textarea>
+    <div class="dc-f-foot"><button class="dc-f-del">Delete</button></div>`;
+  const $=s=>pop.querySelector(s);
+  const commit=()=>{ save(); dcRepaint(id); };
+  $('.dc-f-title').addEventListener('input',e=>{ touch(); ev.title=e.target.value; commit(); });
+  $('.dc-f-notes').addEventListener('input',e=>{ touch(); ev.notes=e.target.value; save(); });
+  $('.dc-f-date').addEventListener('change',e=>{
+    const v=e.target.value; if(!v) return;
+    touch(); ev.date=_dcShift(ev.date,_dcDiff(k,v)); k=v;
+    if(_dcSel) _dcSel.date=v; commit();
+  });
+  const toMin=v=>{ if(!v) return null; const [h,m]=v.split(':').map(Number); return h*60+Math.round(m/DC_SNAP)*DC_SNAP; };
+  $('.dc-f-s').addEventListener('change',e=>{
+    const s=toMin(e.target.value); if(s==null) return;
+    touch(); const len=ev.end-ev.start; ev.start=Math.min(s,1440-DC_SNAP); ev.end=Math.min(1440,ev.start+len);
+    $('.dc-f-e').value=hm(ev.end); commit();
+  });
+  $('.dc-f-e').addEventListener('change',e=>{
+    let t=toMin(e.target.value); if(t==null) return;
+    if(t===0) t=1440; // midnight at the end means the end of the day
+    touch(); ev.end=Math.max(ev.start+DC_SNAP,Math.min(1440,t)); e.target.value=hm(ev.end); commit();
+  });
+  $('.dc-f-rep').addEventListener('change',e=>{
+    touch(); ev.rep=e.target.value||null;
+    // A series starts on the day you set it from, not whichever day the event was first made.
+    if(ev.rep){ ev.date=k; ev.ex=[]; }
+    commit();
+  });
+  const dot=$('.dc-f-dot'), reset=$('.dc-f-reset');
+  const paint=c=>{ dot.style.background=c||dcAccent(id); reset.hidden=!c; };
+  dot.addEventListener('click',e=>openColorPop(e,'dcev_'+ev.id,ev.color,
+    c=>{ touch(); ev.color=c; paint(c); commit(); },
+    c=>{ dot.style.background=c; document.querySelectorAll(`.dccard[data-cardid="${id}"] .dc-ev[data-ev="${ev.id}"]`).forEach(b=>b.style.setProperty('--c',c)); }));
+  reset.addEventListener('click',()=>{ touch(); ev.color=null; paint(null); commit(); });
+  const foot=$('.dc-f-foot');
+  const del=all=>{
+    touch();
+    if(all||!ev.rep){ const L=_dcList(id), i=L.indexOf(ev); if(i>=0) L.splice(i,1); }
+    else (ev.ex||(ev.ex=[])).push(k);
+    _dcSel=null; _dcPopClose(); commit();
+  };
+  $('.dc-f-del').addEventListener('click',()=>{
+    if(!ev.rep) return del(false);
+    foot.innerHTML=`<span class="dc-f-q">Delete</span><button class="dc-f-del" data-w="one">This event</button><button class="dc-f-del" data-w="all">All events</button>`;
+    foot.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>del(b.dataset.w==='all')));
+  });
+  pop.addEventListener('keydown',e=>{
+    e.stopPropagation();
+    if(e.key==='Escape'||(e.key==='Enter'&&e.target.classList.contains('dc-f-title'))){ e.preventDefault(); _dcPopClose(); }
+  });
+  document.body.appendChild(pop);
+  const b=document.querySelector(`.dccard[data-cardid="${id}"] .dc-ev[data-ev="${evId}"][data-date="${k}"]`);
+  const r=b?b.getBoundingClientRect():{left:innerWidth/2-130,right:innerWidth/2+130,top:innerHeight/3,bottom:innerHeight/3};
+  const pw=pop.offsetWidth, ph=pop.offsetHeight;
+  let top=r.bottom+6; if(top+ph>innerHeight-8) top=Math.max(8,r.top-ph-6);
+  const left=Math.max(8,Math.min(innerWidth-pw-8,r.left));
+  pop.style.top=top+'px'; pop.style.left=left+'px';
+  if(focusTitle) $('.dc-f-title').focus();
+}
+// Presses outside the editor close it; presses outside any calendar card disarm the keyboard.
+// Capture phase, so the track's own handler can tell the press already did its job.
+document.addEventListener('pointerdown',e=>{
+  const t=e.target; if(!t.closest) return;
+  if(!t.closest('.dccard,#dc-pop,.color-popup')) _dcFocus=null;
+  const pop=document.getElementById('dc-pop');
+  if(pop&&!t.closest('#dc-pop,.color-popup')){ _dcPopClose(); e.__dcClosed=true; }
+},true);
+// Shortcuts, while the pointer is over a calendar card or it was the last thing you pressed —
+// never while typing. Capture phase so Ctrl/⌘+Z undoes the calendar and not a text card.
+document.addEventListener('keydown',e=>{
+  const id=_dcHover||_dcFocus;
+  if(!id||view!=='today'||!cardDef(id)||cardDef(id).type!=='dcal') return;
+  const t=e.target;
+  if(t&&(t.isContentEditable||(t.closest&&t.closest('input,textarea,select,#dc-pop')))) return;
+  const mod=e.ctrlKey||e.metaKey;
+  const stop=()=>{ e.preventDefault(); e.stopImmediatePropagation(); };
+  if(mod&&!e.shiftKey&&(e.key==='z'||e.key==='Z')){ stop(); dcUndo(id); return; }
+  if(mod||e.altKey) return;
+  if(e.key==='Escape'&&(document.getElementById('dc-pop')||_dcSel)){ stop(); _dcPopClose(); _dcSel=null; dcRepaint(id); }
+  else if(e.key==='t'||e.key==='T'){ stop(); goToday(); }
+  else if(e.key==='ArrowLeft'){ stop(); stepDay(-1); }
+  else if(e.key==='ArrowRight'){ stop(); stepDay(1); }
+  else if((e.key==='Delete'||e.key==='Backspace')&&_dcSel&&_dcSel.card===id){
+    stop();
+    const ev=_dcList(id).find(x=>x.id===_dcSel.ev); if(!ev) return;
+    // A repeat asks which — the editor already knows how.
+    if(ev.rep){ dcEdit(id,ev.id,_dcSel.date); const d=document.querySelector('#dc-pop .dc-f-del'); if(d) d.click(); return; }
+    _dcPush(id); _dcList(id).splice(_dcList(id).indexOf(ev),1); _dcSel=null; save(); dcRepaint(id);
+  }
+},true);
+// ── The card ⋯ menu for a calendar ──
+function _dcMenuItems(def){
+  const id=def.id, fit=def.mode==='fit', days=def.days||1, prog=def.prog!==false;
+  const ck=on=>`<span class="pm-ck">${on?'✓':''}</span>`;
+  const hrOpts=(sel,from,to)=>{ let o=''; for(let h=from;h<=to;h++) o+=`<option value="${h*60}"${h*60===sel?' selected':''}>${_rtFmtSlotEdge(h*60)}${h===24?' (end)':''}</option>`; return o; };
+  const [fs,fe]=_dcWin({...def,mode:'fit'});
+  return `<button class="padd-item pm-i" title="Color" aria-label="Color" onclick="_dcCardColor(event,'${id}')">
+      <span class="chart-color-dot" style="background:${dcAccent(id)};pointer-events:none"></span></button>
+    <div class="pm-sep"></div>
+    <div class="pm-lbl">Layout</div>
+    <button class="padd-item pm-i dc-mi" onclick="_dcSet('${id}','mode','scroll')">${ck(!fit)}Scrollable 24h</button>
+    <button class="padd-item pm-i dc-mi" onclick="_dcSet('${id}','mode','fit')">${ck(fit)}Fit to width</button>
+    ${fit?`<div class="pm-i dc-mhrs"><select onchange="_dcSet('${id}','fitStart',+this.value)">${hrOpts(fs,0,23)}</select>–<select
+      onchange="_dcSet('${id}','fitEnd',+this.value)">${hrOpts(fe,1,24)}</select></div>`:''}
+    <div class="pm-lbl">Days</div>
+    <div class="pm-i dc-mdays">${[1,3,7].map(n=>`<button class="dc-btn${n===days?' on':''}" onclick="_dcSet('${id}','days',${n})">${n}</button>`).join('')}</div>
+    <div class="pm-sep"></div>
+    <button class="padd-item pm-i dc-mi" onclick="_dcSet('${id}','prog',${!prog})">${ck(prog)}Progress shading</button>`;
+}
+function _dcSet(id,k,v){
+  const def=cardDef(id); if(!def) return;
+  def[k]=v;
+  // The fit window always spans at least an hour, whichever end moved.
+  if(k==='fitStart'&&(def.fitEnd??1440)<=v) def.fitEnd=Math.min(1440,v+60);
+  if(k==='fitEnd'&&(def.fitStart??360)>=v) def.fitStart=Math.max(0,v-60);
+  _cardsDirty(); dcRepaint(id); _cardMenuRepaint();
+}
+function _dcCardColor(e,id){
+  // Opened before the menu closes: the popup measures the item it hangs from.
+  openColorPop(e,'dc_'+id,(D.chartColors||{})['dc_'+id]||null,
+    c=>{ if(!D.chartColors) D.chartColors={}; D.chartColors['dc_'+id]=c; save(); dcRepaint(id); },
+    c=>{ const el=_dcEl(id); if(el) el.style.setProperty('--dcc',c); });
+  _cardMenuClose();
 }
 // The note under the calendar restores from the card's own slot, the way a text card's body
 // does — after the repaint, so rtFreezeTables runs with the content already in the document.
@@ -3989,6 +4429,13 @@ function mkPlannerCard(def,ix,grid){
     body=`<div class="pcard-bd tlcard" data-cardid="${def.id}" style="${mh};--tlc:${timelineAccent(def.id)}">${timelineCardBody(def.id)}</div>`;
     foot='';
     setTimeout(()=>tlAfter(def.id),0);
+  }else if(def.type==='dcal'){
+    // Hover is what arms the keyboard shortcuts — see the dc keydown handler.
+    body=`<div class="pcard-bd dccard" data-cardid="${def.id}" style="${mh};--dcc:${dcAccent(def.id)}"
+      onpointerenter="_dcHover='${def.id}'" onpointerleave="if(_dcHover==='${def.id}')_dcHover=null"
+      >${dcBody(def.id)}</div>`;
+    foot='';
+    setTimeout(()=>dcAfter(def.id),0);
   }else if(def.type==='journal'){
     // Content is emitted inline rather than restored on a timer — journalCardBody reads the
     // entry itself — but the editor still needs the post-render pass every rich-text host
@@ -4158,13 +4605,7 @@ function _cardMenuHTML(def){
       <span class="chart-color-dot" style="background:${timelineAccent(def.id)};pointer-events:none"></span></button>`);
   }
   if(def.type==='journal') it.push(_jrMenuItems(id));
-  // The same switch as the table's own ⋯ → Calendar view, here too: the card menu is where
-  // people look first, and the table's gutter button only shows while hovering the table.
-  const schedT=def.type==='text'&&document.querySelector(`#card-${id} .rt-table.rt-timeline`);
-  if(schedT){
-    it.push(`<button class="padd-item pm-i" onclick="_cardSchedCal('${id}')"
-      >${schedT.dataset.cal==='on'?'Show as table':'Show as calendar'}</button>`);
-  }
+  if(def.type==='dcal') it.push(_dcMenuItems(def));
   // Text and canvas only: those two carry the same content in two shapes, so the trip is
   // lossless in both directions. There is nothing to carry into a habits or journal card.
   if(def.type==='text'||def.type==='canvas'){
@@ -4196,12 +4637,6 @@ function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
 // did: a card with a stored minH is a card whose height you chose, and a width drag magnetises
 // rather than quantising. migrateCardModes clears the two flags off every existing card.
 function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
-function _cardSchedCal(id){
-  _cardMenuClose();
-  const t=document.querySelector(`#card-${id} .rt-table.rt-timeline`); if(!t) return;
-  if(t.dataset.cal==='on') delete t.dataset.cal; else t.dataset.cal='on';
-  rtPaintAllLive(); rtFire(rtHost(t));
-}
 // removePlannerCard renders when it removes something, but it also has a confirm you can
 // decline — and then the menu is closed in state and still on screen. Render for that case.
 function _cardDelete(id){ _cardMenuClose(); removePlannerCard(id); if(cardDef(id)) render(); }
@@ -4280,7 +4715,11 @@ function addPlannerCard(type,at){
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2*PGRID_SUB,minH:320,cadence:'none'}
   : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2*PGRID_SUB,minH:420,cadence:'none'}
   : type==='weekly' ? {id,type:'text',label:'WEEKLY OUTLINE',span:3*PGRID_SUB,minH:0,cadence:'none'}
-  : type==='schedule' ? {id,type:'text',label:'DAILY SCHEDULE',span:2*PGRID_SUB,minH:0,cadence:'day',sched:true}
+  : type==='schedule' ? {id,type:'text',label:'DAILY OUTLINE',span:2*PGRID_SUB,minH:0,cadence:'day',sched:true}
+  // zoom is px per hour in the scrolling layout; fitStart/fitEnd are the minutes the fit-to-width
+  // layout spans. Both kept on the def so each calendar card remembers its own.
+  : type==='dcal' ? {id,type:'dcal',label:'DAILY CALENDAR',span:2*PGRID_SUB,minH:0,cadence:'none',
+      mode:'scroll',zoom:64,days:1,fitStart:360,fitEnd:1440,prog:true}
   : {id,type:'text',label:'New card',span:PGRID_SUB,minH:0,cadence:'none'};
   // A card dropped into the middle of a band used to be given the column of the card above the
   // plus sign -- which is by definition at or behind the flow cursor, so it opened a band of its
@@ -4308,10 +4747,14 @@ function removePlannerCard(id){
   if(i<0) return;
   // A journal card is its own notebook, keyed by its id, and a card added later gets a new id —
   // so its entries survive the removal but nothing will be able to open them again. Say so.
+  // A Daily Calendar's events are keyed by its id the same way, and nothing else can show them —
+  // so they go with it rather than lingering in every sync unreachable.
   const kept=defs[i].type==='journal'
     ? "Its entries stay in storage, but no card will be able to open them again."
+    : defs[i].type==='dcal' ? "Its events are deleted with it."
     : "What you've written in it is kept.";
   if(!confirm(`Remove "${defs[i].label}" from this page? ${kept}`)) return;
+  if(defs[i].type==='dcal'&&D.dcal) delete D.dcal[id];
   defs.splice(i,1); _cardsDirty(); render();
 }
 // ── Reordering ──
@@ -6905,6 +7348,46 @@ function openColorPop(e,gid){
 }
 
 let chartColorPopKey=null;
+// The same swatch popup, for colors that don't live in D.chartColors — a Daily Calendar event's,
+// say. onPick gets the final color (swatch click or the custom picker's change), onLive every
+// step of the custom picker's drag. `key` only identifies the popup, so pressing the same dot
+// again closes it, the way the chart dots behave.
+function openColorPop(e,key,cur,onPick,onLive){
+  e.stopPropagation();
+  const old=document.getElementById('cpop');
+  if(old){old.remove();if(chartColorPopKey===key){chartColorPopKey=null;return}}
+  chartColorPopKey=key;
+  const pop=document.createElement('div');
+  pop.className='color-popup';pop.id='cpop';
+  const done=()=>{pop.remove();chartColorPopKey=null;};
+  PAL.forEach(c=>{
+    const sw=document.createElement('div');
+    sw.className='csw'+(cur===c?' csw-active':'');
+    sw.style.background=c;
+    sw.onclick=ev=>{ev.stopPropagation();done();onPick(c);};
+    pop.appendChild(sw);
+  });
+  const customSw=document.createElement('div');
+  customSw.className='csw';customSw.title='Custom color';
+  customSw.style.cssText='background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative;overflow:hidden;cursor:pointer';
+  const customIn=document.createElement('input');
+  customIn.type='color';
+  customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
+  if(cur&&!PAL.includes(cur)){customIn.value=cur;customSw.classList.add('csw-active');}
+  customIn.addEventListener('input',ev=>{ev.stopPropagation();if(onLive) onLive(ev.target.value);});
+  customIn.addEventListener('change',ev=>{ev.stopPropagation();done();onPick(ev.target.value);});
+  customSw.appendChild(customIn);customSw.onclick=ev=>ev.stopPropagation();
+  pop.appendChild(customSw);
+  const a=e.currentTarget&&e.currentTarget.getBoundingClientRect?e.currentTarget:e.target;
+  const r=a.getBoundingClientRect();
+  const PW=116,PH=96;
+  let top=r.bottom+6,left=r.left;
+  if(top+PH>window.innerHeight-8) top=r.top-PH-6;
+  if(left+PW>window.innerWidth-8) left=window.innerWidth-PW-8;
+  if(left<8) left=8;if(top<8) top=8;
+  pop.style.top=top+'px';pop.style.left=left+'px';
+  document.body.appendChild(pop);
+}
 function openChartColorPop(e,key){
   e.stopPropagation();
   const old=document.getElementById('cpop');
@@ -8242,10 +8725,10 @@ function _rtPaintIn(root){
     if(hl) t.style.setProperty('--rt-hl',hl); else t.style.removeProperty('--rt-hl');
     rtPaintLive(t);
   });
-  root.querySelectorAll('.rt-table.rt-timeline').forEach(t=>{ rtPaintSchedule(t); rtPaintCalUI(t); });
+  root.querySelectorAll('.rt-table.rt-timeline').forEach(rtPaintSchedule);
 }
 function rtPaintAllLive(){ _rtPaintIn(document); _rtSchedCleanup(); }
-// ─── Daily Schedule: a live "now" line + elapsed shading over a schedule table ──────────
+// ─── Daily Outline: a live "now" line + elapsed shading over a schedule table ──────────
 // Like #rt-ctl (see its comment above), these overlay elements live in document.body, not
 // inside .rt-tw — anything inside the table gets serialized into the saved card HTML on
 // every edit, and a "now" position is never something that belongs in storage.
@@ -8338,175 +8821,14 @@ function rtPaintSchedule(t){
   const nowPct=w>0?((x-L)/w*100):0;
   const featherPx=Math.min(80,Math.max(0,x-L));
   const featherPct=w>0?(featherPx/w*100):0;
-  const tint=`color-mix(in srgb, var(--text1) 6%, transparent)`;
-  const grad=`linear-gradient(to right, ${tint} 0%, ${tint} ${Math.max(0,nowPct-featherPct)}%, transparent ${nowPct}%, transparent 100%)`;
   const wash=el('wash');
-  wash.style.cssText=px({left:L,top:T,width:w,height:B-T})+`;background:${grad}`;
+  wash.style.cssText=px({left:L,top:T,width:w,height:B-T})+`;background:${_progGrad(nowPct,featherPct)}`;
 }
-// ─── Calendar view: per-block color swatches + interior drag-to-resize handles ──────────
-// Same overlay container and key as the live indicator above (never inside .rt-tw, so
-// nothing here is ever serialized), but drawn regardless of whether today falls in this
-// table's span — unlike the "now" wash, coloring and resizing a block is not a today-only
-// thing. Rebuilt from scratch every paint rather than diffed: there are at most a handful
-// of swatches and handles per table, and that's simpler than tracking column-count changes.
-function rtPaintCalUI(t){
-  const cont=_rtSchedCont();
-  if(!_rtSchedKeys.has(t)) _rtSchedKeys.set(t,String(++_rtSchedKeySeq));
-  const key=_rtSchedKeys.get(t);
-  const clear=()=>cont.querySelectorAll(`[data-key="${key}"][data-part^="cal-"]`).forEach(e=>e.remove());
-  clear();
-  if(t.dataset.cal!=='on') return;
-  const tr=t.rows[0];
-  if(!tr) return;
-  const cells=[...tr.cells];
-  const slots=cells.map(c=>_rtParseSlot(c.textContent));
-  // An unparseable label means no boundary math is possible — drop the resize handles and
-  // the color swatches until the text is fixed, same "skip rather than guess" rule the live
-  // indicator's own parse guard follows.
-  if(!slots.length||slots.some(s=>!s)) return;
-  const tb=t.getBoundingClientRect();
-  const tw=t.closest('.rt-tw'), wr=tw?tw.getBoundingClientRect():tb;
-  const L=Math.max(tb.left,wr.left),R=Math.min(tb.right,wr.right);
-  const T=Math.max(tb.top,wr.top),B=Math.min(tb.bottom,wr.bottom);
-  if(R<=L||B<=T) return;
-  const px=(o)=>Object.entries(o).map(([k,v])=>`${k}:${typeof v==='number'?v+'px':v}`).join(';');
-  const mk=(part,cls)=>{ const e=document.createElement('div'); e.className=cls; e.dataset.key=key; e.dataset.part=part; cont.appendChild(e); return e; };
-  cells.forEach((c,i)=>{
-    const cr=c.getBoundingClientRect();
-    if(cr.right<L||cr.left>R) return; // scrolled out of view
-    const dot=mk('cal-sw-'+i,'rt-cal-sw');
-    dot.style.cssText=px({left:Math.min(cr.right,R)-14,top:Math.max(cr.top,T)+3});
-    const cs=getComputedStyle(c);
-    dot.style.background=(cs.getPropertyValue('--tbc')||'').trim()||(cs.getPropertyValue('--tbc0')||'').trim()||'var(--surface)';
-    dot.title="Change this block's color";
-    dot.onclick=e=>{ e.stopPropagation(); rtShowCalSwatch(t,i,dot); };
-  });
-  // Hour ruler above the blocks and faint hour lines through the rows below the header.
-  // Placed within each block by its own start/end rather than one line across the whole
-  // table, so a tick lands inside the block that owns that hour even with the gaps between
-  // blocks. Thinned to every 2 or 3 hours when an hour would be too narrow to label.
-  const span=slots[slots.length-1].end-slots[0].start;
-  const pxPerHr=(tb.width/span)*60;
-  const step=pxPerHr>=36?60:pxPerHr>=18?120:180;
-  const hdB=tr.getBoundingClientRect().bottom;
-  const minToX=m=>{
-    for(let i=0;i<slots.length;i++){
-      const s=slots[i];
-      if(m>=s.start&&m<=s.end){ const r=cells[i].getBoundingClientRect(); return r.left+(m-s.start)/(s.end-s.start)*r.width; }
-    }
-    return null;
-  };
-  for(let m=Math.ceil(slots[0].start/step)*step;m<=slots[slots.length-1].end;m+=step){
-    const x=minToX(m);
-    if(x==null||x<L-1||x>R+1) continue;
-    const lab=mk('cal-tk-'+m,'rt-cal-tick');
-    lab.textContent=_rtFmtSlotEdge(m);
-    lab.style.cssText=px({left:Math.min(Math.max(x,L+14),R-14),top:tb.top-15});
-    // Boundaries between blocks already have their own gap; lines only inside a block.
-    if(slots.some(s=>m===s.start||m===s.end)) continue;
-    if(B<=hdB) continue;
-    const g=mk('cal-gl-'+m,'rt-cal-grid');
-    g.style.cssText=px({left:Math.round(x),top:Math.max(hdB,T),height:B-Math.max(hdB,T)});
-  }
-  for(let i=0;i<cells.length-1;i++){
-    const bx=cells[i].getBoundingClientRect().right;
-    if(bx<L||bx>R) continue; // scrolled out of view
-    const h=mk('cal-h-'+i,'rt-cal-handle');
-    h.style.cssText=px({left:bx-3,top:T,height:B-T});
-    h.title="Drag to move this block's boundary (snaps to the hour)";
-    h.onmousedown=e=>_rtCalDragStart(e,t,i);
-  }
-}
-// The column a swatch/handle belongs to, by index — every row's cell at that index, so
-// picking a color tints the block from its header down through whatever content sits below.
-function _rtCalColCells(t,idx){
-  return [...t.rows].map(r=>r.cells[idx]).filter(Boolean);
-}
-// Reuses the same palette and swatch-row look as _rtHlRow (Live dates / the old table-wide
-// Daily Schedule color), just aimed at one column's cells instead of the whole table, and
-// living in its own small popover since it opens from a dot anchored to a header cell rather
-// than from the ⋯ menu.
-function rtShowCalSwatch(t,idx,anchor){
-  let el=document.getElementById('rt-cal-pop');
-  if(!el){ el=document.createElement('div'); el.id='rt-cal-pop'; el.className='rt-hlrow rt-cal-pop'; document.body.appendChild(el); }
-  const cells=_rtCalColCells(t,idx);
-  if(!cells.length) return;
-  const cur=(cells[0].style.getPropertyValue('--tbc')||'').trim();
-  el.innerHTML='';
-  const pick=v=>{
-    cells.forEach(c=>{ if(v) c.style.setProperty('--tbc',v); else c.style.removeProperty('--tbc'); });
-    rtPaintAllLive(); rtFire(rtHost(t)); el.style.display='none';
-  };
-  const dflt=document.createElement('button');
-  // Clearing the picked color falls back to the column's palette default, not to no color.
-  dflt.className='rt-hlsw'+(cur?'':' on');dflt.title='Default color';
-  dflt.style.background=getComputedStyle(cells[0]).getPropertyValue('--tbc0').trim()||'var(--surface2)';dflt.onclick=()=>pick('');
-  el.appendChild(dflt);
-  TB_COLORS.forEach(c=>{
-    const b=document.createElement('button');
-    b.className='rt-hlsw'+(cur===c?' on':'');b.style.background=c;b.title=c;
-    b.onclick=()=>pick(c);
-    el.appendChild(b);
-  });
-  const cb=document.createElement('button');
-  cb.className='rt-hlsw rt-hlcustom'+(cur&&!TB_COLORS.includes(cur)?' on':'');
-  cb.title='Custom color';
-  const ci=document.createElement('input');ci.type='color';ci.value=cur||'#2563EB';
-  ci.oninput=()=>{ cells.forEach(c=>c.style.setProperty('--tbc',ci.value)); rtPaintAllLive(); };
-  ci.onchange=()=>pick(ci.value);
-  cb.appendChild(ci);el.appendChild(cb);
-  const r=anchor.getBoundingClientRect();
-  el.style.cssText=`display:flex;position:fixed;left:${r.left}px;top:${r.bottom+4}px;z-index:60`;
-}
-document.addEventListener('mousedown',e=>{
-  const el=document.getElementById('rt-cal-pop');
-  if(el&&el.style.display!=='none'&&!e.target.closest('#rt-cal-pop')&&!e.target.closest('.rt-cal-sw')) el.style.display='none';
-});
-// Dragging an interior boundary only ever moves that one boundary: the slot on either side
-// keeps its own far edge fixed, so a drag can't cascade into resizing every block in the
-// row. Snapped to the hour because _rtSlotTok only parses whole-hour tokens — going finer
-// would mean teaching the live-indicator's own parser new syntax just to support this.
-let _rtCalDrag=null;
-function _rtCalDragStart(e,t,i){
-  e.preventDefault();
-  const cells=[...t.rows[0].cells];
-  const slots=cells.map(c=>_rtParseSlot(c.textContent));
-  if(slots.some(s=>!s)) return;
-  const durations=slots.map(s=>s.end-s.start);
-  const tb=t.getBoundingClientRect();
-  const tw=t.closest('.rt-tw'), wr=tw?tw.getBoundingClientRect():tb;
-  const L=Math.max(tb.left,wr.left),R=Math.min(tb.right,wr.right);
-  _rtCalDrag={t,i,cells,slots,durations,L,R,spanStart:slots[0].start,spanEnd:slots[slots.length-1].end,lastB:null};
-  document.body.style.userSelect='none';
-  document.addEventListener('mousemove',_rtCalDragMove);
-  document.addEventListener('mouseup',_rtCalDragEnd);
-}
-function _rtCalDragMove(e){
-  const d=_rtCalDrag; if(!d||d.R<=d.L) return;
-  const frac=Math.min(1,Math.max(0,(e.clientX-d.L)/(d.R-d.L)));
-  let nb=d.spanStart+frac*(d.spanEnd-d.spanStart);
-  nb=Math.round(nb/60)*60;
-  const lo=d.slots[d.i].start+60,hi=d.slots[d.i+1].end-60;
-  nb=Math.min(hi,Math.max(lo,nb));
-  if(nb===d.lastB) return;
-  d.lastB=nb;
-  d.cells[d.i].textContent=_rtFmtSlotEdge(d.slots[d.i].start)+'-'+_rtFmtSlotEdge(nb);
-  d.cells[d.i+1].textContent=_rtFmtSlotEdge(nb)+'-'+_rtFmtSlotEdge(d.slots[d.i+1].end);
-  const dur=d.durations.slice();
-  dur[d.i]=nb-d.slots[d.i].start;
-  dur[d.i+1]=d.slots[d.i+1].end-nb;
-  const w=_schedColWidths(dur);
-  const cg=d.t.querySelector('colgroup');
-  if(cg) [...cg.children].forEach((col,k)=>{ if(w[k]!=null) col.style.width=w[k]+'%'; });
-  rtPaintAllLive();
-}
-function _rtCalDragEnd(){
-  const d=_rtCalDrag; if(!d) return;
-  document.removeEventListener('mousemove',_rtCalDragMove);
-  document.removeEventListener('mouseup',_rtCalDragEnd);
-  document.body.style.userSelect='';
-  _rtCalDrag=null;
-  rtFire(rtHost(d.t));
+// The "this much of the day has gone" wash, shared by the Daily Outline and the Daily Calendar
+// so the two read as the same thing. Percentages are of whatever box the gradient paints.
+function _progGrad(nowPct,featherPct){
+  const tint=`color-mix(in srgb, var(--text1) 6%, transparent)`;
+  return `linear-gradient(to right, ${tint} 0%, ${tint} ${Math.max(0,nowPct-featherPct)}%, transparent ${nowPct}%, transparent 100%)`;
 }
 // Removes overlay elements for schedule tables no longer in the document (card deleted,
 // content swapped to a different day) — run only on the full-document sweep, since a
@@ -8517,7 +8839,7 @@ function _rtSchedCleanup(){
   const live=new Set([...document.querySelectorAll('.rt-table.rt-timeline')].map(t=>_rtSchedKeys.get(t)).filter(Boolean));
   cont.querySelectorAll('[data-key]').forEach(e=>{ if(!live.has(e.dataset.key)) e.remove(); });
 }
-setInterval(rtPaintAllLive,30000);
+setInterval(()=>{ rtPaintAllLive(); dcPaintNowAll(); },30000);
 // One editor's worth. Anything that rewrites an editor's innerHTML from storage brings the
 // table back bare -- stored HTML has no dates in it, and correctly so -- so every such path
 // repaints behind itself rather than waiting for the next full render.
@@ -10584,7 +10906,7 @@ function rtHideCtl(){
 }
 // The swatch row from the time-block modal, so picking a color looks the same wherever you
 // do it. The choice lives on the table as data-hl, so each table keeps its own and it
-// travels with the card when one is duplicated. Shared by Live dates and the Daily Schedule.
+// travels with the card when one is duplicated. Shared by Live dates and the Daily Outline.
 function _rtHlRow(t){
   const hr=document.createElement('div');hr.className='rt-hlrow';
   const cur=t.dataset.hl||'';
@@ -10825,7 +11147,7 @@ function rtShowCtl(t){
       };
       m.appendChild(row);
     });
-    // Daily Schedule: whether the "now" marker (a neutral shading, not colored) is drawn.
+    // Daily Outline: whether the "now" marker (a neutral shading, not colored) is drawn.
     if(t.classList.contains('rt-timeline')){
       const sepL=document.createElement('div');sepL.className='rt-sep';m.appendChild(sepL);
       const lsOn=t.dataset.ls!=='off';
@@ -10838,16 +11160,6 @@ function rtShowCtl(t){
         rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
       };
       m.appendChild(lsRow);
-      const calOn=t.dataset.cal==='on';
-      const calRow=document.createElement('div');calRow.className='rt-item';
-      calRow.innerHTML=`<span class="rt-ck">${calOn?'✓':''}</span><span></span>`;
-      calRow.lastElementChild.textContent='Calendar view';
-      calRow.title='Colored, horizontally proportional blocks — drag an interior edge to resize, click a block\'s swatch to color it.';
-      calRow.onclick=()=>{
-        if(calOn) delete t.dataset.cal; else t.dataset.cal='on';
-        rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
-      };
-      m.appendChild(calRow);
     }
     // Live dates, and the weekly tools that only mean anything once a table has weeks in it.
     // A table with no day-name header row shows none of this, so an ordinary table's menu is
@@ -11742,7 +12054,7 @@ function rtReposition(){
   _rtRaf=requestAnimationFrame(()=>{
     _rtRaf=null;
     if(_rtCtlTable){ if(document.contains(_rtCtlTable)) rtShowCtl(_rtCtlTable); else rtHideCtl(); }
-    document.querySelectorAll('.rt-table.rt-timeline').forEach(t=>{ rtPaintSchedule(t); rtPaintCalUI(t); });
+    document.querySelectorAll('.rt-table.rt-timeline').forEach(rtPaintSchedule);
   });
 }
 // ─── Dragging a toggle ───────────────────────────────────────────
