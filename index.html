@@ -768,6 +768,17 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .rt-sn{position:fixed;pointer-events:none;z-index:1}
 .rt-sn-slot{box-sizing:border-box;border:1.5px solid color-mix(in srgb,var(--text1) 32%,transparent)}
 .rt-sn-wash{}
+/* Calendar view: per-block tint (a style-attribute custom property, so it's set the same way
+   colgroup widths already are and round-trips through saved HTML the same way) plus its
+   overlay controls — a swatch dot per block and a drag handle on each interior boundary.
+   Unlike .rt-sn above these need pointer-events, so they're a separate, clickable layer. */
+.rt-table.rt-timeline[data-cal="on"] td[style*="--tbc"]{background:color-mix(in srgb,var(--tbc) 14%,var(--surface))}
+.rt-table.rt-timeline[data-cal="on"] tr:first-child td[style*="--tbc"]{border-bottom:2px solid var(--tbc)}
+.rt-cal-sw{position:fixed;z-index:2;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--border);cursor:pointer;pointer-events:auto;background:var(--surface)}
+.rt-cal-sw:hover{border-color:var(--text2)}
+.rt-cal-handle{position:fixed;z-index:2;width:6px;cursor:col-resize;pointer-events:auto}
+.rt-cal-handle:hover{background:color-mix(in srgb,var(--text1) 10%,transparent)}
+.rt-cal-pop{display:none;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-md)}
 /* Gap only between a pair you deliberately made, which is why both halves carry the
    class. Adjacency alone used to be enough, and adjacency happens by accident: drag a
    table to sit under another, or paste one beside one, and the second was shunted 10px
@@ -2599,13 +2610,17 @@ const SCHED_SLOTS=[
   {label:'8PM-11PM',start:1200,end:1380},
   {label:'11PM-1AM',start:1380,end:1500},
 ];
-function scheduleTableHTML(){
-  const total=SCHED_SLOTS[SCHED_SLOTS.length-1].end-SCHED_SLOTS[0].start;
-  const raw=SCHED_SLOTS.map(s=>(s.end-s.start)/total*100);
-  // Same rounding trick as weeklyTableHTML: the last column carries the remainder so the
-  // widths land on exactly 100 rather than drifting a hair short.
+// Shared by initial creation and by dragging a calendar-view boundary: durations in, percent
+// widths out, last column carrying the rounding remainder so they land on exactly 100.
+function _schedColWidths(durations){
+  const total=durations.reduce((a,b)=>a+b,0);
+  const raw=durations.map(d=>d/total*100);
   const w=raw.map(x=>Math.round(x*100)/100);
   w[w.length-1]=Math.round((100-w.slice(0,-1).reduce((a,b)=>a+b,0))*100)/100;
+  return w;
+}
+function scheduleTableHTML(){
+  const w=_schedColWidths(SCHED_SLOTS.map(s=>s.end-s.start));
   const cols='<colgroup>'+w.map(p=>`<col style="width: ${p}%;">`).join('')+'</colgroup>';
   const hd=SCHED_SLOTS.map(s=>`<td contenteditable="true" class="rt-hd">${s.label}</td>`).join('');
   const row=SCHED_SLOTS.map(()=>'<td contenteditable="true"><br></td>').join('');
@@ -8193,7 +8208,7 @@ function _rtPaintIn(root){
     if(hl) t.style.setProperty('--rt-hl',hl); else t.style.removeProperty('--rt-hl');
     rtPaintLive(t);
   });
-  root.querySelectorAll('.rt-table.rt-timeline').forEach(rtPaintSchedule);
+  root.querySelectorAll('.rt-table.rt-timeline').forEach(t=>{ rtPaintSchedule(t); rtPaintCalUI(t); });
 }
 function rtPaintAllLive(){ _rtPaintIn(document); _rtSchedCleanup(); }
 // ─── Daily Schedule: a live "now" line + elapsed shading over a schedule table ──────────
@@ -8220,6 +8235,15 @@ function _rtParseSlot(label){
   let start=to24(a.h,a.p)*60,end=to24(b.h,b.p)*60;
   if(end<=start) end+=1440;
   return {start,end};
+}
+// The inverse of _rtSlotTok, for writing a dragged boundary back into header text. Minutes
+// are always a whole hour here — calendar-view dragging snaps to the hour, the same
+// granularity _rtSlotTok already parses, so a dragged label is never something the "now"
+// indicator or a reopened editor would fail to read back.
+function _rtFmtSlotEdge(min){
+  let h=Math.round(min/60)%24; if(h<0) h+=24;
+  let h12=h%12; if(h12===0) h12=12;
+  return h12+(h<12?'AM':'PM');
 }
 function _rtSchedCont(){
   let el=document.getElementById('rt-sched-now');
@@ -8284,6 +8308,143 @@ function rtPaintSchedule(t){
   const grad=`linear-gradient(to right, ${tint} 0%, ${tint} ${Math.max(0,nowPct-featherPct)}%, transparent ${nowPct}%, transparent 100%)`;
   const wash=el('wash');
   wash.style.cssText=px({left:L,top:T,width:w,height:B-T})+`;background:${grad}`;
+}
+// ─── Calendar view: per-block color swatches + interior drag-to-resize handles ──────────
+// Same overlay container and key as the live indicator above (never inside .rt-tw, so
+// nothing here is ever serialized), but drawn regardless of whether today falls in this
+// table's span — unlike the "now" wash, coloring and resizing a block is not a today-only
+// thing. Rebuilt from scratch every paint rather than diffed: there are at most a handful
+// of swatches and handles per table, and that's simpler than tracking column-count changes.
+function rtPaintCalUI(t){
+  const cont=_rtSchedCont();
+  if(!_rtSchedKeys.has(t)) _rtSchedKeys.set(t,String(++_rtSchedKeySeq));
+  const key=_rtSchedKeys.get(t);
+  const clear=()=>cont.querySelectorAll(`[data-key="${key}"][data-part^="cal-"]`).forEach(e=>e.remove());
+  clear();
+  if(t.dataset.cal!=='on') return;
+  const tr=t.rows[0];
+  if(!tr) return;
+  const cells=[...tr.cells];
+  const slots=cells.map(c=>_rtParseSlot(c.textContent));
+  // An unparseable label means no boundary math is possible — drop the resize handles and
+  // the color swatches until the text is fixed, same "skip rather than guess" rule the live
+  // indicator's own parse guard follows.
+  if(!slots.length||slots.some(s=>!s)) return;
+  const tb=t.getBoundingClientRect();
+  const tw=t.closest('.rt-tw'), wr=tw?tw.getBoundingClientRect():tb;
+  const L=Math.max(tb.left,wr.left),R=Math.min(tb.right,wr.right);
+  const T=Math.max(tb.top,wr.top),B=Math.min(tb.bottom,wr.bottom);
+  if(R<=L||B<=T) return;
+  const px=(o)=>Object.entries(o).map(([k,v])=>`${k}:${typeof v==='number'?v+'px':v}`).join(';');
+  const mk=(part,cls)=>{ const e=document.createElement('div'); e.className=cls; e.dataset.key=key; e.dataset.part=part; cont.appendChild(e); return e; };
+  cells.forEach((c,i)=>{
+    const cr=c.getBoundingClientRect();
+    if(cr.right<L||cr.left>R) return; // scrolled out of view
+    const dot=mk('cal-sw-'+i,'rt-cal-sw');
+    dot.style.cssText=px({left:Math.min(cr.right,R)-14,top:Math.max(cr.top,T)+3});
+    const cur=(c.style.getPropertyValue('--tbc')||'').trim();
+    dot.style.background=cur||'transparent';
+    dot.title=cur?"Change this block's color":'Set a color for this block';
+    dot.onclick=e=>{ e.stopPropagation(); rtShowCalSwatch(t,i,dot); };
+  });
+  for(let i=0;i<cells.length-1;i++){
+    const bx=cells[i].getBoundingClientRect().right;
+    if(bx<L||bx>R) continue; // scrolled out of view
+    const h=mk('cal-h-'+i,'rt-cal-handle');
+    h.style.cssText=px({left:bx-3,top:T,height:B-T});
+    h.title="Drag to move this block's boundary (snaps to the hour)";
+    h.onmousedown=e=>_rtCalDragStart(e,t,i);
+  }
+}
+// The column a swatch/handle belongs to, by index — every row's cell at that index, so
+// picking a color tints the block from its header down through whatever content sits below.
+function _rtCalColCells(t,idx){
+  return [...t.rows].map(r=>r.cells[idx]).filter(Boolean);
+}
+// Reuses the same palette and swatch-row look as _rtHlRow (Live dates / the old table-wide
+// Daily Schedule color), just aimed at one column's cells instead of the whole table, and
+// living in its own small popover since it opens from a dot anchored to a header cell rather
+// than from the ⋯ menu.
+function rtShowCalSwatch(t,idx,anchor){
+  let el=document.getElementById('rt-cal-pop');
+  if(!el){ el=document.createElement('div'); el.id='rt-cal-pop'; el.className='rt-hlrow rt-cal-pop'; document.body.appendChild(el); }
+  const cells=_rtCalColCells(t,idx);
+  if(!cells.length) return;
+  const cur=(cells[0].style.getPropertyValue('--tbc')||'').trim();
+  el.innerHTML='';
+  const pick=v=>{
+    cells.forEach(c=>{ if(v) c.style.setProperty('--tbc',v); else c.style.removeProperty('--tbc'); });
+    rtPaintAllLive(); rtFire(rtHost(t)); el.style.display='none';
+  };
+  const dflt=document.createElement('button');
+  dflt.className='rt-hlsw'+(cur?'':' on');dflt.title='No color';
+  dflt.style.background='var(--surface2)';dflt.onclick=()=>pick('');
+  el.appendChild(dflt);
+  TB_COLORS.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='rt-hlsw'+(cur===c?' on':'');b.style.background=c;b.title=c;
+    b.onclick=()=>pick(c);
+    el.appendChild(b);
+  });
+  const cb=document.createElement('button');
+  cb.className='rt-hlsw rt-hlcustom'+(cur&&!TB_COLORS.includes(cur)?' on':'');
+  cb.title='Custom color';
+  const ci=document.createElement('input');ci.type='color';ci.value=cur||'#2563EB';
+  ci.oninput=()=>{ cells.forEach(c=>c.style.setProperty('--tbc',ci.value)); rtPaintAllLive(); };
+  ci.onchange=()=>pick(ci.value);
+  cb.appendChild(ci);el.appendChild(cb);
+  const r=anchor.getBoundingClientRect();
+  el.style.cssText=`display:flex;position:fixed;left:${r.left}px;top:${r.bottom+4}px;z-index:60`;
+}
+document.addEventListener('mousedown',e=>{
+  const el=document.getElementById('rt-cal-pop');
+  if(el&&el.style.display!=='none'&&!e.target.closest('#rt-cal-pop')&&!e.target.closest('.rt-cal-sw')) el.style.display='none';
+});
+// Dragging an interior boundary only ever moves that one boundary: the slot on either side
+// keeps its own far edge fixed, so a drag can't cascade into resizing every block in the
+// row. Snapped to the hour because _rtSlotTok only parses whole-hour tokens — going finer
+// would mean teaching the live-indicator's own parser new syntax just to support this.
+let _rtCalDrag=null;
+function _rtCalDragStart(e,t,i){
+  e.preventDefault();
+  const cells=[...t.rows[0].cells];
+  const slots=cells.map(c=>_rtParseSlot(c.textContent));
+  if(slots.some(s=>!s)) return;
+  const durations=slots.map(s=>s.end-s.start);
+  const tb=t.getBoundingClientRect();
+  const tw=t.closest('.rt-tw'), wr=tw?tw.getBoundingClientRect():tb;
+  const L=Math.max(tb.left,wr.left),R=Math.min(tb.right,wr.right);
+  _rtCalDrag={t,i,cells,slots,durations,L,R,spanStart:slots[0].start,spanEnd:slots[slots.length-1].end,lastB:null};
+  document.body.style.userSelect='none';
+  document.addEventListener('mousemove',_rtCalDragMove);
+  document.addEventListener('mouseup',_rtCalDragEnd);
+}
+function _rtCalDragMove(e){
+  const d=_rtCalDrag; if(!d||d.R<=d.L) return;
+  const frac=Math.min(1,Math.max(0,(e.clientX-d.L)/(d.R-d.L)));
+  let nb=d.spanStart+frac*(d.spanEnd-d.spanStart);
+  nb=Math.round(nb/60)*60;
+  const lo=d.slots[d.i].start+60,hi=d.slots[d.i+1].end-60;
+  nb=Math.min(hi,Math.max(lo,nb));
+  if(nb===d.lastB) return;
+  d.lastB=nb;
+  d.cells[d.i].textContent=_rtFmtSlotEdge(d.slots[d.i].start)+'-'+_rtFmtSlotEdge(nb);
+  d.cells[d.i+1].textContent=_rtFmtSlotEdge(nb)+'-'+_rtFmtSlotEdge(d.slots[d.i+1].end);
+  const dur=d.durations.slice();
+  dur[d.i]=nb-d.slots[d.i].start;
+  dur[d.i+1]=d.slots[d.i+1].end-nb;
+  const w=_schedColWidths(dur);
+  const cg=d.t.querySelector('colgroup');
+  if(cg) [...cg.children].forEach((col,k)=>{ if(w[k]!=null) col.style.width=w[k]+'%'; });
+  rtPaintAllLive();
+}
+function _rtCalDragEnd(){
+  const d=_rtCalDrag; if(!d) return;
+  document.removeEventListener('mousemove',_rtCalDragMove);
+  document.removeEventListener('mouseup',_rtCalDragEnd);
+  document.body.style.userSelect='';
+  _rtCalDrag=null;
+  rtFire(rtHost(d.t));
 }
 // Removes overlay elements for schedule tables no longer in the document (card deleted,
 // content swapped to a different day) — run only on the full-document sweep, since a
@@ -10615,6 +10776,16 @@ function rtShowCtl(t){
         rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
       };
       m.appendChild(lsRow);
+      const calOn=t.dataset.cal==='on';
+      const calRow=document.createElement('div');calRow.className='rt-item';
+      calRow.innerHTML=`<span class="rt-ck">${calOn?'✓':''}</span><span></span>`;
+      calRow.lastElementChild.textContent='Calendar view';
+      calRow.title='Colored, horizontally proportional blocks — drag an interior edge to resize, click a block\'s swatch to color it.';
+      calRow.onclick=()=>{
+        if(calOn) delete t.dataset.cal; else t.dataset.cal='on';
+        rtPaintAllLive(); rtFire(rtHost(t)); rtShowCtl(t);
+      };
+      m.appendChild(calRow);
     }
     // Live dates, and the weekly tools that only mean anything once a table has weeks in it.
     // A table with no day-name header row shows none of this, so an ordinary table's menu is
@@ -11509,7 +11680,7 @@ function rtReposition(){
   _rtRaf=requestAnimationFrame(()=>{
     _rtRaf=null;
     if(_rtCtlTable){ if(document.contains(_rtCtlTable)) rtShowCtl(_rtCtlTable); else rtHideCtl(); }
-    document.querySelectorAll('.rt-table.rt-timeline').forEach(rtPaintSchedule);
+    document.querySelectorAll('.rt-table.rt-timeline').forEach(t=>{ rtPaintSchedule(t); rtPaintCalUI(t); });
   });
 }
 // ─── Dragging a toggle ───────────────────────────────────────────
