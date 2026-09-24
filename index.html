@@ -772,10 +772,31 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    colgroup widths already are and round-trips through saved HTML the same way) plus its
    overlay controls — a swatch dot per block and a drag handle on each interior boundary.
    Unlike .rt-sn above these need pointer-events, so they're a separate, clickable layer. */
-.rt-table.rt-timeline[data-cal="on"] td[style*="--tbc"]{background:color-mix(in srgb,var(--tbc) 14%,var(--surface))}
-.rt-table.rt-timeline[data-cal="on"] tr:first-child td[style*="--tbc"]{border-bottom:2px solid var(--tbc)}
-.rt-cal-sw{position:fixed;z-index:2;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--border);cursor:pointer;pointer-events:auto;background:var(--surface)}
-.rt-cal-sw:hover{border-color:var(--text2)}
+/* Every block has a color the moment the view is on: a picked one (--tbc, saved on the cell)
+   or else one from the palette by column (--tbc0, CSS only — nothing saved, so turning the view
+   off leaves the plain table exactly as it was). Blocks read as events rather than grid cells:
+   spaced apart, rounded, tinted, with a solid bar down the left edge. */
+.rt-table.rt-timeline[data-cal="on"]{border-collapse:separate;border-spacing:4px 0}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+1){--tbc0:#3B82F6}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+2){--tbc0:#8B5CF6}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+3){--tbc0:#10B981}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+4){--tbc0:#F59E0B}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+5){--tbc0:#EC4899}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+6){--tbc0:#14B8A6}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+7){--tbc0:#FACC15}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+8){--tbc0:#6366F1}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+9){--tbc0:#EF4444}
+.rt-table.rt-timeline[data-cal="on"] td:nth-child(10n+10){--tbc0:#06B6D4}
+.rt-table.rt-timeline[data-cal="on"] td{--cb:var(--tbc,var(--tbc0));border:none;border-left:3px solid var(--cb);background:color-mix(in srgb,var(--cb) 12%,var(--surface))}
+.rt-table.rt-timeline[data-cal="on"] tr:first-child td{background:color-mix(in srgb,var(--cb) 26%,var(--surface));border-radius:0 8px 0 0;font-size:12px}
+.rt-table.rt-timeline[data-cal="on"] tr:last-child td{border-radius:0 0 8px 0}
+.rt-table.rt-timeline[data-cal="on"] tr:only-child td{border-radius:0 8px 8px 0}
+/* Room above the table for the hour ruler the overlay draws there. */
+.rt-tw:has(> .rt-table.rt-timeline[data-cal="on"]){padding-top:16px}
+.rt-cal-tick{position:fixed;z-index:1;pointer-events:none;font-size:10px;line-height:12px;color:var(--text3,var(--text2));transform:translateX(-50%);white-space:nowrap;font-family:var(--font)}
+.rt-cal-grid{position:fixed;z-index:1;pointer-events:none;width:0;border-left:1px dashed color-mix(in srgb,var(--text1) 14%,transparent)}
+.rt-cal-sw{position:fixed;z-index:2;width:10px;height:10px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border);cursor:pointer;pointer-events:auto;background:var(--surface)}
+.rt-cal-sw:hover{box-shadow:0 0 0 1px var(--text2)}
 .rt-cal-handle{position:fixed;z-index:2;width:6px;cursor:col-resize;pointer-events:auto}
 .rt-cal-handle:hover{background:color-mix(in srgb,var(--text1) 10%,transparent)}
 .rt-cal-pop{display:none;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow-md)}
@@ -8355,11 +8376,38 @@ function rtPaintCalUI(t){
     if(cr.right<L||cr.left>R) return; // scrolled out of view
     const dot=mk('cal-sw-'+i,'rt-cal-sw');
     dot.style.cssText=px({left:Math.min(cr.right,R)-14,top:Math.max(cr.top,T)+3});
-    const cur=(c.style.getPropertyValue('--tbc')||'').trim();
-    dot.style.background=cur||'transparent';
-    dot.title=cur?"Change this block's color":'Set a color for this block';
+    const cs=getComputedStyle(c);
+    dot.style.background=(cs.getPropertyValue('--tbc')||'').trim()||(cs.getPropertyValue('--tbc0')||'').trim()||'var(--surface)';
+    dot.title="Change this block's color";
     dot.onclick=e=>{ e.stopPropagation(); rtShowCalSwatch(t,i,dot); };
   });
+  // Hour ruler above the blocks and faint hour lines through the rows below the header.
+  // Placed within each block by its own start/end rather than one line across the whole
+  // table, so a tick lands inside the block that owns that hour even with the gaps between
+  // blocks. Thinned to every 2 or 3 hours when an hour would be too narrow to label.
+  const span=slots[slots.length-1].end-slots[0].start;
+  const pxPerHr=(tb.width/span)*60;
+  const step=pxPerHr>=36?60:pxPerHr>=18?120:180;
+  const hdB=tr.getBoundingClientRect().bottom;
+  const minToX=m=>{
+    for(let i=0;i<slots.length;i++){
+      const s=slots[i];
+      if(m>=s.start&&m<=s.end){ const r=cells[i].getBoundingClientRect(); return r.left+(m-s.start)/(s.end-s.start)*r.width; }
+    }
+    return null;
+  };
+  for(let m=Math.ceil(slots[0].start/step)*step;m<=slots[slots.length-1].end;m+=step){
+    const x=minToX(m);
+    if(x==null||x<L-1||x>R+1) continue;
+    const lab=mk('cal-tk-'+m,'rt-cal-tick');
+    lab.textContent=_rtFmtSlotEdge(m);
+    lab.style.cssText=px({left:Math.min(Math.max(x,L+14),R-14),top:tb.top-15});
+    // Boundaries between blocks already have their own gap; lines only inside a block.
+    if(slots.some(s=>m===s.start||m===s.end)) continue;
+    if(B<=hdB) continue;
+    const g=mk('cal-gl-'+m,'rt-cal-grid');
+    g.style.cssText=px({left:Math.round(x),top:Math.max(hdB,T),height:B-Math.max(hdB,T)});
+  }
   for(let i=0;i<cells.length-1;i++){
     const bx=cells[i].getBoundingClientRect().right;
     if(bx<L||bx>R) continue; // scrolled out of view
@@ -8390,8 +8438,9 @@ function rtShowCalSwatch(t,idx,anchor){
     rtPaintAllLive(); rtFire(rtHost(t)); el.style.display='none';
   };
   const dflt=document.createElement('button');
-  dflt.className='rt-hlsw'+(cur?'':' on');dflt.title='No color';
-  dflt.style.background='var(--surface2)';dflt.onclick=()=>pick('');
+  // Clearing the picked color falls back to the column's palette default, not to no color.
+  dflt.className='rt-hlsw'+(cur?'':' on');dflt.title='Default color';
+  dflt.style.background=getComputedStyle(cells[0]).getPropertyValue('--tbc0').trim()||'var(--surface2)';dflt.onclick=()=>pick('');
   el.appendChild(dflt);
   TB_COLORS.forEach(c=>{
     const b=document.createElement('button');
