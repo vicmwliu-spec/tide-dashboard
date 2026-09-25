@@ -192,9 +192,11 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .dc-ev.sel{box-shadow:0 0 0 2px var(--c),0 2px 8px rgba(0,0,0,.15);z-index:2}
 .dc-ev:active{cursor:grabbing}
 .dc-t,.dc-tm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.dc-t{font-size:12px;font-weight:600;line-height:1.25}
-.dc-tm{font-size:10.5px;color:var(--text2);line-height:1.25;font-variant-numeric:tabular-nums}
-.dc-rep{font-weight:400;color:var(--text3)}
+/* Text is a shade of the block's own color, as in Notion Calendar: mixed toward the theme's
+   text color, so it darkens on light surfaces and lightens on dark ones, and follows --c live. */
+.dc-t{font-size:12px;font-weight:600;line-height:1.25;color:color-mix(in srgb,var(--c) 55%,var(--text1))}
+.dc-tm{font-size:10.5px;color:color-mix(in srgb,var(--c) 45%,var(--text2));line-height:1.25;font-variant-numeric:tabular-nums}
+.dc-rep{font-weight:400;color:inherit;opacity:.7}
 .dc-h{position:absolute;top:0;bottom:0;width:6px;cursor:ew-resize;z-index:1}
 .dc-hl{left:-3px}.dc-hr{right:0}
 .dc-ghost{--c:var(--dcc);opacity:.85;pointer-events:none;border-style:dashed}
@@ -3184,6 +3186,12 @@ document.addEventListener('pointerdown',e=>{
   if(!t.closest('.dccard,#dc-pop,.color-popup')) _dcFocus=null;
   const pop=document.getElementById('dc-pop');
   if(pop&&!t.closest('#dc-pop,.color-popup')){ _dcPopClose(); e.__dcClosed=true; }
+  // A press anywhere but the selected event (or its editor) lets go of it. Only the class is
+  // dropped -- repainting here would swap out the row the track's handler is about to use.
+  const evEl=t.closest('.dc-ev');
+  if(_dcSel&&!t.closest('#dc-pop,.color-popup')&&!(evEl&&evEl.dataset.ev===_dcSel.ev&&evEl.dataset.date===_dcSel.date)){
+    _dcSel=null; document.querySelectorAll('.dc-ev.sel').forEach(b=>b.classList.remove('sel'));
+  }
 },true);
 // Shortcuts, while the pointer is over a calendar card or it was the last thing you pressed —
 // never while typing. Capture phase so Ctrl/⌘+Z undoes the calendar and not a text card.
