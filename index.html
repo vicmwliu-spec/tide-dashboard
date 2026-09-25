@@ -2839,7 +2839,7 @@ function tlRepaint(id){
 const DC_LANE=36, DC_SNAP=15, DC_RULER=22;
 let _dcHover=null, _dcFocus=null, _dcSel=null; // _dcSel: {card, ev, date}
 const _dc={}, _dcUndo={};                      // per card: view state; undo snapshots
-function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||gradeAccent(); }
+function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||'#FFFFFF'; }
 function _dcList(id){ if(!D.dcal) D.dcal={}; return D.dcal[id]||(D.dcal[id]=[]); }
 function _dcKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function _dcDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
