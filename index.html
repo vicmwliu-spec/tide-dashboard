@@ -211,6 +211,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .dc-f-row input[type=date]{flex:1}
 .dc-f-row input[type=time]{flex:1}
 .dc-f-row select{flex:1}
+.dc-f-nx{font-size:11px;color:var(--text3);white-space:nowrap}
 .dc-f-link{background:none;border:none;color:var(--text3);font:inherit;font-size:11px;cursor:pointer;padding:0;text-decoration:underline}
 .dc-f-foot{display:flex;align-items:center;gap:6px;justify-content:flex-end}
 .dc-f-q{font-size:12px;color:var(--text2);margin-right:auto}
@@ -2833,10 +2834,11 @@ function tlRepaint(id){
 // A day planner in the Notion Calendar mould, turned on its side: time runs left to right and
 // overlapping events stack into lanes downward. Events are the card's own, in D.dcal[cardId]:
 //   {id,title,notes,date:'YYYY-MM-DD',start,end,color,rep,ex}
-// start/end are minutes past midnight (0–1440, on the 15-minute grid); color null means the
+// start/end are minutes past midnight on `date`, on the 15-minute grid: 0 ≤ start < 1440 and
+// start < end ≤ start+1440, so an end past 1440 runs into the next day; color null means the
 // card's color; rep is null|'daily'|'weekdays'|'weekly', starting at `date`; ex lists the dates
 // a repeat was deleted from. The card follows the dashboard's plan date PD like the Outline does.
-const DC_LANE=36, DC_SNAP=15, DC_RULER=22;
+const DC_LANE=36, DC_SNAP=15, DC_RULER=22, DC_WMAX=2160; // a fit window may end as late as noon the next day
 let _dcHover=null, _dcFocus=null, _dcSel=null; // _dcSel: {card, ev, date}
 const _dc={}, _dcUndo={};                      // per card: view state; undo snapshots
 function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||'#FFFFFF'; }
@@ -2845,6 +2847,11 @@ function _dcKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2
 function _dcDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
 function _dcShift(k,n){ const d=_dcDate(k); d.setDate(d.getDate()+n); return _dcKey(d); }
 function _dcDiff(a,b){ return Math.round((_dcDate(b)-_dcDate(a))/864e5); }
+// Files an event under the day its start falls on, after a drag carried it across midnight.
+function _dcNorm(ev){
+  while(ev.start<0){ ev.date=_dcShift(ev.date,-1); ev.start+=1440; ev.end+=1440; }
+  while(ev.start>=1440){ ev.date=_dcShift(ev.date,1); ev.start-=1440; ev.end-=1440; }
+}
 function _dcFmt(m){
   const h=Math.floor(m/60)%24, mm=m%60, h12=h%12||12;
   return h12+(mm?':'+String(mm).padStart(2,'0'):'')+(h<12?'AM':'PM');
@@ -2860,13 +2867,22 @@ function dcOccurs(ev,k){
   return false;
 }
 function _dcWin(def){ return def.mode==='fit'?[def.fitStart??360,def.fitEnd??1440]:[0,1440]; }
+// What row k shows of the window [w0,w1]: its own events, the overnight tails of the day
+// before, and -- when the window runs past midnight -- the next day's early hours. a/b are on
+// this row's timeline; occ is the day the occurrence belongs to.
 // Greedy lanes: each event takes the first lane whose last event has ended by its start.
-function _dcLay(id,k){
-  const occ=_dcList(id).filter(ev=>dcOccurs(ev,k)).sort((a,b)=>a.start-b.start||b.end-a.end)
-    .map(ev=>({ev,lane:0}));
+function _dcLay(id,k,w0,w1){
+  const L=_dcList(id), out=[];
+  const add=(dk,off)=>L.forEach(ev=>{
+    if(!dcOccurs(ev,dk)) return;
+    const a=ev.start+off, b=ev.end+off;
+    if(a<w1&&b>w0) out.push({ev,occ:dk,a,b,lane:0});
+  });
+  add(_dcShift(k,-1),-1440); add(k,0); if(w1>1440) add(_dcShift(k,1),1440);
+  out.sort((x,y)=>x.a-y.a||y.b-x.b);
   const ends=[];
-  occ.forEach(o=>{ let l=ends.findIndex(t=>t<=o.ev.start); if(l<0){ l=ends.length; ends.push(0); } ends[l]=o.ev.end; o.lane=l; });
-  return {occ,lanes:Math.max(1,ends.length)};
+  out.forEach(o=>{ let l=ends.findIndex(t=>t<=o.a); if(l<0){ l=ends.length; ends.push(0); } ends[l]=o.b; o.lane=l; });
+  return {occ:out,lanes:Math.max(1,ends.length)};
 }
 function _dcRowH(lanes){ return lanes*DC_LANE+14; }
 function dcBody(id){
@@ -2882,14 +2898,14 @@ function dcBody(id){
   let ticks='';
   for(let m=Math.ceil(w0/60)*60;m<w1;m+=60)
     ticks+=`<div class="dc-tick" data-h="${m/60}" style="left:${pct(m)}"><span>${_rtFmtSlotEdge(m)}</span></div>`;
-  const lays=keys.map(k=>_dcLay(id,k));
+  const lays=keys.map(k=>_dcLay(id,k,w0,w1));
   const rows=keys.map((k,i)=>{
     const {occ,lanes}=lays[i];
-    const blocks=occ.filter(o=>o.ev.end>w0&&o.ev.start<w1).map(o=>{
-      const ev=o.ev, a=Math.max(w0,ev.start), b=Math.min(w1,ev.end);
-      const sel=_dcSel&&_dcSel.card===id&&_dcSel.ev===ev.id&&_dcSel.date===k;
+    const blocks=occ.map(o=>{
+      const ev=o.ev, a=Math.max(w0,o.a), b=Math.min(w1,o.b);
+      const sel=_dcSel&&_dcSel.card===id&&_dcSel.ev===ev.id&&_dcSel.date===o.occ;
       const c=ev.color||'var(--dcc)';
-      return `<div class="dc-ev${sel?' sel':''}${ev.rep?' rep':''}" data-ev="${ev.id}" data-date="${k}"
+      return `<div class="dc-ev${sel?' sel':''}${ev.rep?' rep':''}" data-ev="${ev.id}" data-date="${o.occ}"
         style="left:${pct(a)};width:${((b-a)/span*100).toFixed(4)}%;top:${o.lane*DC_LANE+4}px;height:${DC_LANE-4}px;--c:${c}"
         title="${esc((ev.title||'(No title)')+' · '+_dcFmt(ev.start)+' – '+_dcFmt(ev.end))}"
         ><div class="dc-h dc-hl"></div><div class="dc-t">${esc(ev.title||'(No title)')}${ev.rep?' <span class="dc-rep">↻</span>':''}</div
@@ -2959,20 +2975,22 @@ function _dcTicks(id){
 function dcPaintNow(id){
   const el=_dcEl(id), def=cardDef(id); if(!el||!def) return;
   const n=new Date(), k=_dcKey(n), nm=n.getHours()*60+n.getMinutes()+n.getSeconds()/60;
-  const [w0,w1]=_dcWin(def), pct=(nm-w0)/(w1-w0)*100, inWin=nm>=w0&&nm<=w1;
-  let shown=false;
+  const [w0,w1]=_dcWin(def), at=m=>(m-w0)/(w1-w0)*100;
+  let tagAt=null;
   el.querySelectorAll('.dc-row').forEach(r=>{
     const line=r.querySelector('.dc-now'), wash=r.querySelector('.dc-wash');
-    const isT=r.dataset.date===k;
-    line.style.display=isT&&inWin?'block':'none';
-    if(isT&&inWin){ line.style.left=pct+'%'; shown=true; }
-    if(isT&&def.prog!==false&&nm>w0){
+    // Minutes from this row's midnight to now: today's row reads the clock, yesterday's reads
+    // past 1440 -- which a window running past midnight still shows.
+    const rel=_dcDiff(r.dataset.date,k)*1440+nm, pct=at(rel), on=rel>=w0&&rel<=w1;
+    line.style.display=on?'block':'none';
+    if(on){ line.style.left=pct+'%'; if(tagAt==null) tagAt=rel; }
+    if(def.prog!==false&&rel>w0&&rel<Math.max(1440,w1)){
       const p=Math.min(100,pct), w=r.clientWidth||1, x=p/100*w;
       wash.style.background=_progGrad(p,Math.min(80,x)/w*100); wash.style.display='block';
     }else wash.style.display='none';
   });
   const tag=el.querySelector('.dc-nowtag');
-  if(tag){ tag.style.display=shown?'block':'none'; if(shown){ tag.style.left=pct+'%'; tag.textContent=_dcFmt(Math.floor(nm)); } }
+  if(tag){ tag.style.display=tagAt!=null?'block':'none'; if(tagAt!=null){ tag.style.left=at(tagAt)+'%'; tag.textContent=_dcFmt(Math.floor(nm)); } }
 }
 function dcPaintNowAll(){ document.querySelectorAll('.dccard').forEach(el=>dcPaintNow(el.dataset.cardid)); }
 function dcZoom(id,dir,atX){
@@ -3010,18 +3028,23 @@ function _dcDown(e,id){
   const [w0,w1]=_dcWin(def);
   const track=()=>{ const el=_dcEl(id); return el&&el.querySelector('.dc-track'); };
   const minAt=x=>{ const r=track().getBoundingClientRect(); return w0+(x-r.left)/r.width*(w1-w0); };
-  const snap=m=>Math.round(m/DC_SNAP)*DC_SNAP, clamp=m=>Math.max(0,Math.min(1440,m));
+  const top=Math.max(1440,w1); // the row's timeline runs past midnight when the window does
+  const snap=m=>Math.round(m/DC_SNAP)*DC_SNAP, clamp=m=>Math.max(0,Math.min(top,m));
   const evEl=e.target.closest('.dc-ev');
   // A press that only closed the editor does just that, unless it landed on another event.
   if(e.__dcClosed&&!evEl) return;
+  const date0=row.dataset.date;
   let mode='new', ev=null, orig=null;
   if(evEl){
     ev=_dcList(id).find(x=>x.id===evEl.dataset.ev); if(!ev) return;
     mode=e.target.classList.contains('dc-hl')?'l':e.target.classList.contains('dc-hr')?'r':'move';
-    orig={start:ev.start,end:ev.end,date:ev.date};
+    // The block may be another day's occurrence drawn in this row (an overnight tail, or the next
+    // morning in a window past midnight); off is where that day starts on this row's timeline.
+    const occ=evEl.dataset.date;
+    orig={start:ev.start,end:ev.end,date:ev.date,occ,off:_dcDiff(date0,occ)*1440};
   }
   e.preventDefault();
-  const x0=e.clientX,y0=e.clientY,m0=minAt(x0),date0=row.dataset.date;
+  const x0=e.clientX,y0=e.clientY,m0=minAt(x0);
   const snapJ=JSON.stringify(_dcList(id));
   let moved=false, ghost=null;
   const mv=p=>{
@@ -3038,14 +3061,20 @@ function _dcDown(e,id){
       return;
     }
     const d=snap(m-m0);
+    // Each step starts over from the event as it was, and _dcNorm files it under the day its
+    // start lands on -- dragging across midnight moves it to that date. lo keeps the start from
+    // leaving the track on the left; an event lasts at most a day.
+    const lo=Math.min(0,orig.start+orig.off)-orig.off;
+    ev.date=orig.date; ev.start=orig.start; ev.end=orig.end;
     if(mode==='move'){
-      const len=orig.end-orig.start, s=Math.max(0,Math.min(1440-len,orig.start+d));
+      const len=orig.end-orig.start, s=Math.max(lo,Math.min(top-orig.off-len,orig.start+d));
       ev.start=s; ev.end=s+len;
       const hit=document.elementFromPoint(p.clientX,p.clientY), r2=hit&&hit.closest('.dc-row');
       if(r2&&r2.closest('.dccard')===_dcEl(id)) ev.date=_dcShift(orig.date,_dcDiff(date0,r2.dataset.date));
-    }else if(mode==='l') ev.start=Math.max(0,Math.min(orig.end-DC_SNAP,orig.start+d));
-    else ev.end=Math.min(1440,Math.max(orig.start+DC_SNAP,orig.end+d));
-    _dcSel={card:id,ev:ev.id,date:_dcShift(date0,_dcDiff(orig.date,ev.date))};
+    }else if(mode==='l') ev.start=Math.max(lo,orig.end-1440,Math.min(orig.end-DC_SNAP,orig.start+d));
+    else ev.end=Math.min(orig.start+1440,Math.max(orig.start+DC_SNAP,orig.end+d));
+    _dcNorm(ev);
+    _dcSel={card:id,ev:ev.id,date:_dcShift(orig.occ,_dcDiff(orig.date,ev.date))};
     dcRepaint(id);
   };
   const up=()=>{
@@ -3055,20 +3084,21 @@ function _dcDown(e,id){
     if(mode==='new'){
       let a,b;
       if(ghost){ a=+ghost.dataset.a; b=+ghost.dataset.b; ghost.remove(); }
-      else{ a=clamp(Math.floor(m0/DC_SNAP)*DC_SNAP); b=Math.min(1440,a+30); if(b-a<30) a=b-30; }
+      else{ a=clamp(Math.floor(m0/DC_SNAP)*DC_SNAP); b=Math.min(top,a+30); if(b-a<30) a=b-30; }
       _dcPush(id,snapJ);
       const ne={id:_dcNewId(),title:'',notes:'',date:date0,start:a,end:b,color:null,rep:null,ex:[]};
+      _dcNorm(ne); // made after midnight in a window that runs past it: the next day's event
       _dcList(id).push(ne);
-      _dcSel={card:id,ev:ne.id,date:date0};
-      save(); dcRepaint(id); dcEdit(id,ne.id,date0,true);
+      _dcSel={card:id,ev:ne.id,date:ne.date};
+      save(); dcRepaint(id); dcEdit(id,ne.id,ne.date,true);
       return;
     }
     if(moved){
       if(ev.start!==orig.start||ev.end!==orig.end||ev.date!==orig.date){ _dcPush(id,snapJ); save(); }
       dcRepaint(id);
     }else{
-      _dcSel={card:id,ev:ev.id,date:date0};
-      dcRepaint(id); dcEdit(id,ev.id,date0);
+      _dcSel={card:id,ev:ev.id,date:orig.occ};
+      dcRepaint(id); dcEdit(id,ev.id,orig.occ);
     }
   };
   window.addEventListener('pointermove',mv);
@@ -3091,7 +3121,7 @@ function dcEdit(id,evId,k,focusTitle){
   pop.innerHTML=`<input class="dc-f-title" placeholder="Add title" value="${esc(ev.title||'')}">
     <div class="dc-f-row"><input type="date" class="dc-f-date" value="${k}"></div>
     <div class="dc-f-row"><input type="time" step="900" class="dc-f-s" value="${hm(ev.start)}"><span>–</span
-      ><input type="time" step="900" class="dc-f-e" value="${hm(ev.end)}"></div>
+      ><input type="time" step="900" class="dc-f-e" value="${hm(ev.end)}"><span class="dc-f-nx"${ev.end>1440?'':' hidden'}>+1 day</span></div>
     <div class="dc-f-row"><select class="dc-f-rep">
         ${[['','Does not repeat'],['daily','Every day'],['weekdays','Every weekday'],['weekly','Every week']]
           .map(([v,l])=>`<option value="${v}"${(ev.rep||'')===v?' selected':''}>${l}</option>`).join('')}
@@ -3131,16 +3161,17 @@ function dcEdit(id,evId,k,focusTitle){
     touch(); ev.date=_dcShift(ev.date,_dcDiff(k,v)); k=v;
     if(_dcSel) _dcSel.date=v; commit();
   });
+  const nx=()=>{ $('.dc-f-nx').hidden=ev.end<=1440; };
   const toMin=v=>{ if(!v) return null; const [h,m]=v.split(':').map(Number); return h*60+Math.round(m/DC_SNAP)*DC_SNAP; };
   $('.dc-f-s').addEventListener('change',e=>{
     const s=toMin(e.target.value); if(s==null) return;
-    touch(); const len=ev.end-ev.start; ev.start=Math.min(s,1440-DC_SNAP); ev.end=Math.min(1440,ev.start+len);
-    $('.dc-f-e').value=hm(ev.end); commit();
+    touch(); const len=ev.end-ev.start; ev.start=Math.min(s,1440-DC_SNAP); ev.end=ev.start+len;
+    $('.dc-f-e').value=hm(ev.end); nx(); commit();
   });
   $('.dc-f-e').addEventListener('change',e=>{
     let t=toMin(e.target.value); if(t==null) return;
-    if(t===0) t=1440; // midnight at the end means the end of the day
-    touch(); ev.end=Math.max(ev.start+DC_SNAP,Math.min(1440,t)); e.target.value=hm(ev.end); commit();
+    if(t<=ev.start) t+=1440; // an end at or before the start is the next day's
+    touch(); ev.end=Math.min(ev.start+1440,t); e.target.value=hm(ev.end); nx(); commit();
   });
   $('.dc-f-rep').addEventListener('change',e=>{
     touch(); ev.rep=e.target.value||null;
@@ -3171,7 +3202,9 @@ function dcEdit(id,evId,k,focusTitle){
     if(e.key==='Escape'||(e.key==='Enter'&&e.target.classList.contains('dc-f-title'))){ e.preventDefault(); _dcPopClose(); }
   });
   document.body.appendChild(pop);
-  const b=document.querySelector(`.dccard[data-cardid="${id}"] .dc-ev[data-ev="${evId}"][data-date="${k}"]`);
+  // An overnight event is drawn in two rows; hang the editor from the one on its own day.
+  const b=document.querySelector(`.dccard[data-cardid="${id}"] .dc-row[data-date="${k}"] .dc-ev[data-ev="${evId}"][data-date="${k}"]`)
+    ||document.querySelector(`.dccard[data-cardid="${id}"] .dc-ev[data-ev="${evId}"][data-date="${k}"]`);
   const r=b?b.getBoundingClientRect():{left:innerWidth/2-130,right:innerWidth/2+130,top:innerHeight/3,bottom:innerHeight/3};
   const pw=pop.offsetWidth, ph=pop.offsetHeight;
   let top=r.bottom+6; if(top+ph>innerHeight-8) top=Math.max(8,r.top-ph-6);
@@ -3220,7 +3253,7 @@ document.addEventListener('keydown',e=>{
 function _dcMenuItems(def){
   const id=def.id, fit=def.mode==='fit', days=def.days||1, prog=def.prog!==false;
   const ck=on=>`<span class="pm-ck">${on?'✓':''}</span>`;
-  const hrOpts=(sel,from,to)=>{ let o=''; for(let h=from;h<=to;h++) o+=`<option value="${h*60}"${h*60===sel?' selected':''}>${_rtFmtSlotEdge(h*60)}${h===24?' (end)':''}</option>`; return o; };
+  const hrOpts=(sel,from,to)=>{ let o=''; for(let h=from;h<=to;h++) o+=`<option value="${h*60}"${h*60===sel?' selected':''}>${_rtFmtSlotEdge(h*60)}${h===24?' (end)':h>24?' (next day)':''}</option>`; return o; };
   const [fs,fe]=_dcWin({...def,mode:'fit'});
   return `<button class="padd-item pm-i" title="Color" aria-label="Color" onclick="_dcCardColor(event,'${id}')">
       <span class="chart-color-dot" style="background:${dcAccent(id)};pointer-events:none"></span></button>
@@ -3229,7 +3262,7 @@ function _dcMenuItems(def){
     <button class="padd-item pm-i dc-mi" onclick="_dcSet('${id}','mode','scroll')">${ck(!fit)}Scrollable 24h</button>
     <button class="padd-item pm-i dc-mi" onclick="_dcSet('${id}','mode','fit')">${ck(fit)}Fit to width</button>
     ${fit?`<div class="pm-i dc-mhrs"><select onchange="_dcSet('${id}','fitStart',+this.value)">${hrOpts(fs,0,23)}</select>–<select
-      onchange="_dcSet('${id}','fitEnd',+this.value)">${hrOpts(fe,1,24)}</select></div>`:''}
+      onchange="_dcSet('${id}','fitEnd',+this.value)">${hrOpts(fe,1,DC_WMAX/60)}</select></div>`:''}
     <div class="pm-lbl">Days</div>
     <div class="pm-i dc-mdays">${[1,3,7].map(n=>`<button class="dc-btn${n===days?' on':''}" onclick="_dcSet('${id}','days',${n})">${n}</button>`).join('')}</div>
     <div class="pm-sep"></div>
@@ -3239,7 +3272,7 @@ function _dcSet(id,k,v){
   const def=cardDef(id); if(!def) return;
   def[k]=v;
   // The fit window always spans at least an hour, whichever end moved.
-  if(k==='fitStart'&&(def.fitEnd??1440)<=v) def.fitEnd=Math.min(1440,v+60);
+  if(k==='fitStart'&&(def.fitEnd??1440)<=v) def.fitEnd=Math.min(DC_WMAX,v+60);
   if(k==='fitEnd'&&(def.fitStart??360)>=v) def.fitStart=Math.max(0,v-60);
   _cardsDirty(); dcRepaint(id); _cardMenuRepaint();
 }
