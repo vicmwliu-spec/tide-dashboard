@@ -2687,10 +2687,12 @@ function _schedColWidths(durations){
   w[w.length-1]=Math.round((100-w.slice(0,-1).reduce((a,b)=>a+b,0))*100)/100;
   return w;
 }
+// A fresh table starts blank and evenly split: the header cells are yours to fill with
+// slots like "9AM-12PM", and the now line comes on once they all read as times.
 function scheduleTableHTML(){
-  const w=_schedColWidths(SCHED_SLOTS.map(s=>s.end-s.start));
+  const w=_schedColWidths(SCHED_SLOTS.map(()=>1));
   const cols='<colgroup>'+w.map(p=>`<col style="width: ${p}%;">`).join('')+'</colgroup>';
-  const hd=SCHED_SLOTS.map(s=>`<td contenteditable="true" class="rt-hd">${s.label}</td>`).join('');
+  const hd=SCHED_SLOTS.map(()=>'<td contenteditable="true" class="rt-hd"><br></td>').join('');
   const row=SCHED_SLOTS.map(()=>'<td contenteditable="true"><br></td>').join('');
   return '<div class="rt-tw" contenteditable="false"><table class="rt-table rt-hopt rt-hr rt-fixed rt-timeline">'
     +cols+'<tbody><tr>'+hd+'</tr><tr>'+row+'</tr></tbody></table></div><p><br></p>';
