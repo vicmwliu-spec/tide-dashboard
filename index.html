@@ -215,6 +215,8 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .dc-f-link{background:none;border:none;color:var(--text3);font:inherit;font-size:11px;cursor:pointer;padding:0;text-decoration:underline}
 .dc-f-foot{display:flex;align-items:center;gap:6px;justify-content:flex-end}
 .dc-f-q{font-size:12px;color:var(--text2);margin-right:auto}
+.dc-f-dup{background:none;border:1px solid var(--border);border-radius:var(--r2);color:var(--text2);font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}
+.dc-f-dup:hover{background:var(--surface2);color:var(--text1)}
 .dc-f-del{background:none;border:1px solid var(--border);border-radius:var(--r2);color:var(--red);font:inherit;font-size:12px;padding:4px 10px;cursor:pointer}
 .dc-f-del:hover{background:var(--red);color:#fff;border-color:var(--red)}
 .padd-item.dc-mi,.pm-i.dc-mdays,.pm-i.dc-mhrs{display:flex}
@@ -3049,8 +3051,11 @@ function _dcDown(e,id){
   const x0=e.clientX,y0=e.clientY,m0=minAt(x0);
   const snapJ=JSON.stringify(_dcList(id));
   let moved=false, ghost=null;
+  // Alt/Option-dragging an event drags off a copy and leaves the original where it was.
+  const dup=mode==='move'&&e.altKey;
   const mv=p=>{
     if(!moved&&Math.hypot(p.clientX-x0,p.clientY-y0)<4) return;
+    if(!moved&&dup){ ev=_dcClone(ev,orig.occ); _dcList(id).push(ev); orig.date=orig.occ; }
     moved=true;
     const m=minAt(p.clientX);
     if(mode==='new'){
@@ -3096,7 +3101,7 @@ function _dcDown(e,id){
       return;
     }
     if(moved){
-      if(ev.start!==orig.start||ev.end!==orig.end||ev.date!==orig.date){ _dcPush(id,snapJ); save(); }
+      if(dup||ev.start!==orig.start||ev.end!==orig.end||ev.date!==orig.date){ _dcPush(id,snapJ); save(); }
       dcRepaint(id);
     }else{
       _dcSel={card:id,ev:ev.id,date:orig.occ};
@@ -3131,7 +3136,7 @@ function dcEdit(id,evId,k,focusTitle){
       <span class="chart-color-dot dc-f-dot" title="Color" style="background:${ev.color||dcAccent(id)}"></span>
       <button class="dc-f-link dc-f-reset"${ev.color?'':' hidden'}>Card color</button></div>
     <textarea class="dc-f-notes" rows="3" placeholder="Notes">${esc(ev.notes||'')}</textarea>
-    <div class="dc-f-foot"><button class="dc-f-del">Delete</button></div>`;
+    <div class="dc-f-foot"><button class="dc-f-dup" title="Duplicate (Ctrl/⌘+D, or Alt-drag)">Duplicate</button><button class="dc-f-del">Delete</button></div>`;
   const $=s=>pop.querySelector(s);
   const commit=()=>{ save(); dcRepaint(id); };
   // "->" becomes → as you type, the way time-block names already do it.
@@ -3194,6 +3199,7 @@ function dcEdit(id,evId,k,focusTitle){
     else (ev.ex||(ev.ex=[])).push(k);
     _dcSel=null; _dcPopClose(); commit();
   };
+  $('.dc-f-dup').addEventListener('click',()=>dcDuplicate(id,ev.id,k));
   $('.dc-f-del').addEventListener('click',()=>{
     if(!ev.rep) return del(false);
     foot.innerHTML=`<span class="dc-f-q">Delete</span><button class="dc-f-del" data-w="one">This event</button><button class="dc-f-del" data-w="all">All events</button>`;
@@ -3238,6 +3244,7 @@ document.addEventListener('keydown',e=>{
   const mod=e.ctrlKey||e.metaKey;
   const stop=()=>{ e.preventDefault(); e.stopImmediatePropagation(); };
   if(mod&&!e.shiftKey&&(e.key==='z'||e.key==='Z')){ stop(); dcUndo(id); return; }
+  if(mod&&!e.shiftKey&&(e.key==='d'||e.key==='D')&&_dcSel&&_dcSel.card===id){ stop(); dcDuplicate(id,_dcSel.ev,_dcSel.date); return; }
   if(mod||e.altKey) return;
   if(e.key==='Escape'&&(document.getElementById('dc-pop')||_dcSel)){ stop(); _dcPopClose(); _dcSel=null; dcRepaint(id); }
   else if(e.key==='t'||e.key==='T'){ stop(); goToday(); }
@@ -3251,6 +3258,18 @@ document.addEventListener('keydown',e=>{
     _dcPush(id); _dcList(id).splice(_dcList(id).indexOf(ev),1); _dcSel=null; save(); dcRepaint(id);
   }
 },true);
+// A copy of one occurrence, placed right after it (past midnight, it lands on the next day).
+// A repeat's copy is a one-off on the day it was copied from.
+function _dcClone(ev,k){ return {...ev,id:_dcNewId(),date:k,rep:null,ex:[]}; }
+function dcDuplicate(id,evId,k){
+  const ev=_dcList(id).find(x=>x.id===evId); if(!ev) return;
+  _dcPush(id);
+  const c=_dcClone(ev,k), len=ev.end-ev.start;
+  c.start=ev.end; c.end=ev.end+len; _dcNorm(c);
+  _dcList(id).push(c);
+  _dcSel={card:id,ev:c.id,date:c.date};
+  save(); dcRepaint(id); dcEdit(id,c.id,c.date);
+}
 // ── The card ⋯ menu for a calendar ──
 function _dcMenuItems(def){
   const id=def.id, fit=def.mode==='fit', days=def.days||1, prog=def.prog!==false;
