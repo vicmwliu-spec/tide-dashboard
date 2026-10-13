@@ -9276,7 +9276,7 @@ let _rtSel=[],_rtDrag=null,_rtCtlTable=null;
 let _rtRz=null,_rtMv=null,_rtMvJustMoved=false,_rtMenu=false,_rtTwMv=null;
 // Whether the "split into how many" popover is open. Like _rtMenu, it is state rather
 // than a live node because rtShowCtl rebuilds the whole overlay on every redraw.
-let _rtSplit=false;
+let _rtSplit=false, _rtSplitCells=[]; // the cells Split was opened on
 // The row + opens a menu instead of acting, on a weekly table only — where "add a row"
 // is genuinely two questions.
 let _rtAddMenu=false;
@@ -10423,14 +10423,19 @@ function _rtSplitOne(td,nc,nr){
 // -- which is exactly right: it finds the slots it needs already there, grows the table by
 // nothing, and still divides its own visual band. Positions are re-read on every pass for
 // the same reason rtUnmergeSelection re-reads them.
-function rtSplitSelection(nc,nr){
+function rtSplitSelection(nc,nr,target){
   // Snapshot first: rtActiveCells hands back _rtSel itself, and rtSetSel below rewrites it.
-  const cells=rtActiveCells().slice();
+  // target is what the popover was opened on, which outlives the caret leaving the cell.
+  const live=(target||[]).filter(td=>td.isConnected);
+  const cells=live.length?live.slice():rtActiveCells().slice();
   if(!cells.length) return false;
   const t=cells[0].closest('table'); if(!t) return false;
-  const made=[];
-  cells.forEach(td=>{ const pieces=_rtSplitOne(td,nc,nr); if(pieces) made.push(...pieces); });
+  const made=[],groups=[];
+  cells.forEach(td=>{ const pieces=_rtSplitOne(td,nc,nr); if(pieces){ made.push(...pieces); groups.push(pieces); } });
   if(!made.length) return false;
+  // A cell already covering several grid columns is divided by how many it covers, not by
+  // its width, so its pieces could come out lopsided. Even each cell's pieces out to the eye.
+  if(Math.round(Number(nc))>1) groups.forEach(g=>{ const plan=rtDistributePlan(t,g); if(plan) rtApplyBounds(t,plan); });
   // One cell in, one cell selected out -- what splitting a single cell has always done, and
   // what keeps a caret-driven split from painting a selection across pieces the caret never
   // covered. A range in, the whole range stays highlighted, so Shade or Distribute can
@@ -10439,25 +10444,72 @@ function rtSplitSelection(nc,nr){
   rtFire(rtHost(t)); rtShowCtl(t);
   return true;
 }
-// Even out only the highlighted columns: they share the width they already have
-// between them, so nothing outside the selection moves and the table's total
-// width is unchanged. The whole-table version stays in the ⋯ menu.
+// Even out cells as they look, not grid columns. A split leaves cells spanning different
+// numbers of grid columns, so making the grid columns equal could leave a row as uneven as
+// it was -- and pressing Distribute then did nothing at all. Works on rtCellBounds instead,
+// and only on the given cells: every other cell keeps the edges it has.
+//   1. The columns the highlighted rows agree on (edges every row shares) are made equal,
+//      and anything split inside one keeps its proportions -- "even the columns".
+//   2. If that changes nothing (already even, or the rows share no inner edge), each row's
+//      own cells are made equal -- "even these cells". Pressing again goes from 1 to 2.
+// Returns the new bounds, or null when the cells are already as even as they get.
+function rtDistributePlan(t,cells){
+  const b=new Map(); rtCellBounds(t).forEach((v,td)=>b.set(td,{l:v.l,r:v.r}));
+  const pick=new Set(cells),runs=[];
+  // Each row's highlighted cells, left to right, cut wherever an unhighlighted cell sits
+  // between them: a run can only share out the room that is its own.
+  rtRows(t).forEach(tr=>{
+    const rc=[...tr.cells].filter(td=>pick.has(td)&&b.has(td)).sort((x,y)=>b.get(x).l-b.get(y).l);
+    let run=[];
+    rc.forEach(td=>{
+      if(run.length&&Math.abs(b.get(run[run.length-1]).r-b.get(td).l)>0.01){ runs.push(run); run=[]; }
+      run.push(td);
+    });
+    if(run.length) runs.push(run);
+  });
+  if(!runs.length) return null;
+  const b0=new Map(); b.forEach((v,td)=>b0.set(td,{l:v.l,r:v.r}));
+  // Under a twentieth of a percent is rounding, not a change worth making.
+  const moved=()=>{ let m=false; b.forEach((v,td)=>{ const o=b0.get(td); if(Math.abs(o.l-v.l)>0.05||Math.abs(o.r-v.r)>0.05) m=true; }); return m; };
+  // 1. Columns: only when every run covers the same stretch, so the outer edges hold still.
+  const L=b.get(runs[0][0]).l,Rr=b.get(runs[0][runs[0].length-1]).r;
+  if(runs.every(r=>Math.abs(b.get(r[0]).l-L)<0.01&&Math.abs(b.get(r[r.length-1]).r-Rr)<0.01)){
+    const sets=runs.map(r=>{ const e=new Set(); r.forEach(td=>{ e.add(b.get(td).l); e.add(b.get(td).r); }); return e; });
+    const es=[...sets[0]].filter(x=>sets.every(e=>[...e].some(y=>Math.abs(x-y)<0.01))).sort((x,y)=>x-y);
+    const k=es.length-1;
+    if(k>=2){
+      const E=es.map((_,j)=>L+j*(Rr-L)/k);
+      const f=x=>{
+        let j=0; while(j<k-1&&x>es[j+1]+0.01) j++;
+        const span=es[j+1]-es[j]||1;
+        return rtQ(E[j]+(x-es[j])/span*(E[j+1]-E[j]));
+      };
+      runs.forEach(r=>r.forEach(td=>{ const v=b.get(td); v.l=f(v.l); v.r=f(v.r); }));
+      if(moved()) return b;
+      b.forEach((v,td)=>{ const o=b0.get(td); v.l=o.l; v.r=o.r; });
+    }
+  }
+  // 2. Cells: each run split evenly within its own stretch.
+  runs.forEach(r=>{
+    if(r.length<2) return;
+    const a=b.get(r[0]).l,z=b.get(r[r.length-1]).r,n=r.length;
+    r.forEach((td,i)=>{ const v=b.get(td); v.l=rtQ(a+i*(z-a)/n); v.r=i===n-1?z:rtQ(a+(i+1)*(z-a)/n); });
+  });
+  return moved()?b:null;
+}
+function rtDistributeIn(t,cells){
+  const plan=rtDistributePlan(t,cells);
+  if(!plan) return false;
+  rtApplyBounds(t,plan);
+  rtFire(rtHost(t)); rtShowCtl(t);
+  return true;
+}
+// The selection bar's Distribute: only the highlighted cells move, inside the room they
+// already take up, so nothing outside the selection changes. The ⋯ menu does the table.
 function rtDistributeSelCols(){
   if(!_rtSel.length) return false;
-  const s=rtSelShape();
-  if(s.cols.length<2) return false;
-  const cols=rtEnsureCols(s.t);
-  const idxs=s.cols.filter(i=>cols[i]);
-  if(idxs.length<2) return false;
-  // Match the widest, not the average. Averaging shrinks the wide column, so
-  // evening up against a narrow one truncated whatever was in it. Growing the
-  // table instead means nothing that fitted before stops fitting.
-  const w=Math.max(RT_MINW,...idxs.map(i=>Math.round(rtColWidth(cols[i]))));
-  idxs.forEach(i=>{ rtSetColWidth(s.t,cols[i],w); });
-  // Widening some columns takes the room from the rest rather than from the card.
-  rtNormalizeCols(s.t);
-  rtFire(rtHost(s.t)); rtShowCtl(s.t);
-  return true;
+  const t=_rtSel[0].closest('table'); if(!t) return false;
+  return rtDistributeIn(t,_rtSel);
 }
 // The edges the rest of the table agrees on: every boundary belonging to a row outside the
 // given set. A row cannot align to itself, so the rows being aligned are excluded — the same
@@ -11401,7 +11453,10 @@ function rtShowCtl(t){
   // A caret in a cell counts, so a single cell is reachable at all: _rtSel only fills
   // from a drag across cells or a grip, neither of which can mean one cell in a table
   // with more than one row.
-  const act=rtActiveCells();
+  let act=rtActiveCells();
+  // A lone cell is only "selected" by the caret, and the split popover takes focus into its
+  // number box -- the caret leaves the cell, and without this the popover had nothing to split.
+  if(!act.length&&_rtSplit&&_rtSplitCells.length&&_rtSplitCells.every(td=>td.isConnected)) act=_rtSplitCells;
   if(act.length&&act[0].closest('table')===t){
     // Merge, Unmerge and Distribute act on a region, and a caret is not one, so
     // they stay on the real selection. Split and Shade are happy with one cell.
@@ -11420,7 +11475,7 @@ function rtShowCtl(t){
     // highlighted cell however you ask, and will manufacture the grid slots for any that
     // haven't the spare. Both are legitimate on a merged cell and mean different things,
     // so this stays its own button rather than being folded in.
-    if(act.length) btns.push(['Split',()=>{ _rtSplit=!_rtSplit; rtShowCtl(t); }]);
+    if(act.length) btns.push(['Split',()=>{ _rtSplit=!_rtSplit; _rtSplitCells=act.slice(); rtShowCtl(t); }]);
     // Evening up columns takes more than one cell to be a request. One merged cell
     // covers several columns too, and offering it there put a fourth button on the bar
     // for an action that means nothing without a range to spread across.
@@ -11466,7 +11521,7 @@ function rtShowCtl(t){
         _rtSplit=false;
         // Reads the selection itself rather than a cell captured when the popover opened:
         // one cell or twenty, the difference is how many times it runs the same split.
-        if(!rtSplitSelection(ic.value,ir.value)) rtShowCtl(t);
+        if(!rtSplitSelection(ic.value,ir.value,_rtSplitCells)) rtShowCtl(t);
       };
       [ic,ir].forEach(i=>{
         i.onmousedown=e=>e.stopPropagation(); // ...but the inputs still need a caret
@@ -11920,21 +11975,13 @@ function rtSelBands(t,bands){
   });
   return out.length?out:null;
 }
+// The ⋯ menu's and the double-clicked handle's Distribute: the highlighted cells when there
+// are some, otherwise every cell in the table. Even to the eye, not by grid column -- see
+// rtDistributePlan, which also handles the rows a split has left with their own borders.
 function rtDistributeCols(t){
-  // Bands, not grid columns: "even" has to mean even to the eye, and a column holding
-  // a split cell covers more than one grid column while still being one column.
-  const bands=rtBands(t);
-  const use=rtSelBands(t,bands)||bands;
-  // One column has nothing to be even with.
-  if(use.length<2) return;
-  // Divide what these columns already occupy between them. For a whole table that is the
-  // same answer as giving every column the widest one's width and letting rtNormalizeCols
-  // rescale — equal is equal — but it is the only version that works on a selection, where
-  // the columns outside it have to keep the exact widths they had.
-  const each=use.reduce((a,b)=>a+b.w,0)/use.length;
-  use.forEach(b=>rtSetBandWidth(t,b.c,b.cs,each));
-  rtNormalizeCols(t);
-  rtFire(rtHost(t)); rtShowCtl(t);
+  const sel=rtSelBands(t,rtBands(t))?_rtSel.filter(td=>td.closest('table')===t):[];
+  const all=[]; rtRows(t).forEach(tr=>all.push(...tr.cells));
+  rtDistributeIn(t,sel.length?sel:all);
 }
 // The widths the browser itself would choose, measured on a throwaway copy laid out with
 // table-layout:auto. rtContentWidths measures max-content per cell, so a column holding one long
