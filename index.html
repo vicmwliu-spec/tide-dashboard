@@ -7963,7 +7963,7 @@ function richtextKD(e){
     const run=c=>{ e.preventDefault(); if(!(_rtSel.length&&rtFormatSel(c))) document.execCommand(c,false,null); };
     if(fmt) run(fmt);
     // Shift-guarded so plain Ctrl+X (table cut) is untouched.
-    if(e.shiftKey&&(e.key==='x'||e.key==='X')) run('strikeThrough');
+    if(e.shiftKey&&(e.key==='x'||e.key==='X')){ e.preventDefault(); if(!(_rtSel.length&&rtFormatSel('strikeThrough'))) rtToggleStrike(); }
     // Status on every item the selection touches. /status can't do this one — typing a
     // slash replaces the selection you were trying to act on — so the block route is a
     // shortcut. Shift-guarded to leave Ctrl+S alone.
@@ -10913,6 +10913,152 @@ function rtCaretAtCellEdge(td,start){
   // A trailing <br> is the empty-cell filler, not a line of its own.
   return !frag.textContent.trim()&&!frag.querySelector('br,p,div,li');
 }
+// ── Strikethrough that always comes off ──
+// The browser's own toggle only knows the <strike> it makes itself. Text struck any other
+// way -- <s> or <del> pasted in, an inline text-decoration from Notion, Docs or Sheets, or
+// a style sitting on the cell itself, outside the cell's editing host where execCommand
+// cannot reach -- reads as "not struck" to it, so every press added another layer and the
+// line never went away. These find the strike wherever it comes from and take it off.
+const RT_STRIKE_TAGS='s,strike,del';
+function _rtStrikeDecl(el){ return /line-through/i.test(el.getAttribute('style')||''); }
+// The editor everything here is scoped to: never strip a style above the card's editor.
+function _rtStrikeStop(n){
+  const el=n&&(n.nodeType===1?n:n.parentElement);
+  return el?el.closest(RT_HOSTS):null;
+}
+// Elements, from the text node up to the editor, that put a line through it.
+function _rtStruckBy(node,stop){
+  const out=[];
+  for(let el=node.nodeType===1?node:node.parentElement; el; el=el.parentElement){
+    if(el.matches(RT_STRIKE_TAGS)||_rtStrikeDecl(el)) out.push(el);
+    if(el===stop) break;
+  }
+  return out;
+}
+function _rtUnstrikeEl(el){
+  if(!el.isConnected) return;
+  if(_rtStrikeDecl(el)){
+    // Only the line-through goes: "underline line-through" keeps its underline.
+    const kept=el.getAttribute('style').split(/;(?![^(]*\))/).map(dec=>{
+      const i=dec.indexOf(':'); if(i<0) return dec;
+      const prop=dec.slice(0,i).trim().toLowerCase();
+      if(prop!=='text-decoration'&&prop!=='text-decoration-line') return dec;
+      const v=dec.slice(i+1).replace(/line-through/ig,'').trim();
+      return /underline|overline/i.test(v)?prop+': '+v:'';
+    }).filter(d=>d.trim()).join(';').trim();
+    if(kept) el.setAttribute('style',kept); else el.removeAttribute('style');
+    // A span that was only there to strike is noise in the saved HTML.
+    if(el.tagName==='SPAN'&&!el.attributes.length) _rtUnwrap(el);
+  }
+  if(el.isConnected&&el.matches(RT_STRIKE_TAGS)) _rtUnwrap(el);
+}
+function _rtUnwrap(el){
+  const p=el.parentNode; if(!p) return;
+  while(el.firstChild) p.insertBefore(el.firstChild,el);
+  p.removeChild(el);
+}
+// Text nodes the range actually covers, with something visible in them.
+function _rtRangeTexts(r){
+  const root=r.commonAncestorContainer;
+  if(root.nodeType===3) return root.data.trim()?[root]:[];
+  const out=[],w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  while(w.nextNode()){
+    const t=w.currentNode;
+    if(!t.data.trim()||!r.intersectsNode(t)) continue;
+    if(t===r.startContainer&&r.startOffset>=t.length) continue;
+    if(t===r.endContainer&&r.endOffset===0) continue;
+    out.push(t);
+  }
+  return out;
+}
+// Cut text nodes at the range's ends, so every text node is wholly in it or wholly out.
+function _rtSplitAtRange(r){
+  let sc=r.startContainer,so=r.startOffset,ec=r.endContainer,eo=r.endOffset;
+  if(ec.nodeType===3&&eo>0&&eo<ec.length) ec.splitText(eo);
+  if(sc.nodeType===3&&so>0&&so<sc.length){
+    const n=sc.splitText(so);
+    if(ec===sc){ ec=n; eo-=so; }
+    sc=n; so=0;
+  }
+  r.setStart(sc,so); r.setEnd(ec,eo);
+}
+// Is every visible character in these text nodes struck through?
+function _rtAllStruck(texts){
+  return texts.length>0&&texts.every(t=>_rtStruckBy(t,_rtStrikeStop(t)).length>0);
+}
+// Take the line off exactly these text nodes. A strike that also covers text outside them
+// is removed whole and then put back on that outside text, so only what you chose changes.
+function _rtUnstrikeTexts(texts){
+  const inSet=new Set(texts),srcs=new Set();
+  texts.forEach(t=>_rtStruckBy(t,_rtStrikeStop(t)).forEach(el=>srcs.add(el)));
+  if(!srcs.size) return false;
+  const keep=[];
+  srcs.forEach(el=>{
+    const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
+    while(w.nextNode()){
+      const t=w.currentNode;
+      // Whitespace between table or list tags is structure, not text; wrapping it breaks the table.
+      if(!inSet.has(t)&&t.data.trim()&&!/^(TABLE|TBODY|THEAD|TR|UL|OL|COLGROUP)$/.test(t.parentNode.nodeName)) keep.push(t);
+    }
+  });
+  srcs.forEach(_rtUnstrikeEl);
+  keep.forEach(t=>{
+    if(!t.isConnected||_rtStruckBy(t,_rtStrikeStop(t)).length) return;
+    const s=document.createElement('s');
+    t.parentNode.insertBefore(s,t); s.appendChild(t);
+  });
+  return true;
+}
+// Ctrl/⌘+Shift+X and /strikethrough on ordinary selected text.
+function rtToggleStrike(){
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount) return false;
+  const r=sel.getRangeAt(0);
+  const host=_rtStrikeStop(r.commonAncestorContainer);
+  // A bare caret: the browser's toggle sets how the next typed letters look, which is right.
+  if(!host||r.collapsed){ document.execCommand('strikeThrough',false,null); return true; }
+  _rtSplitAtRange(r);
+  const texts=_rtRangeTexts(r);
+  if(!_rtAllStruck(texts)){ document.execCommand('strikeThrough',false,null); rtFire(host); return true; }
+  _rtUnstrikeTexts(texts);
+  const live=texts.filter(t=>t.isConnected);
+  if(live.length){
+    const nr=document.createRange();
+    nr.setStart(live[0],0); nr.setEnd(live[live.length-1],live[live.length-1].length);
+    sel.removeAllRanges(); sel.addRange(nr);
+  }
+  rtFire(host);
+  return true;
+}
+// Highlighted cells: struck all the way through means take it off every one of them,
+// otherwise strike them all. The same decision once for the whole block, as rtFormatSel does.
+function _rtCellTexts(td){
+  const out=[],w=document.createTreeWalker(td,NodeFilter.SHOW_TEXT);
+  while(w.nextNode()) if(w.currentNode.data.trim()) out.push(w.currentNode);
+  return out;
+}
+function rtStrikeCells(cells){
+  const filled=cells.filter(td=>_rtCellTexts(td).length);
+  if(!filled.length) return false;
+  const allOn=filled.every(td=>_rtAllStruck(_rtCellTexts(td)));
+  const sel=window.getSelection();
+  filled.forEach(td=>{
+    // Off: every strike, from any source, comes off. On: cleared first too, so a cell that
+    // was half struck by some pasted style ends up with one ordinary <strike> over the lot.
+    _rtUnstrikeTexts(_rtCellTexts(td));
+    if(allOn) return;
+    const r=document.createRange();
+    r.selectNodeContents(td);
+    sel.removeAllRanges(); sel.addRange(r);
+    td.focus();
+    document.execCommand('strikeThrough',false,null);
+  });
+  sel.removeAllRanges();
+  const host=rtHost(cells[0]);
+  if(host) rtFire(host);
+  rtSetSel(cells,_rtSelUser);
+  return true;
+}
 // Bold/italic/underline/strikethrough over a block of selected cells. Each td is
 // its own contenteditable host, so the browser's selection can never span them —
 // which is why _rtSel exists, and why the plain shortcut lands on nothing. Run the
@@ -10929,6 +11075,7 @@ function _rtCellHasFmt(td,cmd){
 }
 function rtFormatSel(cmd){
   if(!_rtSel.length||!RT_FMT_TAGS[cmd]) return false;
+  if(cmd==='strikeThrough') return rtStrikeCells(_rtSel.slice());
   const cells=_rtSel.slice(),host=rtHost(cells[0]);
   const sel=window.getSelection();
   // execCommand is a toggle per cell, so a mixed selection would flip each cell
@@ -12357,7 +12504,7 @@ const RT_CMDS=[
   {k:'lettered',ic:'a.',label:'Lettered list',run:()=>rtSetList('letter')},
   {k:'todo',ic:'☑',label:'To-do list',run:()=>rtSetList('todo')},
   {k:'status',ic:'◐',label:'Mark in progress',run:()=>rtSetStatus()},
-  {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>document.execCommand('strikeThrough',false,null)}
+  {k:'strikethrough',ic:'S',label:'Strikethrough',run:()=>rtToggleStrike()}
 ];
 // Three clicks return the item to what it was, which is the whole reason a plain bullet
 // can safely have a live click zone at all: a stray hit in the gutter costs two more
