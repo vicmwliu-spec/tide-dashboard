@@ -2855,7 +2855,7 @@ let _dcHover=null, _dcFocus=null, _dcSel=null; // _dcSel: {card, ev, date}
 const _dc={}, _dcUndo={};                      // per card: view state; undo snapshots
 // A soft gray: a block's fill is a light tint of its color, and this one tints a white card just
 // enough darker to show where each block starts and ends.
-function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||'#A1A1AA'; }
+function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||'#B0B0B7'; }
 function _dcList(id){ if(!D.dcal) D.dcal={}; return D.dcal[id]||(D.dcal[id]=[]); }
 function _dcKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function _dcDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
