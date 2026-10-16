@@ -187,12 +187,9 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .dc-now::before{content:'';position:absolute;top:-4px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--red)}
 .dc-ev{position:absolute;box-sizing:border-box;border-radius:5px;overflow:hidden;cursor:grab;z-index:1;
   background:color-mix(in srgb,var(--c) 22%,var(--surface));border-left:3px solid var(--c);
-  padding:2px 6px 2px 5px;color:var(--text1);display:flex;flex-direction:column;justify-content:center;min-width:3px;
-  /* A hairline in a deeper shade of the block's own color, so every block shows where it starts
-     and ends -- a white one on a white card included, which otherwise had no edges at all. */
-  --cb:color-mix(in srgb,var(--c) 68%,var(--text1));box-shadow:0 0 0 1px var(--cb)}
+  padding:2px 6px 2px 5px;color:var(--text1);display:flex;flex-direction:column;justify-content:center;min-width:3px}
 .dc-ev:hover{background:color-mix(in srgb,var(--c) 32%,var(--surface))}
-.dc-ev.sel{box-shadow:0 0 0 2px var(--cb),0 2px 8px rgba(0,0,0,.15);z-index:2}
+.dc-ev.sel{box-shadow:0 0 0 2px var(--c),0 2px 8px rgba(0,0,0,.15);z-index:2}
 .dc-ev:active{cursor:grabbing}
 .dc-t,.dc-tm{white-space:normal;overflow:hidden;pointer-events:none}
 /* _dcFit's last resort, for a block too narrow for a word even at the smallest size: the
@@ -2856,7 +2853,9 @@ function tlRepaint(id){
 const DC_LANE=36, DC_SNAP=15, DC_RULER=22, DC_WMAX=2160; // a fit window may end as late as noon the next day
 let _dcHover=null, _dcFocus=null, _dcSel=null; // _dcSel: {card, ev, date}
 const _dc={}, _dcUndo={};                      // per card: view state; undo snapshots
-function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||'#FFFFFF'; }
+// A soft gray: a block's fill is a light tint of its color, and this one tints a white card just
+// enough darker to show where each block starts and ends.
+function dcAccent(id){ return (D.chartColors&&D.chartColors['dc_'+id])||'#A1A1AA'; }
 function _dcList(id){ if(!D.dcal) D.dcal={}; return D.dcal[id]||(D.dcal[id]=[]); }
 function _dcKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function _dcDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
