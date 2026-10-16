@@ -187,9 +187,12 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .dc-now::before{content:'';position:absolute;top:-4px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--red)}
 .dc-ev{position:absolute;box-sizing:border-box;border-radius:5px;overflow:hidden;cursor:grab;z-index:1;
   background:color-mix(in srgb,var(--c) 22%,var(--surface));border-left:3px solid var(--c);
-  padding:2px 6px 2px 5px;color:var(--text1);display:flex;flex-direction:column;justify-content:center;min-width:3px}
+  padding:2px 6px 2px 5px;color:var(--text1);display:flex;flex-direction:column;justify-content:center;min-width:3px;
+  /* A hairline in a deeper shade of the block's own color, so every block shows where it starts
+     and ends -- a white one on a white card included, which otherwise had no edges at all. */
+  --cb:color-mix(in srgb,var(--c) 68%,var(--text1));box-shadow:0 0 0 1px var(--cb)}
 .dc-ev:hover{background:color-mix(in srgb,var(--c) 32%,var(--surface))}
-.dc-ev.sel{box-shadow:0 0 0 2px var(--c),0 2px 8px rgba(0,0,0,.15);z-index:2}
+.dc-ev.sel{box-shadow:0 0 0 2px var(--cb),0 2px 8px rgba(0,0,0,.15);z-index:2}
 .dc-ev:active{cursor:grabbing}
 .dc-t,.dc-tm{white-space:normal;overflow:hidden;pointer-events:none}
 /* _dcFit's last resort, for a block too narrow for a word even at the smallest size: the
