@@ -191,11 +191,19 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .dc-ev:hover{background:color-mix(in srgb,var(--c) 32%,var(--surface))}
 .dc-ev.sel{box-shadow:0 0 0 2px var(--c),0 2px 8px rgba(0,0,0,.15);z-index:2}
 .dc-ev:active{cursor:grabbing}
-.dc-t,.dc-tm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.dc-t,.dc-tm{white-space:normal;overflow:hidden;pointer-events:none}
+/* _dcFit's last resort, for a block too narrow for a word even at the smallest size: the
+   label turns sideways and runs down the block, read bottom to top like a chart's axis. */
+.dc-ev.dc-vert{justify-content:flex-start;align-items:center;padding:4px 1px}
+.dc-ev.dc-vert .dc-t{writing-mode:vertical-rl;transform:rotate(180deg);overflow:visible}
+.dc-ev.dc-vert .dc-tm{display:none}
+.dc-ev.dc-notm .dc-tm{display:none}
+/* Too narrow for even a letter: the label lives in the hover tooltip instead. */
+.dc-ev.dc-tiny .dc-t,.dc-ev.dc-tiny .dc-tm{display:none}
 /* Text is a shade of the block's own color, as in Notion Calendar: mixed toward the theme's
    text color, so it darkens on light surfaces and lightens on dark ones, and follows --c live. */
-.dc-t{font-size:12px;font-weight:600;line-height:1.25;color:color-mix(in srgb,var(--c) 55%,var(--text1))}
-.dc-tm{font-size:10.5px;color:color-mix(in srgb,var(--c) 45%,var(--text2));line-height:1.25;font-variant-numeric:tabular-nums}
+.dc-t{font-size:calc(12px * var(--dcz,1));font-weight:600;line-height:1.25;color:color-mix(in srgb,var(--c) 55%,var(--text1))}
+.dc-tm{font-size:calc(10.5px * var(--dcz,1));color:color-mix(in srgb,var(--c) 45%,var(--text2));line-height:1.25;font-variant-numeric:tabular-nums}
 .dc-rep{font-weight:400;color:inherit;opacity:.7}
 .dc-h{position:absolute;top:0;bottom:0;width:6px;cursor:ew-resize;z-index:1}
 .dc-hl{left:-3px}.dc-hr{right:0}
@@ -2909,7 +2917,7 @@ function dcBody(id){
       const ev=o.ev, a=Math.max(w0,o.a), b=Math.min(w1,o.b);
       const sel=_dcSel&&_dcSel.card===id&&_dcSel.ev===ev.id&&_dcSel.date===o.occ;
       const c=ev.color||'var(--dcc)';
-      return `<div class="dc-ev${sel?' sel':''}${ev.rep?' rep':''}" data-ev="${ev.id}" data-date="${o.occ}"
+      return `<div class="dc-ev${sel?' sel':''}${ev.rep?' rep':''}" data-ev="${ev.id}" data-date="${o.occ}" data-lane="${o.lane}"
         style="left:${pct(a)};width:${((b-a)/span*100).toFixed(4)}%;top:${o.lane*DC_LANE+4}px;height:${DC_LANE-4}px;--c:${c}"
         title="${esc((ev.title||'(No title)')+' · '+_dcFmt(ev.start)+' – '+_dcFmt(ev.end))}"
         ><div class="dc-h dc-hl"></div><div class="dc-t">${esc(ev.title||'(No title)')}${ev.rep?' <span class="dc-rep">↻</span>':''}</div
@@ -2963,8 +2971,63 @@ function dcAfter(id){
     dcZoom(id,e.deltaY<0?1:-1,e.clientX);
   },{passive:false});
   if(st.ro) st.ro.disconnect();
-  if(window.ResizeObserver){ st.ro=new ResizeObserver(()=>{ _dcTicks(id); dcPaintNow(id); }); st.ro.observe(sc); }
-  _dcTicks(id); dcPaintNow(id);
+  if(window.ResizeObserver){ st.ro=new ResizeObserver(()=>{ _dcFit(id); _dcTicks(id); dcPaintNow(id); }); st.ro.observe(sc); }
+  _dcFit(id); _dcTicks(id); dcPaintNow(id);
+}
+// Every label shows all its words. A block's text wraps, the block grows as tall as its
+// words need, each lane takes its tallest block's height, and the row -- and its day label
+// on the left -- grows to hold its lanes. With short titles this is the layout dcBody already
+// drew (DC_LANE per lane), so nothing moves. Runs after every paint and on every resize,
+// because a narrower card means more lines.
+function _dcFit(id){
+  const el=_dcEl(id); if(!el) return;
+  const lbls=el.querySelectorAll('.dc-lbl');
+  el.querySelectorAll('.dc-row').forEach((row,i)=>{
+    const evs=[...row.querySelectorAll('.dc-ev[data-lane]')];
+    const need=[];
+    evs.forEach(b=>{
+      const l=+b.dataset.lane;
+      b.classList.remove('dc-tiny','dc-vert','dc-notm'); b.style.removeProperty('--dcz');
+      const cs=getComputedStyle(b);
+      const inner=b.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+      b.style.height='auto';
+      // Lines break between words only. A word wider than the block shrinks the text, down
+      // to 8px, before it is ever split -- and only then is it split, so it still all shows.
+      const t=b.querySelector('.dc-t'),tm=b.querySelector('.dc-tm');
+      if(t) t.style.height='';
+      if(t){
+        let z=1;
+        if(inner>=9) while(t.scrollWidth>t.clientWidth+0.5&&z>0.67){ z=Math.max(0.67,z-0.08); b.style.setProperty('--dcz',z.toFixed(2)); }
+        if(inner<9||t.scrollWidth>t.clientWidth+0.5){
+          // Sideways the words run down the block: as many columns as its width holds, each
+          // as short as that allows, so it is no taller than it has to be. Side padding all
+          // but goes, so even a quarter hour on a narrow card has room for one line.
+          b.classList.add('dc-vert');
+          const inner2=b.clientWidth-2;
+          // Not even a 7px line across: the label lives in the hover tooltip instead.
+          if(inner2<8){ b.classList.remove('dc-vert'); b.classList.add('dc-tiny'); b.style.removeProperty('--dcz'); }
+          else{
+          b.style.setProperty('--dcz',Math.max(0.6,Math.min(0.85,inner2/15)).toFixed(2));
+          const one=t.offsetHeight, lh=parseFloat(getComputedStyle(t).lineHeight)||13;
+          const cols=Math.max(1,Math.floor(inner2/lh));
+          let h=Math.ceil(one/cols)+2;
+          t.style.height=h+'px';
+          while(t.offsetWidth>inner2+0.5&&h<one+lh){ h+=6; t.style.height=h+'px'; }
+          t.style.height=Math.min(h,one)+'px';
+          }
+        }
+      }
+      // The times are a second line the hover tooltip repeats; where they cannot fit whole
+      // they step aside rather than break apart.
+      if(tm&&tm.scrollWidth>tm.clientWidth+0.5) b.classList.add('dc-notm');
+      need[l]=Math.max(need[l]||0,DC_LANE-4,Math.ceil(b.getBoundingClientRect().height));
+    });
+    const tops=[];let y=4;
+    for(let l=0;l<need.length;l++){ need[l]=need[l]||DC_LANE-4; tops[l]=y; y+=need[l]+4; }
+    evs.forEach(b=>{ const l=+b.dataset.lane; b.style.top=tops[l]+'px'; b.style.height=need[l]+'px'; });
+    const h=Math.max(_dcRowH(1),y+10)+'px';
+    if(row.style.height!==h){ row.style.height=h; if(lbls[i]) lbls[i].style.height=h; }
+  });
 }
 // Fewer hour labels as the hours get narrower, so they never collide.
 function _dcTicks(id){
