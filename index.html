@@ -12483,6 +12483,7 @@ document.addEventListener('paste',e=>{
   // app keeps its own stack, and rtFire is what feeds it.
   const sel=window.getSelection();
   if(!sel||!sel.rangeCount){ document.execCommand('insertHTML',false,clean); rtFire(host); return; }
+  if(rtPasteIntoItem(clean,sel,host)){ rtFire(host); return; }
   const r=sel.getRangeAt(0);
   r.deleteContents();
   const frag=document.createRange().createContextualFragment(clean);
@@ -12494,6 +12495,84 @@ document.addEventListener('paste',e=>{
   rtFire(host);
 });
 
+// A copied bullet arrives as a whole list, <ul><li>text</li></ul>. Dropped as it is into the
+// bullet the caret is in, it became a list inside that item: a gap after the bullet, then a
+// sub-bullet with the text in it. Pasting into a bullet means into that bullet. The first
+// copied item's text goes in at the caret; any further items become bullets right after it,
+// and whatever followed the caret moves to the end of the last one -- as Notion does it.
+// The bullet you paste into keeps its own status: a copied ✓ never marks it done.
+// Returns false (and touches nothing) when the caret isn't in a bullet or the paste isn't
+// list-shaped, so every other paste goes the usual way.
+function rtPasteIntoItem(clean,sel,host){
+  const r=sel.getRangeAt(0);
+  const li=rtCaretLi();
+  if(!li||!host.contains(li)) return false;
+  // A table inside a bullet: the caret in one of its cells is in that cell, not the bullet.
+  const nodeEl=n=>n.nodeType===1?n:n.parentElement;
+  const cellOf=n=>{ const el=nodeEl(n); return el?el.closest('td'):null; };
+  const cell=cellOf(r.startContainer);
+  if(cell&&li.contains(cell)) return false;
+  const d=document.createElement('div');
+  d.innerHTML=clean;
+  const top=[...d.childNodes].filter(n=>!(n.nodeType===3&&!n.data.trim())&&!(n.nodeType===1&&/^(BR|META)$/.test(n.tagName))&&n.nodeType!==8);
+  let items=[];
+  if(top.length&&top.every(n=>n.nodeType===1&&/^(UL|OL)$/.test(n.tagName))){
+    top.forEach(l=>{
+      // Chrome copies a nested item as a list whose only child is another list.
+      while(l.children.length===1&&/^(UL|OL)$/.test(l.firstElementChild.tagName)) l=l.firstElementChild;
+      [...l.children].forEach(c=>{ if(c.tagName==='LI') items.push(c); });
+    });
+  }else if(top.length===1&&top[0].nodeType===1&&/^(P|DIV)$/.test(top[0].tagName)&&!top[0].querySelector('p,div,ul,ol,table,li')){
+    // One copied line in its own paragraph: the same gap, the same fix.
+    items=[top[0]];
+  }
+  if(!items.length) return false;
+  const isList=n=>n.nodeType===1&&/^(UL|OL)$/.test(n.tagName);
+  const inlineOf=it=>{ const f=document.createDocumentFragment(); [...it.childNodes].filter(n=>!isList(n)).forEach(n=>f.appendChild(n)); return f; };
+  const subsOf=it=>[...it.childNodes].filter(isList);
+  r.deleteContents();
+  const firstSub=()=>[...li.childNodes].find(isList)||null;
+  // What followed the caret in this bullet (not its sub-list) -- only moved when there is
+  // somewhere else for it to go.
+  let tail=null,ownSubs=[];
+  if(items.length>1){
+    const tr=document.createRange();
+    tr.setStart(r.startContainer,r.startOffset);
+    const fs=firstSub();
+    if(fs) tr.setEndBefore(fs); else tr.setEnd(li,li.childNodes.length);
+    tail=tr.extractContents();
+    ownSubs=subsOf(li);
+  }
+  // First item: its text at the caret, its sub-list ahead of this bullet's own.
+  const f1=inlineOf(items[0]),last1=f1.lastChild;
+  r.insertNode(f1);
+  let caretAfter=last1;
+  subsOf(items[0]).forEach(sub=>{ const fs=firstSub(); if(fs&&!ownSubs.includes(fs)) li.insertBefore(sub,fs); else li.appendChild(sub); });
+  // Further items: new bullets after this one, keeping their own content and status.
+  let prev=li,lastLi=null;
+  items.slice(1).forEach(it=>{
+    const n=document.createElement('li');
+    if(it.getAttribute('data-st')) n.setAttribute('data-st',it.getAttribute('data-st'));
+    if(it.getAttribute('data-done')) n.setAttribute('data-done',it.getAttribute('data-done'));
+    while(it.firstChild) n.appendChild(it.firstChild);
+    prev.parentNode.insertBefore(n,prev.nextSibling);
+    prev=n; lastLi=n;
+  });
+  if(lastLi){
+    const fs=[...lastLi.childNodes].find(isList)||null;
+    caretAfter=fs?fs.previousSibling:lastLi.lastChild;
+    if(!caretAfter){ caretAfter=document.createTextNode(''); lastLi.insertBefore(caretAfter,fs); }
+    if(tail&&tail.childNodes.length) lastLi.insertBefore(tail,fs);
+    ownSubs.forEach(sub=>lastLi.appendChild(sub));
+  }
+  if(!li.childNodes.length) li.appendChild(document.createElement('br'));
+  if(caretAfter&&caretAfter.parentNode){
+    const a=document.createRange();
+    a.setStartAfter(caretAfter); a.collapse(true);
+    sel.removeAllRanges(); sel.addRange(a);
+  }
+  return true;
+}
 // ─── Slash command menu ──────────────────────────────────────────
 const RT_CMDS=[
   {k:'table',ic:'▦',label:'Table',run:h=>rtInsertTable(h)},
