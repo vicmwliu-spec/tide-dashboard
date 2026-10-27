@@ -10302,7 +10302,20 @@ function rtSelShape(){
     &&slots.length===rows.length*cols.length
     ?{r1,r2,c1,c2}:null;
   const hasSpan=_rtSel.some(td=>(td.colSpan||1)>1||(td.rowSpan||1)>1);
-  return {t,gr,kind,rows,cols,fullRows,fullCols,rect,hasSpan};
+  // What Delete should take. Stricter `kind` misses a column or row that is a single
+  // cell — the half a split leaves, where the other rows' cells stretch across it. Its
+  // band then also selects those stretched cells, which overhang into the neighbour and
+  // make the slot count disagree. It is still a whole column if every selected cell
+  // touches one of the full columns; rtDelCols then shrinks the stretched cells.
+  let delKind=kind;
+  if(kind==='cells'){
+    const hits=(full,span)=>_rtSel.every(td=>{ const p=rtGridPos(gr,td); if(!p) return false;
+      const a=span==='r'?p.r:p.c,n=span==='r'?p.rs:p.cs;
+      return full.some(i=>i>=a&&i<a+n); });
+    if(fullRows.length&&hits(fullRows,'r')) delKind='rows';
+    else if(fullCols.length&&hits(fullCols,'c')) delKind='cols';
+  }
+  return {t,gr,kind,delKind,rows,cols,fullRows,fullCols,rect,hasSpan};
 }
 // ── shading ──
 // What the stylesheet would paint this cell from its position alone, mirroring the
@@ -10730,7 +10743,7 @@ function rtDeleteSelection(){
   // Highlight a whole week and press delete and you mean the week. Route it through the
   // same rtWeekDel the ⋯ menu uses, so it refuses to take the last remaining week and names
   // what is about to go before it goes — this is the one gesture here that destroys writing.
-  const wk=s.kind==='rows'?rtWeekSpan(s.t,s.fullRows):null;
+  const wk=s.delKind==='rows'?rtWeekSpan(s.t,s.fullRows):null;
   if(wk){
     const bs=rtLiveBlocks(s.t);
     const names=wk.map(i=>rtWeekLabel(bs[i])).filter(Boolean).join(', ');
@@ -10748,12 +10761,12 @@ function rtDeleteSelection(){
   }
   // Full rows that cut a week in half are refused outright rather than quietly leaving
   // orphaned rows under the week above, which is what removing them used to do.
-  if(s.kind==='rows'&&s.t.classList.contains('rt-live')&&_rtBlockAt(s.t).length){
+  if(s.delKind==='rows'&&s.t.classList.contains('rt-live')&&_rtBlockAt(s.t).length){
     const at=new Set(_rtBlockAt(s.t));
     if(s.fullRows.some(r=>at.has(r))){ rtClearSel(); return; }
   }
-  if(s.kind==='rows') rtDelRows(s.t,s.fullRows);
-  else if(s.kind==='cols') rtDelCols(s.t,s.fullCols);
+  if(s.delKind==='rows') rtDelRows(s.t,s.fullRows);
+  else if(s.delKind==='cols') rtDelCols(s.t,s.fullCols);
   // A day cell is locked against the browser, not against TIDE's own delete. Clearing one
   // would take the name the week is read from, so the rest of the selection clears and it
   // does not. Removing a whole row is left alone: that is structural, and it has its own
@@ -11516,7 +11529,10 @@ function rtShowCtl(t){
     g.title='Drag to move row, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='row'&&_rtMv.from===ri) g.classList.add('rt-mv');
     g.onmousedown=e=>rtMvStart(e,t,'row',ri,g);
-    g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel([...tr.cells],true); };
+    g.onclick=()=>{ if(_rtMvJustMoved) return;
+      const gr=rtGrid(t),seen=new Set(),cells=[];
+      (gr.g[ri]||[]).forEach(td=>{ if(td&&!seen.has(td)){ seen.add(td); cells.push(td); } });
+      rtSetSel(cells.length?cells:[...tr.cells],true); };
   });
   // Both buttons live in the gutter to the table's left, stacked, rather than on the
   // line above it: over that line they covered the text you were typing, which is
