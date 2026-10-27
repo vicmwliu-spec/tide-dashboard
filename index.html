@@ -958,7 +958,10 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    comfortable mouse target. */
 #rt-ctl .rt-btn::before{content:'';position:absolute;inset:-4px;border-radius:50%}
 #rt-ctl .rt-btn:hover{color:var(--text1);background:var(--surface2)}
-#rt-ctl .rt-grip{background:var(--border);border-radius:2px;opacity:.55;cursor:grab}
+#rt-ctl .rt-grip{background:var(--border);border-radius:2px;opacity:.55;cursor:grab;z-index:3}
+#rt-ctl .rt-grip::before{content:'';position:absolute}
+#rt-ctl .rt-grip-r::before{inset:0 -3px}
+#rt-ctl .rt-grip-c::before{inset:-3px 0}
 #rt-ctl .rt-grip:hover{opacity:1;background:#3B82F6}
 #rt-ctl .rt-grip.rt-nomove{opacity:1;background:#EF4444}
 #rt-ctl .rt-grip.rt-mv{opacity:1;background:#3B82F6;cursor:grabbing}
@@ -11383,7 +11386,7 @@ function rtShowCtl(t){
     if(r.right<wr.left+2||r.left>wr.right-2) return; // scrolled out of view
     const left=Math.max(r.left+2,wr.left);
     const width=Math.max(6,Math.min(r.right-2,wr.right)-left);
-    const g=mk('rt-grip',`left:${left}px;top:${tb.top-7}px;width:${width}px;height:4px`);
+    const g=mk('rt-grip rt-grip-c',`left:${left}px;top:${tb.top-7}px;width:${width}px;height:4px`);
     g.title='Drag to move column, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='col'&&_rtMv.from===ci) g.classList.add('rt-mv');
     g.onmousedown=e=>rtMvStart(e,t,'col',ci,g,cn);
@@ -11525,7 +11528,7 @@ function rtShowCtl(t){
     // outside the wrapper entirely. Out there they shared a strip with the ⠿/⋯ stack and the
     // top two rows had no grip you could actually reach; in here the two columns are side by
     // side and every row keeps its handle.
-    const g=mk('rt-grip',`left:${tb.left-3}px;top:${r.top+2}px;width:3px;height:${Math.max(6,r.height-4)}px`);
+    const g=mk('rt-grip rt-grip-r',`left:${tb.left-3}px;top:${r.top+2}px;width:3px;height:${Math.max(6,r.height-4)}px`);
     g.title='Drag to move row, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='row'&&_rtMv.from===ri) g.classList.add('rt-mv');
     g.onmousedown=e=>rtMvStart(e,t,'row',ri,g);
@@ -11540,7 +11543,10 @@ function rtShowCtl(t){
   // padded block around the host so they can't slip off the card's edge either way — the
   // host itself has no padding, so clamping there just moved them onto the first column.
   const gut=rtGutter(rtHost(t)||t);
-  const gx=Math.max(gut.left,tb.left-24);
+  // Never over the row grips, which sit flush against the table's left edge: clamped
+  // to the gutter, these used to land on the top rows' grips and swallow their clicks.
+  // 20px wide plus the 4px ::before hit area, and a little air.
+  const gx=Math.min(Math.max(gut.left,tb.left-24),tb.left-3-8-20);
   // Options (header row / header column)
   const ob=mk('rt-btn',`left:${gx}px;top:${tb.top+24}px`);
   ob.textContent='⋯';ob.title='Table options';
