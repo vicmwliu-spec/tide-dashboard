@@ -960,6 +960,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 #rt-ctl .rt-btn:hover{color:var(--text1);background:var(--surface2)}
 #rt-ctl .rt-grip{background:var(--border);border-radius:2px;opacity:.55;cursor:grab}
 #rt-ctl .rt-grip:hover{opacity:1;background:#3B82F6}
+#rt-ctl .rt-grip.rt-nomove{opacity:1;background:#EF4444}
 #rt-ctl .rt-grip.rt-mv{opacity:1;background:#3B82F6;cursor:grabbing}
 /* Column resize handles */
 #rt-ctl .rt-rz{position:fixed;pointer-events:auto;cursor:col-resize;width:7px}
@@ -10018,23 +10019,72 @@ function rtCanMove(t,kind,idx){
 }
 function rtMoveRow(t,from,to){
   const rows=rtRows(t),tr=rows[from];
-  if(!tr||from===to||!rtCanMove(t,'row',from)) return;
+  if(!tr||from===to||to===from+1) return true;
+  if(!rtCanMove(t,'row',from)) return false;
   const ref=to>=rows.length?null:rows[to];
   t.tBodies[0].insertBefore(tr,ref===tr?tr.nextSibling:ref);
+  return true;
 }
-function rtMoveCol(t,from,to){
-  if(from===to||!rtCanMove(t,'col',from)) return;
-  const gr=rtGrid(t);
-  rtRows(t).forEach((tr,r)=>{
-    const td=gr.g[r][from]; if(!td) return;
-    const ref=_rtRefAt(gr,r,to);
-    tr.insertBefore(td,ref===td?td.nextSibling:ref);
-  });
-  const cg=t.querySelector('colgroup');
-  if(cg){
-    const cols=[...cg.children],c=cols[from];
-    if(c){ const ref=to>=cols.length?null:cols[to]; cg.insertBefore(c,ref===c?c.nextSibling:ref); }
+// A grid edge is clean when no cell reaches across it in any row — the only places a
+// column band can be lifted from or dropped into without tearing a merge or a split.
+function rtEdgeClean(gr,e){
+  if(e<=0||e>=gr.cols) return true;
+  for(let r=0;r<gr.rows;r++){ const a=gr.g[r][e-1],b=gr.g[r][e]; if(a&&a===b) return false; }
+  return true;
+}
+// Widen a band until both its edges are clean: grabbing one half of a split column
+// whose other rows are still whole moves the whole visual column, not half of it.
+function rtCleanBand(gr,c0,cn){
+  let a=c0,z=c0+cn;
+  while(!rtEdgeClean(gr,a)) a--;
+  while(!rtEdgeClean(gr,z)) z++;
+  for(let again=true;again;){
+    again=false;
+    for(let r=0;r<gr.rows;r++) for(let c=a;c<z;c++){
+      const td=gr.g[r][c],p=td&&rtGridPos(gr,td); if(!p) continue;
+      if(p.c<a){ a=p.c; again=true; } if(p.c+p.cs>z){ z=p.c+p.cs; again=true; }
+    }
+    while(!rtEdgeClean(gr,a)){ a--; again=true; }
+    while(!rtEdgeClean(gr,z)){ z++; again=true; }
   }
+  return {c:a,cs:z-a};
+}
+// Move the band of grid columns [c0,c0+cn) so it starts at grid edge `to` (an edge of
+// the grid before the move). Done through the cells' bounds rather than by shuffling
+// <td>s and <col>s one grid column at a time, so a split column travels as one piece,
+// every width comes along, and other rows' merges keep their shape. Returns false
+// (and changes nothing) when a merge straddles the band or the drop point.
+function rtMoveCol(t,c0,cn,to){
+  const gr=rtGrid(t);
+  ({c:c0,cs:cn}=rtCleanBand(gr,c0,cn));
+  if(!cn||to>=c0&&to<=c0+cn) return true;
+  if(c0===0&&cn===gr.cols||!rtEdgeClean(gr,to)) return false;
+  const b=rtCellBounds(t);
+  // Percent position of each grid edge, read off the cells that start or end on it.
+  const at=new Array(gr.cols+1); at[0]=0; at[gr.cols]=100;
+  b.forEach((v,td)=>{ const p=rtGridPos(gr,td); if(!p) return; at[p.c]=v.l; at[p.c+p.cs]=v.r; });
+  const L=at[c0],R=at[c0+cn],T=at[to],W=R-L;
+  if(L==null||R==null||T==null) return false;
+  const nb=new Map(),eps=0.01;
+  b.forEach((v,td)=>{
+    let d=0;
+    if(v.l>=L-eps&&v.r<=R+eps) d=T<L?T-L:T-R;
+    else if(T<L&&v.l>=T-eps&&v.r<=L+eps) d=W;
+    else if(T>R&&v.l>=R-eps&&v.r<=T+eps) d=-W;
+    nb.set(td,{l:rtQ(v.l+d),r:rtQ(v.r+d)});
+  });
+  rtRows(t).forEach(tr=>{
+    const cells=[...tr.cells].sort((x,y)=>(nb.get(x)||{l:0}).l-(nb.get(y)||{l:0}).l);
+    cells.forEach(td=>tr.appendChild(td));
+  });
+  rtApplyBounds(t,nb);
+  return true;
+}
+// Brief red tint on a grip whose drag was refused, so a no-op is never silent.
+function rtNoMove(g){
+  if(!g) return;
+  g.classList.add('rt-nomove');
+  setTimeout(()=>g.classList.remove('rt-nomove'),450);
 }
 function rtRemoveTable(t){
   const w=t.closest('.rt-tw');
@@ -11323,7 +11373,7 @@ function rtShowCtl(t){
     const g=mk('rt-grip',`left:${left}px;top:${tb.top-7}px;width:${width}px;height:4px`);
     g.title='Drag to move column, click to select';
     if(_rtMv&&_rtMv.moved&&_rtMv.kind==='col'&&_rtMv.from===ci) g.classList.add('rt-mv');
-    g.onmousedown=e=>rtMvStart(e,t,'col',ci,g);
+    g.onmousedown=e=>rtMvStart(e,t,'col',ci,g,cn);
     g.onclick=()=>{ if(_rtMvJustMoved) return; rtSetSel(rtBandCells(t,ci,cn),true); };
     // Resize handle on this column's right boundary.
     const bx=Math.min(r.right,wr.right);
@@ -12257,10 +12307,10 @@ function rtRzEnd(){
   rtShowCtl(t);
 }
 // ── row / column reorder ──
-function rtMvStart(e,t,kind,from,grip){
+function rtMvStart(e,t,kind,from,grip,cn){
   e.preventDefault(); e.stopPropagation();
   _rtMvJustMoved=false;
-  _rtMv={t,kind,from,x0:e.clientX,y0:e.clientY,moved:false,to:from,grip};
+  _rtMv={t,kind,from,cn:cn||1,x0:e.clientX,y0:e.clientY,moved:false,to:kind==='col'?null:from,grip};
   document.body.style.userSelect='none';
 }
 function rtMvMove(e){
@@ -12272,9 +12322,34 @@ function rtMvMove(e){
     rtClearSel();
   }
   const t=m.t,tb=t.getBoundingClientRect();
-  const rects=m.kind==='col'
-    ? [...rtRows(t)[0].cells].map(td=>td.getBoundingClientRect())
-    : rtRows(t).map(tr=>tr.getBoundingClientRect());
+  const el=document.getElementById('rt-ctl'); if(!el) return;
+  let ins=el.querySelector('.rt-ins');
+  if(m.kind==='col'){
+    // Drop slots are the grid edges no merge reaches across, in grid-column terms
+    // (the same terms as m.from), each with its on-screen x.
+    const gr=rtGrid(t),slots=[];
+    for(let k=0;k<=gr.cols;k++){
+      if(!rtEdgeClean(gr,k)) continue;
+      let x=null;
+      for(let r=0;r<gr.rows&&x==null;r++){
+        const td=k<gr.cols?gr.g[r][k]:gr.g[r][k-1]; if(!td) continue;
+        const p=rtGridPos(gr,td); if(!p) continue;
+        const rc=td.getBoundingClientRect();
+        if(k<gr.cols&&p.c===k) x=rc.left; else if(k===gr.cols) x=rc.right;
+      }
+      if(x!=null) slots.push({k,x});
+    }
+    let best=null;
+    slots.forEach(s=>{ if(!best||Math.abs(s.x-e.clientX)<Math.abs(best.x-e.clientX)) best=s; });
+    const bd=rtCleanBand(gr,m.from,m.cn);
+    const noop=!best||best.k>=bd.c&&best.k<=bd.c+bd.cs;
+    m.to=noop?null:best.k;
+    if(noop){ if(ins) ins.remove(); return; }
+    if(!ins){ ins=document.createElement('div'); ins.className='rt-ins'; el.appendChild(ins); }
+    ins.style.cssText=`left:${best.x-1}px;top:${tb.top}px;width:2px;height:${tb.height}px`;
+    return;
+  }
+  const rects=rtRows(t).map(tr=>tr.getBoundingClientRect());
   let to=rects.length;
   for(let i=0;i<rects.length;i++){
     const r=rects[i];
@@ -12283,16 +12358,9 @@ function rtMvMove(e){
     if(p<mid){ to=i; break; }
   }
   m.to=to;
-  const el=document.getElementById('rt-ctl'); if(!el) return;
-  let ins=el.querySelector('.rt-ins');
   if(!ins){ ins=document.createElement('div'); ins.className='rt-ins'; el.appendChild(ins); }
-  if(m.kind==='col'){
-    const x=to>=rects.length?rects[rects.length-1].right:rects[to].left;
-    ins.style.cssText=`left:${x-1}px;top:${tb.top}px;width:2px;height:${tb.height}px`;
-  }else{
-    const y=to>=rects.length?rects[rects.length-1].bottom:rects[to].top;
-    ins.style.cssText=`left:${tb.left}px;top:${y-1}px;width:${tb.width}px;height:2px`;
-  }
+  const y=to>=rects.length?rects[rects.length-1].bottom:rects[to].top;
+  ins.style.cssText=`left:${tb.left}px;top:${y-1}px;width:${tb.width}px;height:2px`;
 }
 function rtMvEnd(){
   const m=_rtMv; _rtMv=null;
@@ -12302,7 +12370,9 @@ function rtMvEnd(){
   if(!m.moved) return;
   _rtMvJustMoved=true;
   setTimeout(()=>{ _rtMvJustMoved=false; },0);
-  if(m.kind==='col') rtMoveCol(m.t,m.from,m.to); else rtMoveRow(m.t,m.from,m.to);
+  if(m.kind==='col'&&m.to==null) return;
+  const ok=m.kind==='col'?rtMoveCol(m.t,m.from,m.cn,m.to):rtMoveRow(m.t,m.from,m.to);
+  if(!ok){ if(m.grip) m.grip.classList.remove('rt-mv'); rtNoMove(m.grip); return; }
   rtFire(rtHost(m.t));
   rtShowCtl(m.t);
 }
