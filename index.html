@@ -9992,8 +9992,9 @@ function rtAddCol(t,idx){
     const cover=(at>0&&at<gr.cols)?gr.g[r][at]:null;
     const p=cover?rtGridPos(gr,cover):null;
     if(p&&p.c<at&&p.c+p.cs>at){ if(!grown.has(cover)) { cover.colSpan=p.cs+1; grown.add(cover); } return; }
-    // A rowspan reaching down into this row already fills the slot.
-    if(p&&p.r<r&&p.c===at) return;
+    // A tall cell reaching down from above *at* the insertion point does not fill the new
+    // slot -- the new column goes to its left, so every row it covers needs a cell too.
+    // Skipping those rows left them one short, a hole that pushed later edits askew.
     tr.insertBefore(rtMakeCell(),_rtRefAt(gr,r,at));
   });
   if(cg){
@@ -10006,26 +10007,30 @@ function rtAddCol(t,idx){
     rtNormalizeCols(t);
   }
 }
-// A row or column that a merge reaches across cannot be lifted out without tearing
-// the merge in half, so the move is refused outright rather than half-performed.
-function rtCanMove(t,kind,idx){
-  const gr=rtGrid(t);
-  const span=kind==='col'?'cs':'rs';
-  const n=kind==='col'?gr.rows:gr.cols;
-  for(let k=0;k<n;k++){
-    const td=kind==='col'?gr.g[k][idx]:gr.g[idx][k];
-    if(!td) continue;
-    const p=rtGridPos(gr,td);
-    if(p&&p[span]>1) return false;
-  }
+// The row counterpart of rtEdgeClean: no cell is tall enough to cross this line.
+function rtRowEdgeClean(gr,e){
+  if(e<=0||e>=gr.rows) return true;
+  for(let c=0;c<gr.cols;c++){ const a=gr.g[e-1][c],b=gr.g[e][c]; if(a&&a===b) return false; }
   return true;
 }
+// Grow a run of rows until no merged cell sticks out of it: a row a tall cell covers
+// moves together with the rest of that cell's rows, never out from under it.
+function rtCleanRowBand(gr,r0,rn){
+  let a=r0,z=r0+rn;
+  while(!rtRowEdgeClean(gr,a)) a--;
+  while(!rtRowEdgeClean(gr,z)) z++;
+  return {r:a,rs:z-a};
+}
+// Move a row (with whatever rows its merges tie it to) so it starts at row edge `to`.
+// Only clean edges are drop points: dropping a row inside a tall merged cell shoved that
+// row's cells one column over and left the cell below it short, scrambling the table.
 function rtMoveRow(t,from,to){
-  const rows=rtRows(t),tr=rows[from];
-  if(!tr||from===to||to===from+1) return true;
-  if(!rtCanMove(t,'row',from)) return false;
+  const gr=rtGrid(t),rows=rtRows(t);
+  const {r,rs}=rtCleanRowBand(gr,from,1);
+  if(to>=r&&to<=r+rs) return true;
+  if(r===0&&rs===gr.rows||!rtRowEdgeClean(gr,to)) return false;
   const ref=to>=rows.length?null:rows[to];
-  t.tBodies[0].insertBefore(tr,ref===tr?tr.nextSibling:ref);
+  rows.slice(r,r+rs).forEach(tr=>t.tBodies[0].insertBefore(tr,ref));
   return true;
 }
 // A grid edge is clean when no cell reaches across it in any row — the only places a
@@ -12332,7 +12337,7 @@ function rtRzEnd(){
 function rtMvStart(e,t,kind,from,grip,cn){
   e.preventDefault(); e.stopPropagation();
   _rtMvJustMoved=false;
-  _rtMv={t,kind,from,cn:cn||1,x0:e.clientX,y0:e.clientY,moved:false,to:kind==='col'?null:from,grip};
+  _rtMv={t,kind,from,cn:cn||1,x0:e.clientX,y0:e.clientY,moved:false,to:null,grip};
   document.body.style.userSelect='none';
 }
 function rtMvMove(e){
@@ -12371,18 +12376,20 @@ function rtMvMove(e){
     ins.style.cssText=`left:${best.x-1}px;top:${tb.top}px;width:2px;height:${tb.height}px`;
     return;
   }
-  const rects=rtRows(t).map(tr=>tr.getBoundingClientRect());
-  let to=rects.length;
-  for(let i=0;i<rects.length;i++){
-    const r=rects[i];
-    const mid=m.kind==='col'?(r.left+r.right)/2:(r.top+r.bottom)/2;
-    const p=m.kind==='col'?e.clientX:e.clientY;
-    if(p<mid){ to=i; break; }
+  // Rows: the same idea — only the lines no tall merged cell crosses are drop points.
+  const gr=rtGrid(t),rects=rtRows(t).map(tr=>tr.getBoundingClientRect()),slots=[];
+  for(let k=0;k<=rects.length;k++){
+    if(!rtRowEdgeClean(gr,k)) continue;
+    slots.push({k,y:k<rects.length?rects[k].top:rects[rects.length-1].bottom});
   }
-  m.to=to;
+  let best=null;
+  slots.forEach(s=>{ if(!best||Math.abs(s.y-e.clientY)<Math.abs(best.y-e.clientY)) best=s; });
+  const bd=rtCleanRowBand(gr,m.from,1);
+  const noop=!best||best.k>=bd.r&&best.k<=bd.r+bd.rs;
+  m.to=noop?null:best.k;
+  if(noop){ if(ins) ins.remove(); return; }
   if(!ins){ ins=document.createElement('div'); ins.className='rt-ins'; el.appendChild(ins); }
-  const y=to>=rects.length?rects[rects.length-1].bottom:rects[to].top;
-  ins.style.cssText=`left:${tb.left}px;top:${y-1}px;width:${tb.width}px;height:2px`;
+  ins.style.cssText=`left:${tb.left}px;top:${best.y-1}px;width:${tb.width}px;height:2px`;
 }
 function rtMvEnd(){
   const m=_rtMv; _rtMv=null;
@@ -12392,7 +12399,7 @@ function rtMvEnd(){
   if(!m.moved) return;
   _rtMvJustMoved=true;
   setTimeout(()=>{ _rtMvJustMoved=false; },0);
-  if(m.kind==='col'&&m.to==null) return;
+  if(m.to==null) return;
   const ok=m.kind==='col'?rtMoveCol(m.t,m.from,m.cn,m.to):rtMoveRow(m.t,m.from,m.to);
   if(!ok){ if(m.grip) m.grip.classList.remove('rt-mv'); rtNoMove(m.grip); return; }
   rtFire(rtHost(m.t));
