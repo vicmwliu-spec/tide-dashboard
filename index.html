@@ -887,6 +887,18 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    rules above set `background` at a higher specificity, so a header cell simply
    never showed it was selected; a different property cannot be outranked, and the
    tint lays over whatever shade the cell already carries. */
+.rt-table col.rt-hid{width:var(--rt-hw,1%)!important}
+/* Hidden rows and columns collapse to a thin hatched strip rather than vanishing: the grid
+   stays whole, so moves, merges and resizes keep working, and the strip is where you click
+   to bring them back. The content is all still there, just not drawn. A hidden column's width
+   is a percentage (--rt-hw, about 8px of this table), not 8px: fixed layout hands leftover
+   width to non-percentage columns first, so a px strip would swallow the freed space. */
+.rt-table tr.rt-hid>td{height:8px;padding:0!important;font-size:0;line-height:0}
+.rt-table td.rt-hidc{padding:0!important;min-width:0!important;max-width:none!important;font-size:0;line-height:0}
+.rt-table tr.rt-hid>td>*,.rt-table td.rt-hidc>*{display:none!important}
+.rt-table tr.rt-hid>td,.rt-table td.rt-hidc{pointer-events:none;user-select:none;background:repeating-linear-gradient(45deg,var(--border) 0 2px,transparent 2px 6px)!important}
+#rt-ctl .rt-unhide{position:fixed;pointer-events:auto;cursor:pointer;z-index:4;border-radius:2px}
+#rt-ctl .rt-unhide:hover{background:rgba(59,130,246,.35)}
 .rt-table td.rt-sel{box-shadow:inset 0 0 0 999px rgba(59,130,246,.20)}
 /* ── Live dates ──
    The date a weekly table draws into its own header row. Lighter than the day name it
@@ -9355,6 +9367,7 @@ let _rtColor=false;
 // Every programmatic edit routes through here, so this is also where each one becomes a
 // single undo step.
 function rtFire(el){ if(el){ rtSetLastHost(el);
+  if(el.querySelector&&el.querySelector('.rt-hid,.rt-hidc')) el.querySelectorAll('table.rt-table').forEach(rtSyncHidden);
   _rtFiring=true;
   try{ el.dispatchEvent(new Event('input',{bubbles:true})); } finally{ _rtFiring=false; }
   rtPushUndo(el,true); } }
@@ -9976,7 +9989,9 @@ function rtAddRow(t,idx){
     tr.appendChild(cell);
     c=end;
   }
-  if(!tr.cells.length&&gr.cols) tr.appendChild(rtMakeCell());
+  // Only when nothing grew: a row wholly covered by taller cells is already full, and a
+  // cell added to it anyway would stick out past the table's right edge.
+  if(!tr.cells.length&&gr.cols&&!grown.size) tr.appendChild(rtMakeCell());
   const rows=rtRows(t);
   if(at>=rows.length) t.tBodies[0].appendChild(tr);
   else t.tBodies[0].insertBefore(tr,rows[at]);
@@ -10087,6 +10102,114 @@ function rtMoveCol(t,c0,cn,to){
   });
   rtApplyBounds(t,nb);
   return true;
+}
+// ── hiding rows and columns ──
+// A hidden row is a <tr class="rt-hid">; it travels with row moves because those move <tr>s.
+// A hidden column is every cell inside it marked rt-hidc — not the <col>, because column
+// moves rebuild <col>s by index while cells keep their identity. rtSyncHidden derives the
+// <col> classes from the cells and repairs anything a later edit made inconsistent.
+function rtSyncHidden(t){
+  if(!t) return;
+  if(!t.querySelector('.rt-hid,.rt-hidc')){ if(t.style.getPropertyValue('--rt-hw')) t.style.removeProperty('--rt-hw'); return; }
+  const gr=rtGrid(t),cg=t.querySelector('colgroup'),cols=cg?[...cg.children]:[];
+  // A grid column is hidden if a marked cell covers it and nothing covering it reaches out.
+  const H=new Set();
+  for(let c=0;c<gr.cols;c++) for(let r=0;r<gr.rows;r++){
+    const td=gr.g[r][c]; if(td&&td.classList.contains('rt-hidc')){ H.add(c); break; }
+  }
+  for(let changed=true;changed;){
+    changed=false;
+    for(const c of [...H]){
+      let out=false;
+      for(let r=0;r<gr.rows&&!out;r++){
+        const td=gr.g[r][c],p=td&&rtGridPos(gr,td); if(!p) continue;
+        for(let k=p.c;k<p.c+p.cs;k++) if(!H.has(k)){ out=true; break; }
+      }
+      if(out){ H.delete(c); changed=true; }
+    }
+  }
+  if(H.size>=gr.cols) H.clear(); // never the whole table
+  const seen=new Set();
+  for(let r=0;r<gr.rows;r++) for(let c=0;c<gr.cols;c++){
+    const td=gr.g[r][c]; if(!td||seen.has(td)) continue; seen.add(td);
+    const p=rtGridPos(gr,td); let inside=!!p;
+    if(p) for(let k=p.c;k<p.c+p.cs;k++) if(!H.has(k)){ inside=false; break; }
+    _rtMark(td,'rt-hidc',inside);
+  }
+  cols.forEach((c,i)=>_rtMark(c,'rt-hid',H.has(i)));
+  const tw=t.getBoundingClientRect().width;
+  // Percent columns are scaled up to fill the table, the strip's share along with them, so
+  // solve for the share that lands at 8px: h/(V+n·h) = 8/tw.
+  const V=cols.reduce((a,c,i)=>a+(H.has(i)?0:parseFloat(c.style.width)||0),0);
+  if(H.size&&tw>8*H.size+40&&V>0) t.style.setProperty('--rt-hw',Math.min(5,8*V/(tw-8*H.size)).toFixed(3)+'%');
+  else t.style.removeProperty('--rt-hw');
+  // A tall cell half in hidden rows and half out brings those rows back.
+  const rows=rtRows(t);
+  for(let changed=true;changed;){
+    changed=false; const s2=new Set();
+    for(let r=0;r<gr.rows;r++) for(let c=0;c<gr.cols;c++){
+      const td=gr.g[r][c]; if(!td||s2.has(td)) continue; s2.add(td);
+      const p=rtGridPos(gr,td); if(!p||p.rs<2) continue;
+      const span=rows.slice(p.r,p.r+p.rs),hid=span.filter(tr=>tr.classList.contains('rt-hid'));
+      if(hid.length&&hid.length<span.length){ hid.forEach(tr=>_rtMark(tr,'rt-hid',false)); changed=true; }
+    }
+  }
+  if(rows.length&&rows.every(tr=>tr.classList.contains('rt-hid'))) rows.forEach(tr=>_rtMark(tr,'rt-hid',false));
+}
+// Hidden grid columns, read off the synced <col> classes.
+function rtHiddenCols(t){
+  const cg=t.querySelector('colgroup');
+  return cg?[...cg.children].map((c,i)=>c.classList.contains('rt-hid')?i:-1).filter(i=>i>=0):[];
+}
+// Can the current selection be hidden? Whole rows or columns, and never all of them.
+function rtHidePlan(){
+  if(!_rtSel.length) return null;
+  const s=rtSelShape(),t=s.t,gr=s.gr;
+  if(s.delKind==='rows'){
+    const rows=rtRows(t),mark=new Set();
+    s.fullRows.forEach(r=>{ const b=rtCleanRowBand(gr,r,1); for(let i=b.r;i<b.r+b.rs;i++) mark.add(i); });
+    if(rows.every((tr,i)=>mark.has(i)||tr.classList.contains('rt-hid'))) return null;
+    return {t,kind:'rows',idx:[...mark]};
+  }
+  if(s.delKind==='cols'){
+    const add=new Set(rtHiddenCols(t));
+    s.fullCols.forEach(c=>{ const b=rtCleanBand(gr,c,1); for(let k=b.c;k<b.c+b.cs;k++) add.add(k); });
+    if(add.size>=gr.cols) return null;
+    return {t,kind:'cols',idx:[...add]};
+  }
+  return null;
+}
+function rtHideSelection(){
+  const plan=rtHidePlan(); if(!plan) return false;
+  const t=plan.t,gr=rtGrid(t);
+  if(plan.kind==='rows'){ const rows=rtRows(t); plan.idx.forEach(i=>_rtMark(rows[i],'rt-hid',true)); }
+  else{
+    const H=new Set(plan.idx),seen=new Set();
+    for(let r=0;r<gr.rows;r++) for(let c=0;c<gr.cols;c++){
+      const td=gr.g[r][c]; if(!td||seen.has(td)) continue; seen.add(td);
+      const p=rtGridPos(gr,td); if(!p) continue;
+      let inside=true; for(let k=p.c;k<p.c+p.cs;k++) if(!H.has(k)){ inside=false; break; }
+      if(inside) _rtMark(td,'rt-hidc',true);
+    }
+  }
+  rtClearSel(); rtSyncHidden(t); rtFire(rtHost(t)); rtShowCtl(t);
+  return true;
+}
+// Bring back hidden rows (row indices) or hidden grid columns; no idxs means everything.
+function rtUnhide(t,kind,idxs){
+  if(kind!=='cols'){
+    const rows=rtRows(t);
+    rows.forEach((tr,i)=>{ if(!idxs||kind==='all'||idxs.includes(i)) _rtMark(tr,'rt-hid',false); });
+  }
+  if(kind!=='rows'){
+    const gr=rtGrid(t),want=idxs&&kind==='cols'?new Set(idxs):null;
+    for(let r=0;r<gr.rows;r++) for(let c=0;c<gr.cols;c++){
+      const td=gr.g[r][c]; if(td&&(!want||want.has(c))) _rtMark(td,'rt-hidc',false);
+    }
+    if(!want) t.querySelectorAll('col.rt-hid').forEach(c=>_rtMark(c,'rt-hid',false));
+  }
+  rtSyncHidden(t);
+  rtFire(rtHost(t)); rtShowCtl(t);
 }
 // Brief red tint on a grip whose drag was refused, so a no-op is never silent.
 function rtNoMove(g){
@@ -11359,6 +11482,7 @@ function rtShowCtl(t){
   el.innerHTML='';el.style.display='block';_rtCtlTable=t;
   const tr0=rtRows(t)[0]; if(!tr0){ rtHideCtl(); return; }
   rtEnsureCols(t); // upgrades legacy tables (colgroup + header-option classes)
+  rtSyncHidden(t);
   const tb=t.getBoundingClientRect();
   // Clamp to the scroll wrapper so controls stay inside the card on wide tables.
   const w=t.closest('.rt-tw');
@@ -11542,6 +11666,42 @@ function rtShowCtl(t){
       (gr.g[ri]||[]).forEach(td=>{ if(td&&!seen.has(td)){ seen.add(td); cells.push(td); } });
       rtSetSel(cells.length?cells:[...tr.cells],true); };
   });
+  // A click target over each hidden strip. The strip's own cells ignore the pointer so the
+  // caret can't land in text you can't see; this is what the click reaches instead.
+  {
+    const rows=rtRows(t);
+    for(let i=0;i<rows.length;){
+      if(!rows[i].classList.contains('rt-hid')){ i++; continue; }
+      let j=i; while(j+1<rows.length&&rows[j+1].classList.contains('rt-hid')) j++;
+      const a=rows[i].getBoundingClientRect(),z=rows[j].getBoundingClientRect(),n=j-i+1,idx=[];
+      for(let k=i;k<=j;k++) idx.push(k);
+      const u=mk('rt-unhide',`left:${tb.left}px;top:${a.top-2}px;width:${tb.width}px;height:${Math.max(8,z.bottom-a.top)+4}px`);
+      u.title=`Show ${n} hidden row${n>1?'s':''}`;
+      u.onmousedown=e=>{ e.preventDefault(); e.stopPropagation(); };
+      u.onclick=()=>rtUnhide(t,'rows',idx);
+      i=j+1;
+    }
+    const hc=rtHiddenCols(t),gr=gr0;
+    for(let i=0;i<hc.length;){
+      let j=i; while(j+1<hc.length&&hc[j+1]===hc[j]+1) j++;
+      const c0=hc[i],c1=hc[j],idx=hc.slice(i,j+1);
+      let l=Infinity,r=-Infinity;
+      for(let rr=0;rr<gr.rows;rr++){
+        const td=gr.g[rr][c0]; if(!td) continue;
+        const b=td.getBoundingClientRect(); if(b.width<0.5&&b.height<0.5) continue;
+        l=Math.min(l,b.left);
+        const te=gr.g[rr][c1]; if(te){ const be=te.getBoundingClientRect(); r=Math.max(r,be.right); }
+      }
+      if(l<r){
+        const u=mk('rt-unhide',`left:${l-2}px;top:${tb.top}px;width:${Math.max(8,r-l)+4}px;height:${tb.height}px`);
+        const n=idx.length;
+        u.title=`Show ${n} hidden column${n>1?'s':''}`;
+        u.onmousedown=e=>{ e.preventDefault(); e.stopPropagation(); };
+        u.onclick=()=>rtUnhide(t,'cols',idx);
+      }
+      i=j+1;
+    }
+  }
   // Both buttons live in the gutter to the table's left, stacked, rather than on the
   // line above it: over that line they covered the text you were typing, which is
   // worst inside a toggle where the table sits right under the summary. Clamped to the
@@ -11655,6 +11815,13 @@ function rtShowCtl(t){
       row.onclick=()=>{ _rtMenu=false; fn(); };
       m.appendChild(row);
     });
+    if(t.querySelector('.rt-hid,.rt-hidc')){
+      const row=document.createElement('div');row.className='rt-item';
+      row.innerHTML='<span class="rt-ck">◐</span><span></span>';
+      row.lastElementChild.textContent='Show hidden rows & columns';
+      row.onclick=()=>{ _rtMenu=false; rtUnhide(t,'all'); };
+      m.appendChild(row);
+    }
     const sep2=document.createElement('div');sep2.className='rt-sep';m.appendChild(sep2);
     // Moving a table: by drag from the ⠿ grip, or precisely from here when the card
     // is too tight to drag in. A direction with nowhere to go is shown disabled
@@ -11780,6 +11947,7 @@ function rtShowCtl(t){
     // like "make this cell a different color" and mean different things is the confusing
     // arrangement, not the long menu.
     btns.push(['Color',()=>{ _rtColor=!_rtColor; rtShowCtl(t); }]);
+    if(s&&rtHidePlan()) btns.push(['Hide',rtHideSelection,'Collapse to a thin strip — click the strip to show it again']);
     if(btns.length){
       const bar=mk('rt-selbar',`left:${Math.max(4,wr.left)}px;top:${tb.top-32}px`);
       btns.forEach(([label,fn,tip])=>{
