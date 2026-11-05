@@ -616,7 +616,12 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pm-sub{display:none;position:absolute;right:calc(100% - 1px);top:-5px;z-index:41;min-width:216px;
   border:1px solid var(--border);border-radius:var(--r);background:var(--surface);
   box-shadow:var(--shadow-md);padding:5px;flex-direction:column;gap:1px}
-.pm-has-sub:hover .pm-sub,.pm-has-sub:focus-within .pm-sub{display:flex}
+.pm-has-sub:hover .pm-sub,.pm-has-sub:focus-within .pm-sub,.pm-has-sub.pm-open .pm-sub{display:flex}
+/* Drag-to-reorder in Templates ▸: the grip starts it, the row lifts while it travels. */
+.pm-sub-grip{cursor:grab;color:var(--text3);font-size:12px;line-height:1;padding:5px 2px 5px 5px;touch-action:none;user-select:none;flex-shrink:0;opacity:.6}
+.pm-sub-row:hover .pm-sub-grip{opacity:1}
+.pm-sub-row.dragging{background:var(--surface2);box-shadow:var(--shadow-md);position:relative;z-index:1}
+.pm-sub-row.dragging,.pm-sub-row.dragging *{cursor:grabbing}
 .pm-sub-row{display:flex;align-items:center;gap:1px;border-radius:var(--r2)}
 .pm-sub-row:hover{background:var(--surface2)}
 .pm-sub-load{flex:1;min-width:0;text-align:left;background:none;border:none;cursor:pointer;
@@ -4011,7 +4016,8 @@ function _jrMenuItems(id){
   const rows=ts.length
     ? ts.map((t,i)=>{
         const isDef=t.id===defTid;
-        return `<div class="pm-sub-row">
+        return `<div class="pm-sub-row" data-tid="${t.id}">
+        <span class="pm-sub-grip" title="Drag to reorder" onpointerdown="_jrTmplDragStart(event)">&#10303;</span>
         <button class="pm-sub-load" title="Load into the open entry"
           onclick="_jrTmplLoad('${id}','${t.id}')">${esc(t.name)}</button>
         <button class="pm-sub-b pm-sub-star${isDef?' on':''}"
@@ -4021,10 +4027,6 @@ function _jrMenuItems(id){
           onclick="_jrTmplEdit('${t.id}')">&#9776;</button>
         <button class="pm-sub-b" title="Rename"
           onclick="_jrTmplRename('${t.id}')">&#9998;</button>
-        <button class="pm-sub-b" title="Move up" ${i===0?'disabled':''}
-          onclick="_jrTmplMove('${t.id}',-1)">&#8593;</button>
-        <button class="pm-sub-b" title="Move down" ${i===ts.length-1?'disabled':''}
-          onclick="_jrTmplMove('${t.id}',1)">&#8595;</button>
         <button class="pm-sub-b pm-sub-x" title="Delete template"
           onclick="_jrTmplDelete('${t.id}')">&#10005;</button>
       </div>`}).join('')
@@ -4150,13 +4152,46 @@ function _tmplEdSave(tid){
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&document.getElementById('tmpl-ed-overlay')&&!_cardMenu&&!_rtSel.length){ e.preventDefault(); _tmplEdDismiss(); }
 });
-// What the chips' drag-and-drop did, one step at a time. Swapping neighbours is the whole of it.
-function _jrTmplMove(tid,d){
-  const ts=D.aarTemplates||[], i=ts.findIndex(t=>t.id===tid), j=i+d;
-  if(i<0||j<0||j>=ts.length) return;
-  [ts[i],ts[j]]=[ts[j],ts[i]];
-  save();
-  _cardMenuRepaint();
+// Drag a template by its grip to reorder. Pointer events rather than HTML5 drag-and-drop, so it
+// works with touch and pen too. Listened for on the document, not captured on the grip: moving
+// the row through the DOM takes the grip out and back in, and that silently drops a capture. The row itself moves in the DOM as you drag, so the list
+// reflows under the cursor. The data is written once, on release, in the order the rows ended
+// up in. The submenu is pinned open (pm-open + pm-drag) for the whole drag, so straying past
+// its edge doesn't shut it, and the repaint afterwards keeps it open (see _cardMenuPaint).
+function _jrTmplDragStart(e){
+  if(e.button!==undefined&&e.button!==0) return;
+  const grip=e.currentTarget,row=grip.closest('.pm-sub-row'),list=row&&row.parentElement;
+  const sub=row&&row.closest('.pm-has-sub');
+  if(!row||!list) return;
+  e.preventDefault(); e.stopPropagation();
+  sub&&sub.classList.add('pm-open','pm-drag');
+  row.classList.add('dragging');
+  const before=[...list.querySelectorAll('.pm-sub-row[data-tid]')].map(r=>r.dataset.tid).join();
+  const move=ev=>{
+    if(ev.pointerId!==e.pointerId) return;
+    const rows=[...list.querySelectorAll('.pm-sub-row[data-tid]')].filter(r=>r!==row);
+    const at=rows.find(r=>{ const b=r.getBoundingClientRect(); return ev.clientY<b.top+b.height/2; });
+    if(at){ if(row.nextElementSibling!==at) list.insertBefore(row,at); }
+    else if(rows.length&&rows[rows.length-1].nextElementSibling!==row) rows[rows.length-1].after(row);
+  };
+  const end=ev=>{
+    if(ev.pointerId!==e.pointerId) return;
+    document.removeEventListener('pointermove',move);
+    document.removeEventListener('pointerup',end);
+    document.removeEventListener('pointercancel',end);
+    row.classList.remove('dragging');
+    sub&&sub.classList.remove('pm-drag');
+    const order=[...list.querySelectorAll('.pm-sub-row[data-tid]')].map(r=>r.dataset.tid);
+    if(order.join()===before) return;
+    const ts=D.aarTemplates||[],byId=new Map(ts.map(t=>[t.id,t]));
+    // Anything the menu didn't list (it always lists all of them) keeps its place at the end.
+    D.aarTemplates=order.map(id=>byId.get(id)).filter(Boolean).concat(ts.filter(t=>!order.includes(t.id)));
+    save();
+    _cardMenuRepaint();
+  };
+  document.addEventListener('pointermove',move);
+  document.addEventListener('pointerup',end);
+  document.addEventListener('pointercancel',end);
 }
 
 // ─── CANVAS CARD ─────────────────────────────────────────────────
@@ -4844,6 +4879,12 @@ let _cardMenu=null;
 // a small element that changes nothing else. Paint it into the DOM instead. The header template
 // still emits the menu when _cardMenu matches (see mkCard), so a real render draws it correctly.
 function _cardMenuPaint(id){
+  // A submenu shows on :hover / :focus-within, and a freshly inserted node has neither until the
+  // mouse next moves — so a repaint from inside one (star, delete, reorder) used to shut it under
+  // you. Note which one was open and pin it with pm-open until the pointer actually leaves.
+  let openSub=-1;
+  const old=document.querySelector('.pcard-menu');
+  if(old) openSub=[...old.querySelectorAll('.pm-has-sub')].findIndex(s=>s.matches(':hover,:focus-within,.pm-open'));
   document.querySelectorAll('.pcard-menu').forEach(n=>n.remove());
   document.querySelectorAll('.pcard-more.on').forEach(b=>b.classList.remove('on'));
   if(!id) return;
@@ -4852,6 +4893,9 @@ function _cardMenuPaint(id){
   if(!hd) return;
   hd.insertAdjacentHTML('beforeend',_cardMenuHTML(def));
   hd.querySelector('.pcard-more')?.classList.add('on');
+  const subs=[...hd.querySelectorAll('.pcard-menu .pm-has-sub')];
+  subs.forEach(s=>s.addEventListener('mouseleave',()=>{ if(!s.classList.contains('pm-drag')) s.classList.remove('pm-open'); }));
+  if(openSub>=0&&subs[openSub]) subs[openSub].classList.add('pm-open');
 }
 // Repaint in place after something the open menu is showing has changed — a template added,
 // deleted or moved — so the submenu agrees with the data without a page rebuild.
