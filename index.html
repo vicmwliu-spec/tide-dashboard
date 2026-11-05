@@ -907,7 +907,10 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    their old heights. */
 .rt-table tr.rt-hid{height:8px!important}
 .rt-table td.rt-hidc{min-width:0!important;max-width:none!important;opacity:1!important}
-.rt-table tr.rt-hid>td>*,.rt-table td.rt-hidc>*{display:none!important}
+/* Everything inside, not just the direct children, and more than display: text pasted from a
+   web page arrives in spans carrying an inline display:inline !important, which no stylesheet
+   can beat. Zeroing the type and box as well means even those take up no room. */
+.rt-table tr.rt-hid>td *,.rt-table td.rt-hidc *{display:none!important;font-size:0!important;line-height:0!important;margin:0!important;padding:0!important;border-width:0!important}
 .rt-table tr.rt-hid>td.rt-sel,.rt-table td.rt-hidc.rt-sel{background:rgba(59,130,246,.45)!important}
 #rt-ctl .rt-unhide{position:fixed;pointer-events:auto;cursor:pointer;z-index:4;border-radius:2px}
 #rt-ctl .rt-unhide:hover{background:rgba(59,130,246,.35)}
