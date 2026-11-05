@@ -632,6 +632,18 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .pm-sub-star{opacity:.4}
 .pm-sub-star.on{opacity:1;color:var(--accent)}
 .pm-sub-star:hover:not(:disabled){background:var(--border);color:var(--accent)}
+/* The template editor dialog, opened from a template's ☰ in the Templates submenu. */
+#tmpl-ed-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+.tmpl-ed-box{background:var(--surface);border-radius:var(--r);box-shadow:0 24px 56px rgba(0,0,0,.22);width:min(640px,100%);max-height:100%;padding:20px 22px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;font-family:var(--font)}
+.tmpl-ed-hd{font-size:13px;font-weight:600;color:var(--text1)}
+.tmpl-ed-name{font-family:var(--font);font-size:13px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface);color:var(--text1);outline:none}
+.tmpl-ed-name:focus{border-color:var(--accent)}
+.jr-ed.tmpl-ed{flex:1 1 auto;min-height:240px;max-height:60vh;border:1px solid var(--border);border-radius:var(--r2);padding:10px 12px 10px 28px}
+.tmpl-ed-ft{display:flex;justify-content:flex-end;gap:8px}
+.tmpl-ed-btn{font-family:var(--font);font-size:12px;padding:7px 14px;border-radius:var(--r2);border:1px solid var(--border);background:var(--surface);color:var(--text1);cursor:pointer}
+.tmpl-ed-btn:hover{background:var(--surface2)}
+.tmpl-ed-save{background:var(--accent);border-color:var(--accent);color:#fff}
+.tmpl-ed-save:hover{background:var(--accent);filter:brightness(1.08)}
 /* The one setting a journal card wears in the open, beside the month arrows. */
 .jr-dot{margin-right:4px}
 /* Habits card — pills only. No streak, no count, no grade. */
@@ -4005,6 +4017,8 @@ function _jrMenuItems(id){
         <button class="pm-sub-b pm-sub-star${isDef?' on':''}"
           title="${isDef?'Default for this card — click to unset':'Set as default: auto-loads into a blank day'}"
           onclick="_jrTmplSetDefault('${id}','${t.id}')">${isDef?'&#9733;':'&#9734;'}</button>
+        <button class="pm-sub-b" title="Edit template"
+          onclick="_jrTmplEdit('${t.id}')">&#9776;</button>
         <button class="pm-sub-b" title="Rename"
           onclick="_jrTmplRename('${t.id}')">&#9998;</button>
         <button class="pm-sub-b" title="Move up" ${i===0?'disabled':''}
@@ -4015,7 +4029,18 @@ function _jrMenuItems(id){
           onclick="_jrTmplDelete('${t.id}')">&#10005;</button>
       </div>`}).join('')
     : `<div class="pm-sub-empty">No templates yet — write an entry and save it as one.</div>`;
-  return `<button class="padd-item pm-i" onclick="_jrTmplSave('${id}')">Save as template</button>
+  // With templates to choose from, saving offers to overwrite one of them as well as starting
+  // a new one — the usual reason to save again is that you improved an existing template.
+  const saveItem=ts.length
+    ? `<div class="padd-item pm-i pm-has-sub" tabindex="0">Save as template<span class="pm-arw">&#9656;</span>
+        <div class="pm-sub">
+          <div class="pm-sub-row"><button class="pm-sub-load" onclick="_jrTmplSave('${id}')">New template&hellip;</button></div>
+          ${ts.map(t=>`<div class="pm-sub-row"><button class="pm-sub-load" title="Overwrite this template with the open entry"
+            onclick="_jrTmplReplace('${id}','${t.id}')">Replace &ldquo;${esc(t.name)}&rdquo;</button></div>`).join('')}
+        </div>
+      </div>`
+    : `<button class="padd-item pm-i" onclick="_jrTmplSave('${id}')">Save as template</button>`;
+  return `${saveItem}
     <button class="padd-item pm-i" onclick="_jrTmplClear('${id}')">Clear all</button>
     <div class="padd-item pm-i pm-has-sub" tabindex="0">Templates<span class="pm-arw">&#9656;</span>
       <div class="pm-sub">${rows}</div>
@@ -4051,6 +4076,80 @@ function _jrTmplRename(tid){
   save();
   _cardMenuRepaint();
 }
+// Saving over a template keeps everything but its content: id, name, place in the list and
+// any card's default star. Days filled from the old version keep their own stamp, so they
+// still read as untouched rather than all lighting up as written.
+function _jrTmplReplace(id,tid){
+  const ed=_jrEd(id); _cardMenuClose();
+  const t=(D.aarTemplates||[]).find(t=>t.id===tid);
+  if(!ed||!t) return;
+  const content=rtHTML(ed).trim();
+  if(!content||content==='<br>'){alert('Write something in the editor first.');return}
+  if(!confirm(`Replace template "${t.name}" with this entry?`)) return;
+  t.content=content;
+  save();
+}
+// Editing a template in place, without going through an entry. The editor is a .jr-ed so it
+// gets the journal's rich text — tables, lists, todos, the slash menu — through RT_HOSTS, but
+// it has none of the card's wiring (no jrInput, no data-y/m/day), so nothing it holds can be
+// written into a day. The overlay sits at 800, under #rt-ctl's 900, so table controls still
+// draw on top of it.
+function _jrTmplEdit(tid){
+  const t=(D.aarTemplates||[]).find(t=>t.id===tid);
+  if(!t) return;
+  _cardMenuClose();
+  _tmplEdClose();
+  const ov=document.createElement('div');
+  ov.id='tmpl-ed-overlay';
+  ov.innerHTML=`<div class="tmpl-ed-box">
+      <div class="tmpl-ed-hd">Edit template</div>
+      <input class="tmpl-ed-name" type="text" placeholder="Template name">
+      <div class="jr-ed tmpl-ed" contenteditable="true" onkeydown="richtextKD(event)" oninput="rtOnInput(this)"></div>
+      <div class="tmpl-ed-ft">
+        <button class="tmpl-ed-btn" onclick="_tmplEdClose()">Cancel</button>
+        <button class="tmpl-ed-btn tmpl-ed-save" onclick="_tmplEdSave('${tid}')">Save</button>
+      </div>
+    </div>`;
+  ov.querySelector('.tmpl-ed-name').value=t.name;
+  const ed=ov.querySelector('.tmpl-ed');
+  ed.innerHTML=t.content;
+  document.body.appendChild(ov);
+  rtFreezeTables();
+  // What it said on opening, after the normalizer has had its pass, so a backdrop click on an
+  // untouched dialog closes without asking.
+  ov._orig=[t.name,rtHTML(ed).trim()];
+  ov.onmousedown=e=>{ ov._down=e.target===ov; };
+  ov.onclick=e=>{ if(e.target===ov&&ov._down) _tmplEdDismiss(); };
+  ed.focus();
+}
+// Backdrop and Esc: leave quietly if nothing changed, otherwise ask first.
+function _tmplEdDismiss(){
+  const ov=document.getElementById('tmpl-ed-overlay');
+  if(!ov) return;
+  const cur=[ov.querySelector('.tmpl-ed-name').value,rtHTML(ov.querySelector('.tmpl-ed')).trim()];
+  if(cur[0]===ov._orig[0]&&cur[1]===ov._orig[1]||confirm('Discard your changes to this template?')) _tmplEdClose();
+}
+function _tmplEdClose(){
+  const ov=document.getElementById('tmpl-ed-overlay');
+  if(!ov) return;
+  rtClearSel(); rtHideCtl();
+  ov.remove();
+}
+function _tmplEdSave(tid){
+  const ov=document.getElementById('tmpl-ed-overlay');
+  const t=(D.aarTemplates||[]).find(t=>t.id===tid);
+  if(!ov||!t){ _tmplEdClose(); return; }
+  const content=rtHTML(ov.querySelector('.tmpl-ed')).trim();
+  if(!content||content==='<br>'){alert('A template needs some content.');return}
+  const n=ov.querySelector('.tmpl-ed-name').value.trim();
+  if(n) t.name=n;
+  t.content=content;
+  save();
+  _tmplEdClose();
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('tmpl-ed-overlay')&&!_cardMenu&&!_rtSel.length){ e.preventDefault(); _tmplEdDismiss(); }
+});
 // What the chips' drag-and-drop did, one step at a time. Swapping neighbours is the whole of it.
 function _jrTmplMove(tid,d){
   const ts=D.aarTemplates||[], i=ts.findIndex(t=>t.id===tid), j=i+d;
