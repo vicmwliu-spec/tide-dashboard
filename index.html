@@ -709,7 +709,11 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hg-wrap{display:flex;flex-direction:column;gap:4px}
 .hg-note{align-self:flex-start;margin:-4px 0 0 -4px;font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;padding:2px 4px;border-radius:5px;cursor:pointer}
 .hg-note em{color:var(--red);font-style:normal;font-weight:500}
-.hg-cv{position:relative;flex:1 1 auto;min-height:210px}
+/* Chart.js writes the canvas's size in pixels, and an in-flow canvas then becomes the card's
+   content floor — the resize grips could grow the card but never bring it back in. Out of flow,
+   the canvas follows .hg-cv and the card alone decides the size. */
+.hg-cv{position:relative;flex:1 1 auto;min-height:210px;min-width:0}
+.hg-cv canvas{position:absolute;inset:0}
 /* Last-N-days and custom range dialog for a habits card or graph. */
 #hc-range-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
 #hc-range-overlay .tmpl-ed-box{width:min(380px,100%)}
