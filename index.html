@@ -6217,15 +6217,15 @@ function hcWeekText(wk){
   const u=[]; wk.forEach(x=>{ if(!u.length||u[u.length-1].key!==x.key) u.push(x); });
   if(!u.length) return '';
   const a=u[0],z=u[u.length-1];
-  if(u.length===1) return `Week ${a.w}`;
-  if(a.m===z.m) return `Weeks ${a.w}–${z.w}`;
-  return `${_MON3[a.m]} Week ${a.w} – ${_MON3[z.m]} Week ${z.w}`;
+  if(u.length===1) return `W${a.w}`;
+  if(a.m===z.m) return `W${a.w}–${z.w}`;
+  return `${_MON3[a.m]} W${a.w} – ${_MON3[z.m]} W${z.w}`;
 }
-// "Nov 9 – Nov 15 · Week 3": the card's caption and the graph's.
+// "W3 · Nov 9 – Nov 15": the card's caption and the graph's. A whole month needs no week.
 function hcCaption(range,dates){
   if(!dates.length) return '';
-  const N=dates.length;
-  return `${_hcFmt(dates[0])}${N>1?` – ${_hcFmt(dates[N-1])}`:''} · ${hcWeekText(hcWeeks(range,dates))}`;
+  const N=dates.length,span=`${_hcFmt(dates[0])}${N>1?` – ${_hcFmt(dates[N-1])}`:''}`;
+  return range.kind==='month'?span:`${hcWeekText(hcWeeks(range,dates))} · ${span}`;
 }
 
 // ── One model behind a habits card and a graph ──
@@ -6346,8 +6346,10 @@ function _hcGridHTML(def){
   const md_=hcModel(def),today=_today0(),pd=_isoD(PD),range=hcRange(def);
   const L='SMTWTFS';
   const ds=md_.dates,wk=hcWeeks(range,ds);
-  // Columns that open a new week get a rule down their left, under their W# band.
-  const w0=ds.map((_,i)=>i>0&&wk[i].key!==wk[i-1].key);
+  // Columns that open a new week get a rule down their left, under their W# band. A week
+  // or less fits in the caption alone, so it gets neither.
+  const wkBand=ds.length>7;
+  const w0=ds.map((_,i)=>wkBand&&i>0&&wk[i].key!==wk[i-1].key);
   const bands=[];
   wk.forEach((x,i)=>{ if(!bands.length||bands[bands.length-1].key!==x.key) bands.push({key:x.key,w:x.w,n:1,i}); else bands[bands.length-1].n++; });
   const band=bands.map(b=>`<th class="hc-wk${b.i?' w0':''}" colspan="${b.n}">W${b.w}</th>`).join('');
@@ -6379,7 +6381,7 @@ function _hcGridHTML(def){
     </div></th>${cells}</tr>`;
   }).join('');
   return `<div class="hc-cap" title="Change the days shown" onclick="_hcRangeDlg('${def.id}')">${hcCaption(range,ds)}</div>
-    <div class="hc-scroll" data-card="${def.id}"><table class="hc-tbl"><thead><tr class="hc-wkr"><th class="hc-nm"></th>${band}</tr><tr><th class="hc-nm"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    <div class="hc-scroll" data-card="${def.id}"><table class="hc-tbl"><thead>${wkBand?`<tr class="hc-wkr"><th class="hc-nm"></th>${band}</tr>`:''}<tr><th class="hc-nm"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 // Click a color, a name or a start date on the grid to change it in place. On a Tracker card
 // these write the lever itself, exactly as the Tracker's own controls do.
