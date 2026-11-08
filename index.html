@@ -654,27 +654,27 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* Habits card — pills only. No streak, no count, no grade. */
 /* Habits card: levers down the side, days across. The name column sticks while a month
    scrolls sideways under it. */
-.hc-cap{display:inline-block;font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;margin:0 0 6px 0;padding:2px 4px;border-radius:5px;cursor:pointer}
+.hc-cap{display:inline-block;font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;margin:-4px 0 6px -4px;padding:2px 4px;border-radius:5px;cursor:pointer}
 .hc-cap:hover,.hg-note:hover{background:var(--surface2);color:var(--text1)}
-.hc-scroll{overflow-x:auto;overflow-y:hidden;max-width:100%;padding-bottom:2px}
+.hc-scroll{overflow-x:auto;overflow-y:hidden;margin-left:-12px;padding:0 0 2px 12px;width:calc(100% + 12px);box-sizing:border-box}
 .hc-tbl{border-collapse:separate;border-spacing:0;font-family:var(--font);width:100%}
 .hc-tbl th,.hc-tbl td{padding:0}
-.hc-tbl th.hc-nm{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;font-size:12px;font-weight:500;color:var(--text1);
+.hc-tbl th.hc-nm{position:sticky;left:0;z-index:1;background:var(--surface);box-shadow:-12px 0 0 var(--surface);text-align:left;font-size:12px;font-weight:500;color:var(--text1);
   padding:0 10px 0 0;width:1%;white-space:nowrap}
-.hc-nmw{display:flex;align-items:center;gap:5px}
-.hc-grip{cursor:grab;color:var(--text3);font-size:11px;line-height:1;padding:4px 1px;touch-action:none;user-select:none;opacity:0;transition:opacity .12s}
+.hc-nmw{display:flex;align-items:flex-start;gap:5px}
+.hc-grip{position:absolute;left:-12px;top:50%;transform:translateY(-50%);cursor:grab;color:var(--text3);font-size:11px;line-height:1;padding:4px 1px;touch-action:none;user-select:none;opacity:0;transition:opacity .12s}
 .hc-tbl tr:hover .hc-grip,.hc-dragging .hc-grip{opacity:.7}
 .hc-dragging,.hc-dragging *{cursor:grabbing!important}
 .hc-dragging>*{background:var(--surface2)!important}
-.hc-dot{display:block;width:9px;height:9px;border-radius:50%;flex-shrink:0;cursor:pointer;transition:transform .12s}
+.hc-dot{display:block;width:9px;height:9px;margin-top:3px;border-radius:50%;flex-shrink:0;cursor:pointer;transition:transform .12s}
 .hc-dot:hover{transform:scale(1.35)}
-.hc-nmt{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+.hc-nmt{position:relative;display:flex;flex-direction:column;min-width:0;line-height:1.2}
 .hc-name{display:block;max-width:140px;overflow:hidden;text-overflow:ellipsis;cursor:text;border-radius:4px;padding:0 2px;outline:none}
 .hc-name:hover{background:var(--surface2)}
 .hc-name.editing{max-width:220px;overflow:visible;text-overflow:clip;background:var(--surface);box-shadow:0 0 0 1.5px var(--accent);cursor:text}
 .hc-sd{position:relative;font-size:9px;font-weight:500;color:var(--text3);cursor:pointer;padding:0 2px;border-radius:3px;align-self:flex-start}
 .hc-sd:hover{color:var(--accent);background:var(--surface2)}
-.hc-sd.none{opacity:0}
+.hc-sd.none{position:absolute;top:100%;left:0;white-space:nowrap;opacity:0}
 .hc-tbl tr:hover .hc-sd.none{opacity:.8}
 .hc-sd input[type="date"]{position:absolute;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;border:none;padding:0;margin:0}
 .hc-tbl th.hc-wk{font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--text3);text-align:left;padding:0 0 2px 5px;opacity:.75}
@@ -705,7 +705,7 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hc-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:none;padding:0}
 /* Habit Graph card */
 .hg-wrap{display:flex;flex-direction:column;gap:4px}
-.hg-note{align-self:flex-start;font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;padding:2px 4px;border-radius:5px;cursor:pointer}
+.hg-note{align-self:flex-start;margin:-4px 0 0 -4px;font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;padding:2px 4px;border-radius:5px;cursor:pointer}
 .hg-note em{color:var(--red);font-style:normal;font-weight:500}
 .hg-cv{position:relative;flex:1 1 auto;min-height:210px}
 /* Last-N-days and custom range dialog for a habits card or graph. */
@@ -5188,7 +5188,7 @@ function buildHabitGraph(def){
   }
   const S=hgSeries(model),cc=chartConf();
   const spans=N&&(ds[0].getMonth()!==ds[N-1].getMonth()||ds[0].getFullYear()!==ds[N-1].getFullYear());
-  const lab=i=>{ const d=ds[i-1]; return d?(spans?`${d.getMonth()+1}/${d.getDate()}`:`${d.getDate()}`):''; };
+  const lab=i=>{ const d=ds[i-1]; return d?(spans?`${d.getMonth()+1}/${d.getDate()}`:N<=10?`${'SMTWTFS'[d.getDay()]} ${d.getDate()}`:`${d.getDate()}`):''; };
   const datasets=[
     {label:'Perfection',data:S.perf,borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
     {label:'Trajectory',data:S.traj,borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3},
