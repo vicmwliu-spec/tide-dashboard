@@ -685,9 +685,14 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hc-tbl th.hc-d.today b{color:var(--accent)}
 .hc-tbl th.hc-d.fut{opacity:.5}
 .hc-tbl th.hc-d.today,.hc-tbl td.today{background:var(--surface2)}
-.hc-tbl th.hc-d.today{border-radius:6px 6px 0 0}
-.hc-tbl tbody tr:last-child td.today{border-radius:0 0 6px 6px}
 .hc-tbl td.hc-c{min-width:30px}
+/* Grid lines, the Tracker's: faint between days and rows, firmer down the name column. */
+.hc-tbl td.hc-c,.hc-tbl th.hc-d{border-right:1px solid var(--border2)}
+.hc-tbl td.hc-c:last-child,.hc-tbl th.hc-d:last-child,.hc-tbl .w1{border-right:none}
+.hc-tbl thead tr:last-child th,.hc-tbl tbody td,.hc-tbl tbody th.hc-nm{border-bottom:1px solid var(--border2)}
+.hc-tbl tbody tr:last-child td,.hc-tbl tbody tr:last-child th.hc-nm{border-bottom:none}
+.hc-tbl th.hc-nm{border-right:1px solid var(--border)}
+.hc-tbl th.hc-d{padding-top:2px}
 .hc-cell{display:flex;align-items:center;justify-content:center;width:100%;min-width:30px;height:32px;background:none;border:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .hc-cell:disabled{cursor:default}
 .hc-cell:disabled .hc-box{opacity:.3}
@@ -6357,7 +6362,7 @@ function _hcGridHTML(def){
   const band=bands.map(b=>`<th class="hc-wk${b.i?' w0':''}" colspan="${b.n}">W${b.w}</th>`).join('');
   const head=ds.map((dt,i)=>{
     const iso=_isoD(dt),cls=['hc-d'];
-    if(+dt===+today) cls.push('today'); if(iso===pd) cls.push('pd'); if(dt>today) cls.push('fut'); if(w0[i]) cls.push('w0');
+    if(+dt===+today) cls.push('today'); if(iso===pd) cls.push('pd'); if(dt>today) cls.push('fut'); if(w0[i]) cls.push('w0'); if(w0[i+1]) cls.push('w1');
     return `<th class="${cls.join(' ')}" title="${dt.toDateString()} · Week ${wk[i].w}"><span>${L[dt.getDay()]}</span><b>${dt.getDate()}</b></th>`;
   }).join('');
   const body=md_.rows.map(({h,g})=>{
@@ -6371,7 +6376,7 @@ function _hcGridHTML(def){
       if(c.off) cls.push('freq-off'); else if(c.before) cls.push('before-start');
       const num=(c.target>=5&&c.count>0&&frac<1&&!c.skip)?`<span class="hc-n">${c.count}</span>`:'';
       const dis=c.off||c.future;
-      return `<td class="hc-c${+dt===+today?' today':''}${iso===pd?' pd':''}${w0[i]?' w0':''}"><button class="hc-cell" data-card="${def.id}" data-hid="${h.id}" data-iso="${iso}"${dis?' disabled':''}
+      return `<td class="hc-c${+dt===+today?' today':''}${iso===pd?' pd':''}${w0[i]?' w0':''}${w0[i+1]?' w1':''}"><button class="hc-cell" data-card="${def.id}" data-hid="${h.id}" data-iso="${iso}"${dis?' disabled':''}
         onclick="_hcClick(this)" title="${_esc(h.name)} · ${_hcFmt(dt)}${dis?'':' — click to log, hold to skip'}"><span class="${cls.join(' ')}" style="background:${bg};border-color:${bd}">${num}</span></button></td>`;
     }).join('');
     const sd=h.startDate;
