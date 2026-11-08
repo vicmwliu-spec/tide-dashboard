@@ -654,14 +654,31 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 /* Habits card — pills only. No streak, no count, no grade. */
 /* Habits card: levers down the side, days across. The name column sticks while a month
    scrolls sideways under it. */
-.hc-cap{font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;margin:0 0 6px 2px}
+.hc-cap{display:inline-block;font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;margin:0 0 6px 0;padding:2px 4px;border-radius:5px;cursor:pointer}
+.hc-cap:hover,.hg-note:hover{background:var(--surface2);color:var(--text1)}
 .hc-scroll{overflow-x:auto;overflow-y:hidden;max-width:100%;padding-bottom:2px}
-.hc-tbl{border-collapse:separate;border-spacing:0;font-family:var(--font)}
+.hc-tbl{border-collapse:separate;border-spacing:0;font-family:var(--font);width:100%}
 .hc-tbl th,.hc-tbl td{padding:0}
 .hc-tbl th.hc-nm{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;font-size:12px;font-weight:500;color:var(--text1);
-  padding:0 10px 0 2px;max-width:150px;min-width:70px;white-space:nowrap}
-.hc-tbl th.hc-nm span{display:inline-block;max-width:128px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
-.hc-tbl th.hc-nm i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  padding:0 10px 0 0;width:1%;white-space:nowrap}
+.hc-nmw{display:flex;align-items:center;gap:5px}
+.hc-grip{cursor:grab;color:var(--text3);font-size:11px;line-height:1;padding:4px 1px;touch-action:none;user-select:none;opacity:0;transition:opacity .12s}
+.hc-tbl tr:hover .hc-grip,.hc-dragging .hc-grip{opacity:.7}
+.hc-dragging,.hc-dragging *{cursor:grabbing!important}
+.hc-dragging>*{background:var(--surface2)!important}
+.hc-dot{display:block;width:9px;height:9px;border-radius:50%;flex-shrink:0;cursor:pointer;transition:transform .12s}
+.hc-dot:hover{transform:scale(1.35)}
+.hc-nmt{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+.hc-name{display:block;max-width:140px;overflow:hidden;text-overflow:ellipsis;cursor:text;border-radius:4px;padding:0 2px;outline:none}
+.hc-name:hover{background:var(--surface2)}
+.hc-name.editing{max-width:220px;overflow:visible;text-overflow:clip;background:var(--surface);box-shadow:0 0 0 1.5px var(--accent);cursor:text}
+.hc-sd{position:relative;font-size:9px;font-weight:500;color:var(--text3);cursor:pointer;padding:0 2px;border-radius:3px;align-self:flex-start}
+.hc-sd:hover{color:var(--accent);background:var(--surface2)}
+.hc-sd.none{opacity:0}
+.hc-tbl tr:hover .hc-sd.none{opacity:.8}
+.hc-sd input[type="date"]{position:absolute;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;border:none;padding:0;margin:0}
+.hc-tbl th.hc-wk{font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--text3);text-align:left;padding:0 0 2px 5px;opacity:.75}
+.hc-tbl .w0{border-left:1px solid var(--border)}
 .hc-tbl th.hc-d{font-size:9.5px;font-weight:600;color:var(--text3);min-width:30px;padding:0 0 4px;text-align:center;line-height:1.25}
 .hc-tbl th.hc-d span{display:block;font-weight:500;opacity:.8}
 .hc-tbl th.hc-d b{display:block;font-weight:600;font-size:10.5px;color:var(--text2)}
@@ -670,7 +687,8 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hc-tbl th.hc-d.today,.hc-tbl td.today{background:var(--surface2)}
 .hc-tbl th.hc-d.today{border-radius:6px 6px 0 0}
 .hc-tbl tbody tr:last-child td.today{border-radius:0 0 6px 6px}
-.hc-cell{display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:none;border:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.hc-tbl td.hc-c{min-width:30px}
+.hc-cell{display:flex;align-items:center;justify-content:center;width:100%;min-width:30px;height:32px;background:none;border:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .hc-cell:disabled{cursor:default}
 .hc-cell:disabled .hc-box{opacity:.3}
 .hc-cell .hc-box{width:20px;height:20px;border-radius:5px;margin:0}
@@ -682,14 +700,20 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hc-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:none;padding:0}
 /* Habit Graph card */
 .hg-wrap{display:flex;flex-direction:column;gap:4px}
-.hg-note{font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em}
+.hg-note{align-self:flex-start;font-size:10.5px;color:var(--text3);font-weight:600;letter-spacing:.04em;padding:2px 4px;border-radius:5px;cursor:pointer}
 .hg-note em{color:var(--red);font-style:normal;font-weight:500}
 .hg-cv{position:relative;flex:1 1 auto;min-height:210px}
 /* Last-N-days and custom range dialog for a habits card or graph. */
 #hc-range-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
-#hc-range-overlay .tmpl-ed-box{width:min(340px,100%)}
+#hc-range-overlay .tmpl-ed-box{width:min(380px,100%)}
 .hc-rg-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text2)}
 .hc-rg-row input{width:auto;flex:1;min-width:0}
+.hc-rg-n input{flex:0 0 70px}
+.hc-rg-c{display:flex;flex-direction:column;gap:8px}
+.hc-rg-ks{display:flex;flex-wrap:wrap;gap:5px}
+.hc-rg-k{font-family:var(--font);font-size:11.5px;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer}
+.hc-rg-k:hover{background:var(--surface2)}
+.hc-rg-k.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .hlist{display:flex;flex-direction:column;gap:5px}
 .hlist-row{display:flex;align-items:center;gap:8px}
 .hlist-row i{width:8px;height:8px;border-radius:50%;flex-shrink:0;font-style:normal}
@@ -5021,6 +5045,7 @@ function _hcRangeMenu(def){
     [r.kind==='week','This week',`_hcSetRange('${id}','week')`,''],
     [r.kind==='month','This month',`_hcSetRange('${id}','month')`,''],
     [r.kind==='last',r.kind==='last'?`Last ${Math.max(1,Math.round(+r.n)||7)} days&hellip;`:'Last N days&hellip;',`_hcRangeDlg('${id}','last')`,''],
+    [r.kind==='next',r.kind==='next'?`Next ${Math.max(1,Math.round(+r.n)||7)} days&hellip;`:'Next N days&hellip;',`_hcRangeDlg('${id}','next')`,''],
     [r.kind==='custom','Custom range&hellip;',`_hcRangeDlg('${id}','custom')`,''],
   ]);
 }
@@ -5039,41 +5064,61 @@ function _hcSetSource(id,src){
   if(src==='own'&&!_hcOwn(def).habits.some(h=>!h.archived)) def.editing=true;
   _cardsDirty(); render();
 }
+// The range picker: opened from a card's date caption with the current choice selected, or
+// from the Show ▸ menu with the item you picked.
+const _HC_KINDS=[['week','This week'],['month','This month'],['last','Last N days'],['next','Next N days'],['custom','Custom']];
 function _hcRangeDlg(id,kind){
   const def=cardDef(id); if(!def) return;
   _cardMenuClose();
   document.getElementById('hc-range-overlay')?.remove();
   const r=hcRange(def),ds=hcDates(r);
-  const ov=document.createElement('div'); ov.id='hc-range-overlay';
-  const body=kind==='last'
-    ? `<label class="hc-rg-row">Last <input class="tmpl-ed-name" id="hc-rg-n" type="number" min="1" max="366" value="${r.kind==='last'?Math.max(1,Math.round(+r.n)||7):14}"> days, ending on the selected day</label>`
-    : `<label class="hc-rg-row">From <input class="tmpl-ed-name" id="hc-rg-s" type="date" value="${r.kind==='custom'&&r.start?r.start:_isoD(ds[0])}"></label>
-       <label class="hc-rg-row">To&nbsp;&nbsp;&nbsp;&nbsp; <input class="tmpl-ed-name" id="hc-rg-e" type="date" value="${r.kind==='custom'&&r.end?r.end:_isoD(ds[ds.length-1])}"></label>`;
+  kind=kind||r.kind;
+  const n=(r.kind==='last'||r.kind==='next')?Math.max(1,Math.round(+r.n)||7):7;
+  const ov=document.createElement('div'); ov.id='hc-range-overlay'; ov.dataset.kind=kind; ov.dataset.card=id;
   ov.innerHTML=`<div class="tmpl-ed-box" onmousedown="event.stopPropagation()">
-    <div class="tmpl-ed-hd">${kind==='last'?'Show the last…':'Show these days'}</div>${body}
+    <div class="tmpl-ed-hd">Show these days</div>
+    <div class="hc-rg-ks">${_HC_KINDS.map(([k,l])=>`<button class="hc-rg-k" data-k="${k}" onclick="_hcRgKind('${k}')">${l}</button>`).join('')}</div>
+    <label class="hc-rg-row hc-rg-n"><span class="hc-rg-nl">Last</span> <input class="tmpl-ed-name" id="hc-rg-n" type="number" min="1" max="366" value="${n}"> <span class="hc-rg-nt">days, ending on the selected day</span></label>
+    <div class="hc-rg-c">
+      <label class="hc-rg-row">From <input class="tmpl-ed-name" id="hc-rg-s" type="date" value="${r.kind==='custom'&&r.start?r.start:_isoD(ds[0])}"></label>
+      <label class="hc-rg-row">To&nbsp;&nbsp;&nbsp;&nbsp; <input class="tmpl-ed-name" id="hc-rg-e" type="date" value="${r.kind==='custom'&&r.end?r.end:_isoD(ds[ds.length-1])}"></label>
+    </div>
     <div class="tmpl-ed-ft"><button class="tmpl-ed-btn" onclick="_hcRangeClose()">Cancel</button>
-      <button class="tmpl-ed-btn tmpl-ed-save" onclick="_hcRangeSave('${id}','${kind}')">Show</button></div></div>`;
+      <button class="tmpl-ed-btn tmpl-ed-save" onclick="_hcRangeSave()">Show</button></div></div>`;
   ov.addEventListener('mousedown',e=>{ if(e.target===ov) _hcRangeClose(); });
   ov.addEventListener('keydown',e=>{
     if(e.key==='Escape'){ e.preventDefault(); _hcRangeClose(); }
-    else if(e.key==='Enter'){ e.preventDefault(); _hcRangeSave(id,kind); }
+    else if(e.key==='Enter'){ e.preventDefault(); _hcRangeSave(); }
   });
   document.body.appendChild(ov);
-  const f=ov.querySelector('input'); f.focus(); if(f.select) f.select();
+  _hcRgKind(kind);
+}
+function _hcRgKind(k){
+  const ov=document.getElementById('hc-range-overlay'); if(!ov) return;
+  ov.dataset.kind=k;
+  ov.querySelectorAll('.hc-rg-k').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+  ov.querySelector('.hc-rg-n').style.display=(k==='last'||k==='next')?'':'none';
+  ov.querySelector('.hc-rg-c').style.display=k==='custom'?'':'none';
+  ov.querySelector('.hc-rg-nl').textContent=k==='next'?'Next':'Last';
+  ov.querySelector('.hc-rg-nt').textContent=k==='next'?'days, starting on the selected day':'days, ending on the selected day';
+  const f=k==='custom'?ov.querySelector('#hc-rg-s'):(k==='last'||k==='next')?ov.querySelector('#hc-rg-n'):ov.querySelector('.hc-rg-k.on');
+  if(f){ f.focus(); if(f.select) f.select(); }
 }
 function _hcRangeClose(){ document.getElementById('hc-range-overlay')?.remove(); }
-function _hcRangeSave(id,kind){
-  if(kind==='last'){
+function _hcRangeSave(){
+  const ov=document.getElementById('hc-range-overlay'); if(!ov) return;
+  const id=ov.dataset.card,kind=ov.dataset.kind;
+  if(kind==='last'||kind==='next'){
     const n=Math.round(+document.getElementById('hc-rg-n').value);
     if(!(n>=1&&n<=366)){ alert('Pick between 1 and 366 days.'); return; }
-    _hcRangeClose(); _hcSetRange(id,'last',{n});
-  }else{
+    _hcRangeClose(); _hcSetRange(id,kind,{n});
+  }else if(kind==='custom'){
     let a=document.getElementById('hc-rg-s').value,b=document.getElementById('hc-rg-e').value;
     if(!a||!b){ alert('Pick both dates.'); return; }
     if(b<a) [a,b]=[b,a];
     if((_fromIso(b)-_fromIso(a))/864e5>365){ alert('A range can be up to a year long.'); return; }
     _hcRangeClose(); _hcSetRange(id,'custom',{start:a,end:b});
-  }
+  }else{ _hcRangeClose(); _hcSetRange(id,kind); }
 }
 
 // ── Habit Graph card ──
@@ -5129,9 +5174,13 @@ function buildHabitGraph(def){
   // The Tracker as a source reads with the graph's own range; a card's source with the card's.
   const model=hcModel(srcCard||{type:'hgraph',range:hcRange(def)});
   const ds=model.dates,N=ds.length;
+  const rdef=srcCard||def,range=hcRange(rdef),wk=hcWeeks(range,ds);
   const note=document.getElementById(`hgn-${def.id}`);
-  if(note) note.innerHTML=`${srcCard?esc(srcCard.label||'Habits')+' card':'Tracker'} · ${N?_hcFmt(ds[0])+(N>1?' – '+_hcFmt(ds[N-1]):''):''}`+
-    (lost?' <em>— its Habits card was removed, so this shows the Tracker</em>':'');
+  if(note){
+    note.innerHTML=hcCaption(range,ds)+(lost?' <em>— its Habits card was removed, so this shows the Tracker</em>':'');
+    note.onclick=()=>_hcRangeDlg(rdef.id);
+    note.title=srcCard?'Change the days shown — on the Habits card this follows':'Change the days shown';
+  }
   const S=hgSeries(model),cc=chartConf();
   const spans=N&&(ds[0].getMonth()!==ds[N-1].getMonth()||ds[0].getFullYear()!==ds[N-1].getFullYear());
   const lab=i=>{ const d=ds[i-1]; return d?(spans?`${d.getMonth()+1}/${d.getDate()}`:`${d.getDate()}`):''; };
@@ -5162,7 +5211,7 @@ function buildHabitGraph(def){
           backgroundColor:cc.tipBg,titleColor:'#fff',bodyColor:cc.tipBdy,
           borderColor:cc.tipBdr,borderWidth:1,padding:9,
           titleFont:{size:11},bodyFont:{size:10},
-          callbacks:{title:c=>{ const d=ds[c[0].parsed.x-1]; return d?d.toDateString().slice(0,10):''; },label:c=>` ${c.dataset.label}: ${c.parsed.y}%`}
+          callbacks:{title:c=>{ const i=c[0].parsed.x-1,d=ds[i]; return d?`${d.toDateString().slice(0,10)} · Week ${wk[i].w}`:''; },label:c=>` ${c.dataset.label}: ${c.parsed.y}%`}
         }
       },
       scales:{
@@ -6138,6 +6187,7 @@ function hcDates(range){
   let s,e;
   if(range.kind==='month'){ s=new Date(a.getFullYear(),a.getMonth(),1); e=new Date(a.getFullYear(),a.getMonth()+1,0); }
   else if(range.kind==='last'){ const n=Math.max(1,Math.min(366,Math.round(+range.n)||7)); e=a; s=new Date(a.getFullYear(),a.getMonth(),a.getDate()-n+1); }
+  else if(range.kind==='next'){ const n=Math.max(1,Math.min(366,Math.round(+range.n)||7)); s=a; e=new Date(a.getFullYear(),a.getMonth(),a.getDate()+n-1); }
   else if(range.kind==='custom'&&range.start&&range.end){ s=_fromIso(range.start); e=_fromIso(range.end); if(e<s) [s,e]=[e,s]; }
   else { s=new Date(a.getFullYear(),a.getMonth(),a.getDate()-dowOff(a.getDay())); e=new Date(s.getFullYear(),s.getMonth(),s.getDate()+6); }
   const out=[];
@@ -6149,8 +6199,33 @@ function _hcFmt(d){ return `${_MON3[d.getMonth()]} ${d.getDate()}` }
 function hcRangeLabel(range){
   if(range.kind==='month') return 'This month';
   if(range.kind==='last') return `Last ${Math.max(1,Math.round(+range.n)||7)} days`;
+  if(range.kind==='next') return `Next ${Math.max(1,Math.round(+range.n)||7)} days`;
   if(range.kind==='custom'&&range.start&&range.end) return 'Custom range';
   return 'This week';
+}
+// Week of the month, counted the way the Tracker's week badges count it. A custom range has
+// weeks of its own instead: its first seven days are Week 1, the next seven Week 2.
+function hcWeeks(range,dates){
+  const custom=range.kind==='custom'&&range.start&&range.end;
+  return dates.map((dt,i)=>{
+    if(custom){ const w=Math.floor(i/7)+1; return {key:'c'+w,w,m:-1}; }
+    const y=dt.getFullYear(),m=dt.getMonth(),w=weekOfDay(y,m,dt.getDate());
+    return {key:`${y}-${m}-${w}`,w,m};
+  });
+}
+function hcWeekText(wk){
+  const u=[]; wk.forEach(x=>{ if(!u.length||u[u.length-1].key!==x.key) u.push(x); });
+  if(!u.length) return '';
+  const a=u[0],z=u[u.length-1];
+  if(u.length===1) return `Week ${a.w}`;
+  if(a.m===z.m) return `Weeks ${a.w}–${z.w}`;
+  return `${_MON3[a.m]} Week ${a.w} – ${_MON3[z.m]} Week ${z.w}`;
+}
+// "Nov 9 – Nov 15 · Week 3": the card's caption and the graph's.
+function hcCaption(range,dates){
+  if(!dates.length) return '';
+  const N=dates.length;
+  return `${_hcFmt(dates[0])}${N>1?` – ${_hcFmt(dates[N-1])}`:''} · ${hcWeekText(hcWeeks(range,dates))}`;
 }
 
 // ── One model behind a habits card and a graph ──
@@ -6178,11 +6253,15 @@ function hcModel(def){
       cell(hid,dt){
         const h=find(hid),iso=_isoD(dt);
         return {count:Number(o.log[iso]?.[hid])||0,target:Math.max(1,(h&&h.dailyTarget)||1),
-          skip:!!o.skips[iso]?.[hid],off:!h,before:false,future:dt>today};
+          skip:!!o.skips[iso]?.[hid],off:!h,before:!!(h&&h.startDate&&h.startDate>iso),future:dt>today};
       },
       toggle(hid,dt){
         const h=find(hid); if(!h) return;
         const iso=_isoD(dt),t=Math.max(1,h.dailyTarget||1);
+        if(h.startDate&&h.startDate>iso){
+          if(!confirm(`"${h.name}" starts on ${fmtDate(h.startDate)}. Move the start date back to ${fmtDate(iso)} to log this day?`)) return;
+          h.startDate=iso;
+        }
         const day=o.log[iso]||(o.log[iso]={}),c=Number(day[hid])||0;
         if(c>=t) delete day[hid]; else day[hid]=c+1;
         if(!Object.keys(day).length) delete o.log[iso];
@@ -6204,6 +6283,9 @@ function hcModel(def){
     if(h.archived||seen.has(h.id)||hid.includes(h.id)) return;
     seen.add(h.id); rows.push({h,g});
   })));
+  // The card's own order, from dragging its rows. A lever it hasn't seen yet goes last.
+  const ord=def.order||[];
+  if(ord.length){ const ix=h=>{ const i=ord.indexOf(h.id); return i<0?1e6:i; }; rows.sort((a,b)=>ix(a.h)-ix(b.h)); }
   return {own,dates,rows,
     cell(hid,dt){
       const y=dt.getFullYear(),m=dt.getMonth(),d=dt.getDate(),f=_trkHabitOn(y,m,d,hid),future=dt>today;
@@ -6261,18 +6343,22 @@ function _trkAfter(hid,y,m,d,moved){
 
 // ── The card's grid: levers down the side, days across ──
 function _hcGridHTML(def){
-  const md_=hcModel(def),today=_today0(),pd=_isoD(PD);
+  const md_=hcModel(def),today=_today0(),pd=_isoD(PD),range=hcRange(def);
   const L='SMTWTFS';
-  const ds=md_.dates;
-  const cap=ds.length?`${_hcFmt(ds[0])}${ds.length>1?` – ${_hcFmt(ds[ds.length-1])}`:''}`:'';
-  const head=ds.map(dt=>{
+  const ds=md_.dates,wk=hcWeeks(range,ds);
+  // Columns that open a new week get a rule down their left, under their W# band.
+  const w0=ds.map((_,i)=>i>0&&wk[i].key!==wk[i-1].key);
+  const bands=[];
+  wk.forEach((x,i)=>{ if(!bands.length||bands[bands.length-1].key!==x.key) bands.push({key:x.key,w:x.w,n:1,i}); else bands[bands.length-1].n++; });
+  const band=bands.map(b=>`<th class="hc-wk${b.i?' w0':''}" colspan="${b.n}">W${b.w}</th>`).join('');
+  const head=ds.map((dt,i)=>{
     const iso=_isoD(dt),cls=['hc-d'];
-    if(+dt===+today) cls.push('today'); if(iso===pd) cls.push('pd'); if(dt>today) cls.push('fut');
-    return `<th class="${cls.join(' ')}" title="${dt.toDateString()}"><span>${L[dt.getDay()]}</span><b>${dt.getDate()}</b></th>`;
+    if(+dt===+today) cls.push('today'); if(iso===pd) cls.push('pd'); if(dt>today) cls.push('fut'); if(w0[i]) cls.push('w0');
+    return `<th class="${cls.join(' ')}" title="${dt.toDateString()} · Week ${wk[i].w}"><span>${L[dt.getDay()]}</span><b>${dt.getDate()}</b></th>`;
   }).join('');
   const body=md_.rows.map(({h,g})=>{
     const color=md_.own?(h.color||gradeAccent()):habitColor(h,g);
-    const cells=ds.map(dt=>{
+    const cells=ds.map((dt,i)=>{
       const c=md_.cell(h.id,dt),iso=_isoD(dt);
       const frac=c.skip?0:Math.min(c.count,c.target)/c.target;
       const {bg,bd}=_chkFillParts(color,frac,c.skip);
@@ -6281,13 +6367,90 @@ function _hcGridHTML(def){
       if(c.off) cls.push('freq-off'); else if(c.before) cls.push('before-start');
       const num=(c.target>=5&&c.count>0&&frac<1&&!c.skip)?`<span class="hc-n">${c.count}</span>`:'';
       const dis=c.off||c.future;
-      return `<td class="hc-c${+dt===+today?' today':''}${iso===pd?' pd':''}"><button class="hc-cell" data-card="${def.id}" data-hid="${h.id}" data-iso="${iso}"${dis?' disabled':''}
+      return `<td class="hc-c${+dt===+today?' today':''}${iso===pd?' pd':''}${w0[i]?' w0':''}"><button class="hc-cell" data-card="${def.id}" data-hid="${h.id}" data-iso="${iso}"${dis?' disabled':''}
         onclick="_hcClick(this)" title="${_esc(h.name)} · ${_hcFmt(dt)}${dis?'':' — click to log, hold to skip'}"><span class="${cls.join(' ')}" style="background:${bg};border-color:${bd}">${num}</span></button></td>`;
     }).join('');
-    return `<tr><th class="hc-nm" title="${_esc(h.name)}"><i style="background:${color}"></i><span>${_esc(h.name)}</span></th>${cells}</tr>`;
+    const sd=h.startDate;
+    return `<tr data-hid="${h.id}"><th class="hc-nm"><div class="hc-nmw">
+      <span class="hc-grip" title="Drag to reorder" onpointerdown="_hcDragStart(event,'${def.id}')">&#10303;</span>
+      <i class="hc-dot" style="background:${color}" title="Color — click to change" onclick="_hcColor(event,'${def.id}','${h.id}')"></i>
+      <div class="hc-nmt"><span class="hc-name" title="${_esc(h.name)} — click to rename" onclick="_hcRename(this,'${def.id}','${h.id}')">${_esc(h.name)}</span>
+      <span class="hc-sd${sd?'':' none'}" title="Start date — click to change" onclick="event.stopPropagation();openDatePicker(this)">${sd?'since '+fmtDate(sd):'set start date'}<input type="date" value="${sd||todayStr()}" onchange="_hcSetStart('${def.id}','${h.id}',this.value)"></span></div>
+    </div></th>${cells}</tr>`;
   }).join('');
-  return `<div class="hc-cap">${cap}</div>
-    <div class="hc-scroll" data-card="${def.id}"><table class="hc-tbl"><thead><tr><th class="hc-nm"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="hc-cap" title="Change the days shown" onclick="_hcRangeDlg('${def.id}')">${hcCaption(range,ds)}</div>
+    <div class="hc-scroll" data-card="${def.id}"><table class="hc-tbl"><thead><tr class="hc-wkr"><th class="hc-nm"></th>${band}</tr><tr><th class="hc-nm"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+// Click a color, a name or a start date on the grid to change it in place. On a Tracker card
+// these write the lever itself, exactly as the Tracker's own controls do.
+function _hcColor(e,id,hid){
+  const def=cardDef(id); if(!def) return;
+  if(def.source!=='own'){ openHabitColorPop(e,hid); return; }
+  const h=_hcOwn(def).habits.find(x=>x.id===hid); if(!h) return;
+  openHabitColorPop(e,hid,{get:()=>h,set:c=>{ h.color=c; _cardsDirty(); render(); }});
+}
+function _hcRename(span,id,hid){
+  if(span.isContentEditable) return;
+  const old=span.textContent;
+  span.contentEditable='true'; span.classList.add('editing'); span.focus();
+  const rg=document.createRange(); rg.selectNodeContents(span);
+  const sel=getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+  let done=false;
+  const fin=commit=>{
+    if(done) return; done=true;
+    span.contentEditable='false'; span.classList.remove('editing');
+    const v=span.textContent.replace(/\s+/g,' ').trim();
+    if(!commit||!v||v===old){ span.textContent=old; return; }
+    const def=cardDef(id);
+    if(def&&def.source==='own') hcOwnSet(id,hid,'name',v); else renameHabitInline(hid,v);
+  };
+  span.onkeydown=e=>{
+    e.stopPropagation();
+    if(e.key==='Enter'){ e.preventDefault(); fin(true); }
+    else if(e.key==='Escape'){ e.preventDefault(); fin(false); }
+  };
+  span.onblur=()=>fin(true);
+}
+function _hcSetStart(id,hid,v){
+  const def=cardDef(id); if(!def) return;
+  if(def.source==='own') hcOwnSet(id,hid,'startDate',v);
+  else changeHabitStartDate(hid,v);
+}
+// Drag a row by its grip. The row moves live under the pointer; letting go saves the order —
+// on the card's own habits, or as this card's order for Tracker levers, leaving the Tracker's
+// own order as it was. Listens on the document, as moving the row drops pointer capture.
+function _hcDragStart(e,id){
+  const tr=e.target.closest('tr'),tb=tr&&tr.parentNode; if(!tb) return;
+  e.preventDefault(); e.stopPropagation();
+  const pid=e.pointerId,start=[...tb.children].map(r=>r.dataset.hid).join();
+  tr.classList.add('hc-dragging');
+  const mv=ev=>{
+    if(ev.pointerId!==pid) return;
+    const others=[...tb.children].filter(o=>o!==tr);
+    const i=others.findIndex(o=>{ const b=o.getBoundingClientRect(); return ev.clientY<b.top+b.height/2; });
+    if(i<0){ if(tb.lastElementChild!==tr) tb.appendChild(tr); }
+    else if(tr.nextElementSibling!==others[i]) tb.insertBefore(tr,others[i]);
+  };
+  const up=ev=>{
+    if(ev.pointerId!==pid) return;
+    document.removeEventListener('pointermove',mv);
+    document.removeEventListener('pointerup',up);
+    document.removeEventListener('pointercancel',up);
+    tr.classList.remove('hc-dragging');
+    const ids=[...tb.children].map(r=>r.dataset.hid);
+    if(ids.join()!==start) _hcSetOrder(id,ids);
+  };
+  document.addEventListener('pointermove',mv);
+  document.addEventListener('pointerup',up);
+  document.addEventListener('pointercancel',up);
+}
+function _hcSetOrder(id,ids){
+  const def=cardDef(id); if(!def) return;
+  if(def.source==='own'){
+    const o=_hcOwn(def),ix=h=>{ const i=ids.indexOf(h.id); return i<0?1e6:i; };
+    o.habits.sort((a,b)=>ix(a)-ix(b));
+  }else def.order=ids.concat((def.order||[]).filter(x=>!ids.includes(x)));
+  _cardsDirty(); _refreshHabitCards();
 }
 function _hcClick(btn){
   const def=cardDef(btn.dataset.card); if(!def||btn.disabled) return;
@@ -6335,6 +6498,7 @@ function hcOwnSet(id,hid,k,v){
   if(k==='name'){ if(!String(v).trim()) return; h.name=String(v).trim(); }
   else if(k==='dailyTarget') h.dailyTarget=Math.max(1,Math.min(99,Math.round(+v)||1));
   else if(k==='color') h.color=v;
+  else if(k==='startDate'){ if(v) h.startDate=v; else delete h.startDate; }
   _cardsDirty(); render();
 }
 function hcOwnDel(id,hid){
@@ -8237,19 +8401,21 @@ function setGroupColor(gid,color){
 }
 function _findHabit(hid){ for(const g of D.groups){const h=g.habits.find(h=>h.id===hid);if(h)return h;} return null; }
 function setHabitColor(hid,color){ const h=_findHabit(hid); if(!h)return; h.color=color; save();render(); }
-function openHabitColorPop(e,hid){
+// api, when given, is {get,set} for a habit that isn't a Tracker lever — a Habits card's own.
+function openHabitColorPop(e,hid,api){
   e.stopPropagation();
   const old=document.getElementById('cpop');
   if(old){old.remove();if(colorPopTarget==='h:'+hid){colorPopTarget=null;return}}
   colorPopTarget='h:'+hid;
-  const cur=_findHabit(hid);
+  const cur=api?api.get():_findHabit(hid);
+  const setC=api?api.set:c=>setHabitColor(hid,c);
   const pop=document.createElement('div');
   pop.className='color-popup';pop.id='cpop';
   PAL.forEach(c=>{
     const sw=document.createElement('div');
     sw.className='csw'+(cur&&cur.color===c?' csw-active':'');
     sw.style.background=c;
-    sw.onclick=(ev)=>{ev.stopPropagation();setHabitColor(hid,c);pop.remove();colorPopTarget=null};
+    sw.onclick=(ev)=>{ev.stopPropagation();setC(c);pop.remove();colorPopTarget=null};
     pop.appendChild(sw);
   });
   const customSw=document.createElement('div');
@@ -8258,7 +8424,7 @@ function openHabitColorPop(e,hid){
   const customIn=document.createElement('input');
   customIn.type='color';
   customIn.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
-  customIn.addEventListener('input',ev=>{ev.stopPropagation();setHabitColor(hid,ev.target.value);});
+  customIn.addEventListener('input',ev=>{ev.stopPropagation();setC(ev.target.value);});
   customIn.addEventListener('change',ev=>{ev.stopPropagation();pop.remove();colorPopTarget=null;});
   if(cur&&cur.color&&!PAL.includes(cur.color)){customIn.value=cur.color;customSw.classList.add('csw-active');}
   customSw.appendChild(customIn);
