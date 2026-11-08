@@ -6221,11 +6221,13 @@ function hcWeekText(wk){
   if(a.m===z.m) return `W${a.w}–${z.w}`;
   return `${_MON3[a.m]} W${a.w} – ${_MON3[z.m]} W${z.w}`;
 }
-// "W3 · Nov 9 – Nov 15": the card's caption and the graph's. A whole month needs no week.
+// "W3 · Nov 9 – Nov 15": the card's caption and the graph's. The week leads only a short,
+// single-month span — past a week the grid's W# band carries it, and across months it's noise.
 function hcCaption(range,dates){
   if(!dates.length) return '';
-  const N=dates.length,span=`${_hcFmt(dates[0])}${N>1?` – ${_hcFmt(dates[N-1])}`:''}`;
-  return range.kind==='month'?span:`${hcWeekText(hcWeeks(range,dates))} · ${span}`;
+  const N=dates.length,a=dates[0],z=dates[N-1],span=`${_hcFmt(a)}${N>1?` – ${_hcFmt(z)}`:''}`;
+  const wkOk=range.kind!=='month'&&N<=7&&a.getMonth()===z.getMonth()&&a.getFullYear()===z.getFullYear();
+  return wkOk?`${hcWeekText(hcWeeks(range,dates))} · ${span}`:span;
 }
 
 // ── One model behind a habits card and a graph ──
