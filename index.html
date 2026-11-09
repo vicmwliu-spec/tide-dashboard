@@ -5222,11 +5222,14 @@ function buildHabitGraph(def){
   const hidden=Array.isArray(def.hiddenLines)?def.hiddenLines:[];
   const spans=N&&(ds[0].getMonth()!==ds[N-1].getMonth()||ds[0].getFullYear()!==ds[N-1].getFullYear());
   const lab=i=>{ const d=ds[i-1]; return d?(spans?`${d.getMonth()+1}/${d.getDate()}`:N<=10?`${'SMTWTFS'[d.getDay()]} ${d.getDate()}`:`${d.getDate()}`):''; };
+  // A line with a single day on it (a weekly habit's one tick) has nothing to join, so that
+  // day gets a dot, or the habit would vanish from the chart until its next log.
+  const lone=r=>ctx=>ctx.dataset.data.filter(p=>p&&p.y!=null).length===1?2.5:r;
   const datasets=[
     {label:'Perfection',data:S.perf,borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
-    {label:'Trajectory',data:S.traj,borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3},
-    {label:'Total',data:S.total,borderColor:overall,backgroundColor:fill,pointBackgroundColor:overall,borderWidth:2.5,tension:.4,fill:true,spanGaps:true,pointRadius:N<=14?2:0,pointHoverRadius:5},
-  ].concat(S.lines.map(l=>({label:l.name,data:l.data,borderColor:l.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,spanGaps:true,pointRadius:0,pointHoverRadius:4})));
+    {label:'Trajectory',data:S.traj,borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:lone(0),pointBackgroundColor:cc.cumul,pointHoverRadius:3},
+    {label:'Total',data:S.total,borderColor:overall,backgroundColor:fill,pointBackgroundColor:overall,borderWidth:2.5,tension:.4,fill:true,spanGaps:true,pointRadius:lone(N<=14?2:0),pointHoverRadius:5},
+  ].concat(S.lines.map(l=>({label:l.name,data:l.data,borderColor:l.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,spanGaps:true,pointRadius:lone(0),pointBackgroundColor:l.color,pointHoverRadius:4})));
   // Lines hidden from the legend stay hidden, through every redraw, until shown again there.
   datasets.forEach(d=>{ d.hidden=hidden.includes(d.label); });
   // A tick or a skip updates the open chart in place, so it eases rather than redraws.
