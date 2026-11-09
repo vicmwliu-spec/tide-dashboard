@@ -703,6 +703,29 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
 .hc-cell:not(:disabled):hover .hc-box{border-color:var(--text3)}
 .hc-n{font-size:8px;font-weight:700;color:var(--text3);line-height:1}
 .hc-empty{font-size:11.5px;color:var(--text3);font-style:italic;padding:4px 2px}
+/* The week's target is met: its empty days step back, still clickable for a bonus day. */
+.hc-cell .hc-box.hc-met{opacity:.28;border-style:dashed}
+.hc-cell:not(:disabled):hover .hc-box.hc-met{opacity:.7}
+.hc-add{display:block;margin:4px 0 0 -2px;padding:2px 4px;background:none;border:none;border-radius:4px;font-family:var(--font);font-size:11px;font-weight:500;color:var(--text3);cursor:pointer;opacity:0;transition:opacity .12s}
+.pcard:hover .hc-add,.hc-add.show,.hc-add:focus-visible{opacity:1}
+.hc-add:hover{color:var(--accent);background:var(--surface2)}
+/* A habit's settings popover, from its dot. */
+.color-popup.hc-pop{display:block;width:216px;padding:10px;box-sizing:border-box}
+.hc-pop-sw{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.hc-pop-cust{background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative;overflow:hidden;box-sizing:border-box}
+.hc-pop-cust input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:none;padding:0}
+.hc-pop-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--text2);padding:3px 0;white-space:nowrap}
+.hc-step{display:flex;align-items:center;gap:2px}
+.hc-step b{min-width:60px;text-align:center;font-size:11.5px;font-weight:600;color:var(--text1)}
+.hc-step button,.hc-pop-days button{width:20px;height:20px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-family:var(--font);font-size:12px;line-height:1;padding:0;cursor:pointer}
+.hc-step button:hover:not(:disabled),.hc-pop-days button:hover{border-color:var(--text3)}
+.hc-step button:disabled{opacity:.35;cursor:default}
+.hc-pop-days{display:flex;gap:2px}
+.hc-pop-days button{width:17px;height:19px;font-size:9.5px;font-weight:600;border-radius:4px}
+.hc-pop-days button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.hc-pop-sep{height:1px;background:var(--border2);margin:6px 0 4px}
+.hc-pop-del{width:100%;text-align:left;background:none;border:none;border-radius:5px;padding:4px 4px;font-family:var(--font);font-size:11.5px;color:var(--red);cursor:pointer}
+.hc-pop-del:hover{background:var(--surface2)}
 .hc-color{position:relative;width:14px;height:14px;border-radius:50%;flex-shrink:0;cursor:pointer;overflow:hidden}
 .hc-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:none;padding:0}
 /* Habit Graph card */
@@ -5007,21 +5030,13 @@ function _cardMenuHTML(def){
     it.push(`<button class="padd-item pm-i" onclick="_cardConvert('${id}','${to}')"
       >Convert to ${to}</button>`);
   }
-  if(def.type==='habits'&&!def.editing){
-    it.push(_hcRangeMenu(def));
-    const own=def.source==='own';
-    it.push(_pmSub('Habits from',[
-      [!own,'Tracker',`_hcSetSource('${id}','tracker')`,'The Tracker’s levers — ticks show in both places'],
-      [own,'This card only',`_hcSetSource('${id}','own')`,'Habits kept on this card, apart from the Tracker'],
-    ]));
-    it.push(`<button class="padd-item pm-i" onclick="_cardLevers('${id}')">${own?'Edit habits':'Edit levers'}</button>`);
-  }
+  // A habits card needs no items of its own: the days shown change from its date caption, and
+  // each habit's settings open from its color dot. A graph only asks which card to follow, and
+  // only when there is more than one to choose from.
   if(def.type==='hgraph'){
-    const src=_hgSrcCard(def);
-    it.push(_pmSub('Chart',[[!src,'Tracker habits',`_hgSetSrc('${id}','tracker')`,'']]
-      .concat(cardDefs().filter(c=>c.type==='habits').map(c=>[src&&src.id===c.id,
-        `${esc(c.label||'Habits')} card${c.source==='own'?'':' (Tracker levers)'}`,`_hgSetSrc('${id}','${c.id}')`,'Uses that card’s days']))));
-    if(!src) it.push(_hcRangeMenu(def));
+    const src=_hgSrcCard(def),hcs=cardDefs().filter(c=>c.type==='habits');
+    if(hcs.length>1) it.push(_pmSub('Chart',hcs.map(c=>[src&&src.id===c.id,
+      `${esc(c.label||'Habits')} card`,`_hgSetSrc('${id}','${c.id}')`,'Uses that card’s habits and days'])));
   }
   // There were four items here -- Match height / Free height, Match width / Free width -- and
   // they are gone. Asking someone to choose a sizing mode before resizing is asking them to
@@ -5043,22 +5058,11 @@ function _cardConvert(id,type){ _cardMenuClose(); convertCardTo(id,type); }
 // Both are gone -- see cardMenuHTML. What they controlled now falls out of what you actually
 // did: a card with a stored minH is a card whose height you chose, and a width drag magnetises
 // rather than quantising. migrateCardModes clears the two flags off every existing card.
-function _cardLevers(id){ _cardMenuClose(); toggleHabitCardEdit(id); }
 // A submenu of checkable choices: rows of [checked,label,onclick,title].
 function _pmSub(label,rows){
   return `<div class="padd-item pm-i pm-has-sub" tabindex="0">${label}<span class="pm-arw">&#9656;</span>
     <div class="pm-sub">${rows.map(([on,l,fn,t])=>`<div class="pm-sub-row"><button class="pm-sub-load"${t?` title="${t}"`:''}
       onclick="${fn}"><span class="pm-ck">${on?'&#10003;':''}</span> ${l}</button></div>`).join('')}</div></div>`;
-}
-function _hcRangeMenu(def){
-  const r=hcRange(def),id=def.id;
-  return _pmSub('Show',[
-    [r.kind==='week','This week',`_hcSetRange('${id}','week')`,''],
-    [r.kind==='month','This month',`_hcSetRange('${id}','month')`,''],
-    [r.kind==='last',r.kind==='last'?`Last ${Math.max(1,Math.round(+r.n)||7)} days&hellip;`:'Last N days&hellip;',`_hcRangeDlg('${id}','last')`,''],
-    [r.kind==='next',r.kind==='next'?`Next ${Math.max(1,Math.round(+r.n)||7)} days&hellip;`:'Next N days&hellip;',`_hcRangeDlg('${id}','next')`,''],
-    [r.kind==='custom','Custom range&hellip;',`_hcRangeDlg('${id}','custom')`,''],
-  ]);
 }
 function _hcSetRange(id,kind,extra){
   const def=cardDef(id); if(!def) return;
@@ -5066,17 +5070,7 @@ function _hcSetRange(id,kind,extra){
   def.range=Object.assign({kind},extra||{});
   _cardsDirty(); render();
 }
-function _hcSetSource(id,src){
-  const def=cardDef(id); if(!def) return;
-  _cardMenuClose();
-  if((def.source||'tracker')===src) return;
-  def.source=src;
-  // A card switched to its own habits with none yet opens straight into adding one.
-  if(src==='own'&&!_hcOwn(def).habits.some(h=>!h.archived)) def.editing=true;
-  _cardsDirty(); render();
-}
-// The range picker: opened from a card's date caption with the current choice selected, or
-// from the Show ▸ menu with the item you picked.
+// The range picker, opened from a card's date caption with the current choice selected.
 const _HC_KINDS=[['week','This week'],['month','This month'],['last','Last N days'],['next','Next N days'],['custom','Custom']];
 function _hcRangeDlg(id,kind){
   const def=cardDef(id); if(!def) return;
@@ -5137,10 +5131,11 @@ function _hcRangeSave(){
 // levers over the graph's own range, or a Habits card's habits over that card's range.
 const _hgCharts={};
 function _hgDestroyAll(){ Object.keys(_hgCharts).forEach(k=>{ try{ _hgCharts[k].destroy(); }catch(e){} delete _hgCharts[k]; }); }
-// The Habits card a graph follows, or null for the Tracker — including when that card is gone.
+// The Habits card a graph follows: the one it was pointed at, else the first on the page. Null
+// only when there is no Habits card at all.
 function _hgSrcCard(def){
-  if(!def.src||def.src==='tracker') return null;
-  const c=cardDef(def.src); return c&&c.type==='habits'?c:null;
+  const c=def.src&&def.src!=='tracker'&&cardDef(def.src);
+  return c&&c.type==='habits'?c:(cardDefs().find(x=>x.type==='habits')||null);
 }
 function _hgSetSrc(id,src){
   const def=cardDef(id); if(!def) return;
@@ -5148,9 +5143,14 @@ function _hgSetSrc(id,src){
 }
 // Same series as the Tracker chart, with the same rules as dayProg: off days and days before
 // a lever starts don't count, skips come out of the total, and a partial count is partial credit.
+// A habit with a weekly target of k is scored by the week instead: a logged day counts, an empty
+// one doesn't count against it, and once the week is over whatever is short of k is a miss on
+// its last day. k days in a week is a perfect week, and Perfection and Trajectory reach for k.
+function _wkStart(dt){ return new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()-dowOff(dt.getDay())); }
 function hgSeries(model){
   const N=model.dates.length,today=_today0();
-  const tot=new Array(N).fill(0),done=new Array(N).fill(0);
+  const tot=new Array(N).fill(0),done=new Array(N).fill(0),poss=new Array(N).fill(0),cred=new Array(N).fill(0);
+  const idx={}; model.dates.forEach((dt,i)=>{ idx[+dt]=i; });
   const lines=[],lineOf={};
   model.rows.forEach(({h,g})=>{
     let key,name,color;
@@ -5160,35 +5160,55 @@ function hgSeries(model){
   });
   model.rows.forEach(({h,g})=>{
     const L=lineOf[(model.own||!g||g._default)?'h:'+h.id:'g:'+g.id];
+    const add=(i,t,f)=>{ tot[i]+=t; done[i]+=f; L.tot[i]+=t; L.done[i]+=f; };
+    const seen=new Set();
     model.dates.forEach((dt,i)=>{
-      const c=model.cell(h.id,dt); if(c.off||c.before||c.skip) return;
-      const f=Math.min(c.count,c.target)/c.target;
-      tot[i]++; done[i]+=f; L.tot[i]++; L.done[i]+=f;
+      const c=model.cell(h.id,dt);
+      if(!c.wt){
+        if(c.off||c.before||c.skip) return;
+        const f=Math.min(c.count,c.target)/c.target;
+        add(i,1,f); poss[i]++; cred[i]+=f; return;
+      }
+      // Weekly: the whole week at once, the first time one of its days comes up.
+      const w0=_wkStart(dt); if(seen.has(+w0)) return; seen.add(+w0);
+      const wk=[0,1,2,3,4,5,6].map(j=>{ const d=new Date(w0.getFullYear(),w0.getMonth(),w0.getDate()+j); return {d,i:idx[+d],c:model.cell(h.id,d)}; });
+      const el=wk.filter(x=>!x.c.off&&!x.c.before&&!x.c.skip);
+      const k=Math.min(Math.max(...el.map(x=>x.c.wt||0),0),el.length); if(!k) return;
+      let acc=0,last=-1;
+      el.forEach(x=>{
+        const f=Math.min(x.c.count,x.c.target)/x.c.target,cr=Math.max(0,Math.min(f,k-acc)); acc+=cr;
+        if(x.i===undefined) return;
+        last=x.i; poss[x.i]+=k/el.length; cred[x.i]+=cr;
+        if(f>0) add(x.i,1,f);
+      });
+      if(last<0) return;
+      if(wk[6].d<today&&acc<k) add(last,k-acc,0);
     });
   });
-  const grand=tot.reduce((a,b)=>a+b,0),pts=[];
-  const first=Math.max(0,tot.findIndex(t=>t>0));
+  const grand=poss.reduce((a,b)=>a+b,0),pts=[];
+  const first=Math.max(0,poss.findIndex(t=>t>0));
   const perf=[],traj=[];
   if(grand){
     let acc=0,dn=0;
-    for(let i=first;i<N;i++){ acc+=tot[i]; perf.push({x:i+1,y:Math.round(acc/grand*100)}); }
-    for(let i=0;i<N;i++){ if(model.dates[i]>today) break; dn+=done[i]; traj.push({x:i+1,y:Math.round(dn/grand*100)}); }
+    for(let i=first;i<N;i++){ acc+=poss[i]; perf.push({x:i+1,y:Math.round(acc/grand*100)}); }
+    for(let i=0;i<N;i++){ if(model.dates[i]>today) break; dn+=cred[i]; traj.push({x:i+1,y:Math.round(dn/grand*100)}); }
   }
-  for(let i=0;i<N;i++) pts.push({x:i+1,y:tot[i]?Math.floor(done[i]/tot[i]*100):0});
+  // A day with nothing due — every habit on it weekly and unlogged — is a gap, not a zero.
+  for(let i=0;i<N;i++) pts.push({x:i+1,y:tot[i]?Math.floor(done[i]/tot[i]*100):poss[i]?0:null});
   return {perf,traj,total:pts,lines:lines.map(L=>({name:L.name,color:L.color,
-    data:L.tot.map((t,i)=>({x:i+1,y:t?Math.floor(L.done[i]/t*100):0}))}))};
+    data:L.tot.map((t,i)=>({x:i+1,y:t?Math.floor(L.done[i]/t*100):null}))}))};
 }
 function buildHabitGraph(def){
   const cv=document.getElementById(`hg-${def.id}`);
   if(!cv){ if(_hgCharts[def.id]){ _hgCharts[def.id].destroy(); delete _hgCharts[def.id]; } return; }
-  const srcCard=_hgSrcCard(def),lost=!!(def.src&&def.src!=='tracker'&&!srcCard);
-  // The Tracker as a source reads with the graph's own range; a card's source with the card's.
+  const srcCard=_hgSrcCard(def);
+  // With no Habits card to follow, the levers over the graph's own range stand in.
   const model=hcModel(srcCard||{type:'hgraph',range:hcRange(def)});
   const ds=model.dates,N=ds.length;
   const rdef=srcCard||def,range=hcRange(rdef),wk=hcWeeks(range,ds);
   const note=document.getElementById(`hgn-${def.id}`);
   if(note){
-    note.innerHTML=hcCaption(range,ds)+(lost?' <em>— its Habits card was removed, so this shows the Tracker</em>':'');
+    note.innerHTML=hcCaption(range,ds)+(srcCard?'':' <em>— add a Habits card to chart it</em>');
     note.onclick=()=>_hcRangeDlg(rdef.id);
     note.title=srcCard?'Change the days shown — on the Habits card this follows':'Change the days shown';
   }
@@ -5198,8 +5218,8 @@ function buildHabitGraph(def){
   const datasets=[
     {label:'Perfection',data:S.perf,borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
     {label:'Trajectory',data:S.traj,borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3},
-    {label:'Total',data:S.total,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:true,pointRadius:N<=14?2:0,pointHoverRadius:5},
-  ].concat(S.lines.map(l=>({label:l.name,data:l.data,borderColor:l.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4})));
+    {label:'Total',data:S.total,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:true,spanGaps:true,pointRadius:N<=14?2:0,pointHoverRadius:5},
+  ].concat(S.lines.map(l=>({label:l.name,data:l.data,borderColor:l.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,spanGaps:true,pointRadius:0,pointHoverRadius:4})));
   // A tick or a skip updates the open chart in place, so it eases rather than redraws.
   const old=_hgCharts[def.id];
   if(old&&old.canvas===cv&&old.data.datasets.length===datasets.length&&old.options.scales.x.max===Math.max(2,N)
@@ -6265,8 +6285,9 @@ function hcModel(def){
     return {own,dates,rows,
       cell(hid,dt){
         const h=find(hid),iso=_isoD(dt);
-        return {count:Number(o.log[iso]?.[hid])||0,target:Math.max(1,(h&&h.dailyTarget)||1),
-          skip:!!o.skips[iso]?.[hid],off:!h,before:!!(h&&h.startDate&&h.startDate>iso),future:dt>today};
+        return {count:Number(o.log[iso]?.[hid])||0,target:Math.max(1,(h&&h.dailyTarget)||1),wt:(h&&h.weeklyTarget)||0,
+          skip:!!o.skips[iso]?.[hid],off:!h||!!(h.freq&&h.freq.length<7&&!h.freq.includes(dt.getDay())),
+          before:!!(h&&h.startDate&&h.startDate>iso),future:dt>today};
       },
       toggle(hid,dt){
         const h=find(hid); if(!h) return;
@@ -6302,9 +6323,9 @@ function hcModel(def){
   return {own,dates,rows,
     cell(hid,dt){
       const y=dt.getFullYear(),m=dt.getMonth(),d=dt.getDate(),f=_trkHabitOn(y,m,d,hid),future=dt>today;
-      if(!f||f.h.archived) return {count:0,target:1,skip:false,off:true,before:false,future};
+      if(!f||f.h.archived) return {count:0,target:1,wt:0,skip:false,off:true,before:false,future};
       const h=f.h,mo=D.months[mk(y,m)];
-      return {count:Number(mo?.completions?.[hid]?.[d])||0,target:Math.max(1,h.dailyTarget||1),
+      return {count:Number(mo?.completions?.[hid]?.[d])||0,target:Math.max(1,h.dailyTarget||1),wt:h.weeklyTarget||0,
         skip:!!mo?.skips?.[hid]?.[d],
         off:!!(h.freq&&h.freq.length<7&&!h.freq.includes(dt.getDay())),
         before:!!(h.startDate&&new Date(h.startDate+'T00:00:00')>dt),future};
@@ -6373,6 +6394,14 @@ function _hcGridHTML(def){
   }).join('');
   const body=md_.rows.map(({h,g})=>{
     const color=md_.own?(h.color||gradeAccent()):habitColor(h,g);
+    // Days fully logged in each calendar week, for habits with a weekly target.
+    const wkDone={},met=dt=>{
+      const w0=_wkStart(dt),k=+w0;
+      if(wkDone[k]===undefined) wkDone[k]=[0,1,2,3,4,5,6].reduce((n,j)=>{
+        const c=md_.cell(h.id,new Date(w0.getFullYear(),w0.getMonth(),w0.getDate()+j));
+        return n+(!c.skip&&!c.off&&c.count>=c.target?1:0); },0);
+      return wkDone[k];
+    };
     const cells=ds.map((dt,i)=>{
       const c=md_.cell(h.id,dt),iso=_isoD(dt);
       const frac=c.skip?0:Math.min(c.count,c.target)/c.target;
@@ -6380,6 +6409,8 @@ function _hcGridHTML(def){
       const checked=!c.skip&&frac>=1&&c.count>0;
       const cls=['chk-box','hc-box']; if(checked) cls.push('checked'); if(c.skip) cls.push('skipped');
       if(c.off) cls.push('freq-off'); else if(c.before) cls.push('before-start');
+      // The week's target is met: what's left of it is optional, so it steps back.
+      else if(c.wt&&!c.count&&!c.skip&&met(dt)>=c.wt) cls.push('hc-met');
       const num=(c.target>=5&&c.count>0&&frac<1&&!c.skip)?`<span class="hc-n">${c.count}</span>`:'';
       const dis=c.off||c.future;
       return `<td class="hc-c${+dt===+today?' today':''}${iso===pd?' pd':''}${w0[i]?' w0':''}${w0[i+1]?' w1':''}"><button class="hc-cell" data-card="${def.id}" data-hid="${h.id}" data-iso="${iso}"${dis?' disabled':''}
@@ -6388,21 +6419,113 @@ function _hcGridHTML(def){
     const sd=h.startDate;
     return `<tr data-hid="${h.id}"><th class="hc-nm"><div class="hc-nmw">
       <span class="hc-grip" title="Drag to reorder" onpointerdown="_hcDragStart(event,'${def.id}')">&#10303;</span>
-      <i class="hc-dot" style="background:${color}" title="Color — click to change" onclick="_hcColor(event,'${def.id}','${h.id}')"></i>
+      <i class="hc-dot" style="background:${color}" title="Color, targets and days — click to change" onclick="_hcSettings(event,'${def.id}','${h.id}')"></i>
       <div class="hc-nmt"><span class="hc-name" title="${_esc(h.name)} — click to rename" onclick="_hcRename(this,'${def.id}','${h.id}')">${_esc(h.name)}</span>
       <span class="hc-sd${sd?'':' none'}" title="Start date — click to change" onclick="event.stopPropagation();openDatePicker(this)">${sd?'since '+fmtDate(sd):'set start date'}<input type="date" value="${sd||todayStr()}" onchange="_hcSetStart('${def.id}','${h.id}',this.value)"></span></div>
     </div></th>${cells}</tr>`;
   }).join('');
   return `<div class="hc-cap" title="Change the days shown" onclick="_hcRangeDlg('${def.id}')">${hcCaption(range,ds)}</div>
-    <div class="hc-scroll" data-card="${def.id}"><table class="hc-tbl"><thead>${wkBand?`<tr class="hc-wkr"><th class="hc-nm"></th>${band}</tr>`:''}<tr><th class="hc-nm"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    <div class="hc-scroll" data-card="${def.id}"><table class="hc-tbl"><thead>${wkBand?`<tr class="hc-wkr"><th class="hc-nm"></th>${band}</tr>`:''}<tr><th class="hc-nm"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    ${_hcAddBtn(def,!md_.rows.length)}`;
+}
+function _hcAddBtn(def,show){
+  return `<button class="hc-add${show?' show':''}" onclick="_hcAddHabit('${def.id}')">+ Add habit</button>`;
+}
+// A new habit goes on the end and its name opens for typing straight away.
+function _hcAddHabit(id){
+  const def=cardDef(id); if(!def) return;
+  let hid;
+  if(def.source==='own'){
+    const o=_hcOwn(def),h={id:uid(),name:'New habit',color:TB_COLORS[o.habits.length%TB_COLORS.length],dailyTarget:1};
+    o.habits.push(h); hid=h.id; _cardsDirty();
+  }else{
+    const g=_defaultGroup(),h={id:uid(),name:'New habit',goalDays:31,startDate:todayStr()};
+    g.habits.push(h); hid=h.id; applyHabitStartDateSkips(h.id,h.startDate); save();
+  }
+  render();
+  const sp=document.querySelector(`#hcard-${id} tr[data-hid="${hid}"] .hc-name`);
+  if(sp) _hcRename(sp,id,hid);
 }
 // Click a color, a name or a start date on the grid to change it in place. On a Tracker card
 // these write the lever itself, exactly as the Tracker's own controls do.
-function _hcColor(e,id,hid){
-  const def=cardDef(id); if(!def) return;
-  if(def.source!=='own'){ openHabitColorPop(e,hid); return; }
-  const h=_hcOwn(def).habits.find(x=>x.id===hid); if(!h) return;
-  openHabitColorPop(e,hid,{get:()=>h,set:c=>{ h.color=c; _cardsDirty(); render(); }});
+// ── A habit's settings: color, times a day, times a week, which days, delete ──
+// One popover from the habit's dot. Every change is saved and shown on the grid as it's made;
+// the popover stays open until you click away.
+function _hcHabitObj(id,hid){
+  const def=cardDef(id); if(!def) return null;
+  return def.source==='own'?_hcOwn(def).habits.find(h=>h.id===hid):_findHabit(hid);
+}
+function _hcHabitSet(id,hid,k,v){
+  const def=cardDef(id),h=_hcHabitObj(id,hid); if(!h) return;
+  if(k==='color') h.color=v;
+  else if(k==='dailyTarget') h.dailyTarget=Math.max(1,Math.min(20,Math.round(+v)||1));
+  else if(k==='weeklyTarget') h.weeklyTarget=Math.max(0,Math.min(6,Math.round(+v)||0));
+  else if(k==='freq'){
+    const f=[...new Set(v)].filter(x=>x>=0&&x<=6).sort((a,b)=>a-b); if(!f.length) return;
+    if(f.length>=7) delete h.freq; else h.freq=f;
+  }
+  // A weekly target as big as the days it can fall on is just every day.
+  const nd=h.freq&&h.freq.length<7?h.freq.length:7;
+  if(h.weeklyTarget>=nd) h.weeklyTarget=0;
+  if(def.source==='own') _cardsDirty(); else save();
+  if(k==='color') render(); else _refreshHabitCards();
+}
+function _hcSettings(e,id,hid){
+  e.stopPropagation();
+  const old=document.getElementById('cpop');
+  if(old){ old.remove(); if(colorPopTarget==='hs:'+hid){ colorPopTarget=null; return; } }
+  if(!_hcHabitObj(id,hid)) return;
+  colorPopTarget='hs:'+hid;
+  const pop=document.createElement('div');
+  pop.className='color-popup hc-pop'; pop.id='cpop'; pop.dataset.card=id; pop.dataset.hid=hid;
+  pop.addEventListener('click',ev=>ev.stopPropagation());
+  document.body.appendChild(pop);
+  _hcSettingsFill();
+  const r=e.target.getBoundingClientRect(),PW=pop.offsetWidth,PH=pop.offsetHeight;
+  let top=r.bottom+6,left=r.left-8;
+  if(top+PH>window.innerHeight-8) top=r.top-PH-6;
+  left=Math.max(8,Math.min(left,window.innerWidth-PW-8)); top=Math.max(8,top);
+  pop.style.top=top+'px'; pop.style.left=left+'px';
+}
+function _hcSettingsFill(){
+  const pop=document.getElementById('cpop'); if(!pop||!pop.classList.contains('hc-pop')) return;
+  const id=pop.dataset.card,hid=pop.dataset.hid,h=_hcHabitObj(id,hid),def=cardDef(id);
+  if(!h||!def){ pop.remove(); colorPopTarget=null; return; }
+  const own=def.source==='own',cur=h.color||'';
+  const days=h.freq&&h.freq.length<7?h.freq:[0,1,2,3,4,5,6];
+  const dt=Math.max(1,h.dailyTarget||1),wt=h.weeklyTarget||0,maxW=Math.min(6,days.length-1);
+  const step=(k,v,lo,hi,lbl,title)=>`<div class="hc-pop-row"><span title="${title}">${k==='dailyTarget'?'Times a day':'Times a week'}</span>
+    <span class="hc-step"><button ${v<=lo?'disabled':''} onclick="_hcSettingsSet('${k}',${v-1})">&minus;</button><b>${lbl}</b><button ${v>=hi?'disabled':''} onclick="_hcSettingsSet('${k}',${v+1})">+</button></span></div>`;
+  pop.innerHTML=`<div class="hc-pop-sw">${PAL.map(c=>`<div class="csw${cur===c?' csw-active':''}" style="background:${c}" onclick="_hcSettingsSet('color','${c}')"></div>`).join('')}
+      <label class="csw hc-pop-cust${cur&&!PAL.includes(cur)?' csw-active':''}" title="Custom color"><input type="color" value="${/^#[0-9a-f]{6}$/i.test(cur)?cur:'#4E9B8A'}" oninput="_hcSettingsSet('color',this.value)"></label></div>
+    ${step('dailyTarget',dt,1,20,dt,'How many times it takes to fill a day')}
+    ${step('weeklyTarget',wt,0,maxW,wt?wt:'Every day','How many days a week it needs — once that many are done, the rest of the week fades')}
+    <div class="hc-pop-row"><span>Days</span><span class="hc-pop-days">${dowOrder().map(d=>`<button class="${days.includes(d)?'on':''}" title="${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d]}" onclick="_hcSettingsDay(${d})">${'SMTWTFS'[d]}</button>`).join('')}</span></div>
+    <div class="hc-pop-sep"></div>
+    <button class="hc-pop-del" onclick="_hcSettingsDel()" title="${own?'Delete it and everything logged for it on this card':'Archive it — its history is kept'}">Delete habit</button>`;
+}
+function _hcSettingsSet(k,v){
+  const pop=document.getElementById('cpop'); if(!pop) return;
+  _hcHabitSet(pop.dataset.card,pop.dataset.hid,k,v);
+  // A color change renders the page; keep the popover pointing at the same habit.
+  if(!document.getElementById('cpop')) return;
+  _hcSettingsFill();
+}
+function _hcSettingsDay(d){
+  const pop=document.getElementById('cpop'); if(!pop) return;
+  const h=_hcHabitObj(pop.dataset.card,pop.dataset.hid); if(!h) return;
+  const days=h.freq&&h.freq.length<7?h.freq.slice():[0,1,2,3,4,5,6];
+  const i=days.indexOf(d);
+  if(i>=0){ if(days.length===1) return; days.splice(i,1); } else days.push(d);
+  _hcSettingsSet('freq',days);
+}
+function _hcSettingsDel(){
+  const pop=document.getElementById('cpop'); if(!pop) return;
+  const id=pop.dataset.card,hid=pop.dataset.hid,def=cardDef(id);
+  pop.remove(); colorPopTarget=null;
+  if(!def) return;
+  if(def.source==='own'){ hcOwnDel(id,hid); return; }
+  const f=_findHabitWithGroup(hid); if(f) archiveHabit(f.g.id,hid);
 }
 function _hcRename(span,id,hid){
   if(span.isContentEditable) return;
@@ -6483,31 +6606,8 @@ function _hcScrollToPD(el){
   sc.scrollLeft=Math.max(0,th.offsetLeft-(nm?nm.offsetWidth:0)-(sc.clientWidth-(nm?nm.offsetWidth:0))/2+th.offsetWidth/2);
 }
 
-// A card with its own habits: the same name / color / times-a-day a Tracker lever has,
-// kept on the card. No groups — the card is the group.
-function _hcOwnEditorHTML(def){
-  const o=_hcOwn(def),hs=o.habits.filter(h=>!h.archived);
-  return `<div class="hlist">${hs.map(h=>{
-    const c=h.color||gradeAccent();
-    return `<div class="hlist-row">
-      <label class="hc-color" title="Color" style="background:${c}"><input type="color" value="${/^#[0-9a-f]{6}$/i.test(c)?c:'#4E9B8A'}" onchange="hcOwnSet('${def.id}','${h.id}','color',this.value)"></label>
-      <input class="nm" data-hid="${h.id}" value="${_esc(h.name)}" onchange="hcOwnSet('${def.id}','${h.id}','name',this.value)"/>
-      <input class="hlist-num" type="number" min="1" max="99" value="${h.dailyTarget||1}" title="Times per day" onchange="hcOwnSet('${def.id}','${h.id}','dailyTarget',this.value)"/>
-      <button class="pcard-x" title="Delete habit and its log" onclick="hcOwnDel('${def.id}','${h.id}')">×</button>
-    </div>`;}).join('')}
-    ${hs.length?'':`<div class="hc-empty">No habits on this card yet.</div>`}
-    <div class="hlist-foot">
-      <button class="pcard-lnk" onclick="hcOwnAdd('${def.id}')">+ Habit</button>
-      <button class="pcard-lnk on" onclick="toggleHabitCardEdit('${def.id}')">Done</button>
-    </div>
-  </div>`;
-}
-function hcOwnAdd(id){
-  const def=cardDef(id); if(!def) return;
-  const o=_hcOwn(def),h={id:uid(),name:'New habit',color:TB_COLORS[o.habits.length%TB_COLORS.length],dailyTarget:1};
-  o.habits.push(h); _cardsDirty(); render();
-  setTimeout(()=>{ const i=document.querySelector(`#hcard-${id} input.nm[data-hid="${h.id}"]`); if(i){ i.focus(); i.select(); } },0);
-}
+// A card with its own habits: the same name / color / targets a Tracker lever has, kept on the
+// card. No groups — the card is the group. Added from the grid's + Add habit (_hcAddHabit).
 function hcOwnSet(id,hid,k,v){
   const def=cardDef(id),h=def&&_hcOwn(def).habits.find(h=>h.id===hid); if(!h) return;
   if(k==='name'){ if(!String(v).trim()) return; h.name=String(v).trim(); }
@@ -6524,52 +6624,12 @@ function hcOwnDel(id,hid){
   _cardsDirty(); render();
 }
 
+// Everything about a habit is changed on the grid itself — its dot, its name, its start date,
+// its grip — so there is no edit mode. A card with nothing on it is the grid's add row alone.
 function habitCardBody(def){
-  if(def.source==='own'){
-    if(def.editing) return _hcOwnEditorHTML(def);
-    if(!_hcOwn(def).habits.some(h=>!h.archived)) return `<button class="paddcard" style="width:100%;padding:12px 10px"
-      onclick="toggleHabitCardEdit('${def.id}')">Add a habit</button>`;
-    return _hcGridHTML(def);
-  }
-  const hid=_cardHidden(def);
-  // The chooser opens from the card's ⋯ menu and from the empty state, so a card can never
-  // end up with nothing on it and no way back. Renaming and removing a lever live inside
-  // the chooser rather than behind a global mode: opening it is already the explicit "I am
-  // configuring this card" that the mode used to stand for.
-  // The editor reads D.groups, the live list every edit below writes to, rather than the
-  // day's snapshot, so a rename or a move shows up the moment it's made.
-  if(def.editing){
-    const live=D.groups.map(g=>({g,hs:g.habits.filter(h=>!h.archived)})).filter(x=>!x.g._default||x.hs.length);
-    const opts=gid=>live.map(({g})=>`<option value="${g.id}"${g.id===gid?' selected':''}>${_esc(g.name)}</option>`).join('');
-    return `<div class="hlist">${live.map(({g,hs})=>`
-      <div class="hlist-row hlist-grp">
-        <i class="hlist-dot" style="background:${g._default?gradeAccent():g.color}"${g._default?'':` title="Group color" onclick="openColorPop(event,'${g.id}')"`}></i>
-        <input class="nm" value="${_esc(g.name)}" onchange="renameGroupInline('${g.id}',this.value)"/>
-        <button class="hlist-eye" title="Add a lever to this group" onclick="addHabitFromCard('${g.id}')">+ Lever</button>
-        ${g._default?'':`<button class="pcard-x" title="Delete group (its levers are kept)" onclick="deleteGroup('${g.id}')">🗑</button>`}
-      </div>
-      ${hs.map(h=>{
-        const off=hid.includes(h.id);
-        return `<div class="hlist-row hlist-hab">
-        <i class="hlist-dot" style="background:${habitColor(h,g)}" title="Lever color" onclick="openHabitColorPop(event,'${h.id}')"></i>
-        <input class="nm" data-hid="${h.id}" value="${_esc(h.name)}" onchange="renameHabitInline('${h.id}',this.value)"/>
-        <select class="hlist-sel" title="Group" onchange="moveHabitToGroup('${h.id}',this.value)">${opts(g.id)}</select>
-        <input class="hlist-num" type="number" min="1" max="99" value="${h.dailyTarget||1}" title="Times per day" onchange="setHabitDailyTarget('${h.id}',this.value)"/>
-        <button class="hlist-eye${off?'':' on'}" title="${off?'Tracked, but hidden on this card':'Showing on this card'}"
-          onclick="toggleHabitShowHere('${def.id}','${h.id}')">${off?'○':'◉'}</button>
-        <button class="pcard-x" title="Archive lever" onclick="archiveHabit('${g.id}','${h.id}')">×</button>
-      </div>`;}).join('')}`).join('')}
-      <div class="hlist-foot">
-        <button class="pcard-lnk" onclick="addGroup()">+ Add group</button>
-        <button class="pcard-lnk on" onclick="toggleHabitCardEdit('${def.id}')">Done</button>
-      </div>
-    </div>`;
-  }
-  if(!hcModel(def).rows.length) return `<button class="paddcard" style="width:100%;padding:12px 10px"
-      onclick="toggleHabitCardEdit('${def.id}')">Choose what goes here</button>`;
+  if(def.source==='own'?!_hcOwn(def).habits.some(h=>!h.archived):!hcModel(def).rows.length) return _hcAddBtn(def,true);
   return _hcGridHTML(def);
 }
-function toggleHabitCardEdit(id){ const c=cardDef(id); if(c){ c.editing=!c.editing; _cardsDirty(); render(); } }
 // Writes through to the real habit list — a set you compose is a different object
 // from a roster you're handed.
 // Distinct from _findHabit below, which returns the habit alone — the card needs
@@ -7698,7 +7758,7 @@ function doSkipToggle(hid,day,color){
 function _refreshHabitCards(){
   cardDefs().forEach(def=>{
     if(def.type==='hgraph'){ buildHabitGraph(def); return; }
-    if(def.type!=='habits'||def.editing) return;
+    if(def.type!=='habits') return;
     const el=document.getElementById(`hcard-${def.id}`); if(!el) return;
     const sc=el.querySelector('.hc-scroll'),x=sc?sc.scrollLeft:null;
     el.innerHTML=habitCardBody(def);
