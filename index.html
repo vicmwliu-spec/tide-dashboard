@@ -5240,7 +5240,8 @@ function buildHabitGraph(def){
     {label:'Perfection',data:S.perf,borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
     {label:'Trajectory',data:S.traj,borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:lone(0),pointBackgroundColor:cc.cumul,pointHoverRadius:3},
     {label:'Total',data:S.total,borderColor:overall,backgroundColor:fill,pointBackgroundColor:overall,borderWidth:2.5,tension:.4,fill:true,spanGaps:true,pointRadius:lone(N<=14?2:0),pointHoverRadius:5},
-  ].concat(S.lines.map(l=>({label:l.name,data:l.data,borderColor:l.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,spanGaps:true,pointRadius:lone(0),pointBackgroundColor:l.color,pointHoverRadius:4})));
+  // Each habit is shaded beneath like Total, in its own color at Total's strength.
+  ].concat(S.lines.map(l=>({label:l.name,data:l.data,borderColor:l.color,backgroundColor:_rgbaFromColor(l.color,darkMode?0.12:0.08),borderWidth:1.5,tension:.4,fill:true,spanGaps:true,pointRadius:lone(0),pointBackgroundColor:l.color,pointHoverRadius:4})));
   // Lines hidden from the legend stay hidden, through every redraw, until shown again there.
   datasets.forEach(d=>{ d.hidden=hidden.includes(d.label); });
   // A tick or a skip updates the open chart in place, so it eases rather than redraws.
