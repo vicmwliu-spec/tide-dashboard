@@ -965,6 +965,17 @@ html,body,input,textarea,button,select{font-variant-ligatures:no-contextual}
    so that .15 was the only thing device-pixel snapping could round two ways, and two cards
    holding the same tables drifted a couple of pixels apart further down the column. */
 .rt-table td{border:1px solid var(--border);padding:6px 9px;min-width:96px;max-width:320px;vertical-align:top;line-height:20px;word-wrap:break-word;outline:none}
+/* A list's own margins, at a cell's edge, were space below the last bullet (and above the first)
+   that no key could delete: not a line, so nothing to select. The cell's padding is the edge.
+   Three levels covers the list depths in use; margins collapse through them all, so one left
+   standing would bring the gap back. */
+.rt-table td>:is(ul,ol):first-child,.rt-table td>:is(ul,ol):first-child>:first-child,
+.rt-table td>:is(ul,ol):first-child>:first-child>:first-child,
+.rt-table td>:is(ul,ol):first-child>:first-child>:first-child>:first-child{margin-top:0}
+.rt-table td>:is(ul,ol):last-child,.rt-table td>:is(ul,ol):last-child>:last-child,
+.rt-table td>:is(ul,ol):last-child>:last-child>:last-child,
+.rt-table td>:is(ul,ol):last-child>:last-child>:last-child>:last-child,
+.rt-table td>:is(ul,ol):last-child>:last-child>:last-child>:last-child>:last-child{margin-bottom:0}
 /* Header row / header column are opt-in classes (rt-hopt marks a table as migrated) */
 .rt-table.rt-hr tr:first-child td,.rt-table.rt-hc tr td:first-child{background:var(--surface2);font-weight:600}
 .rt-table:not(.rt-hopt) tr:first-child td{background:var(--surface2);font-weight:600}
