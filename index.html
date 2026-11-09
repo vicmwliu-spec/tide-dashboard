@@ -5067,22 +5067,25 @@ function _pmSub(label,rows){
 function _hcSetRange(id,kind,extra){
   const def=cardDef(id); if(!def) return;
   _cardMenuClose();
-  def.range=Object.assign({kind},extra||{});
+  // A graph's "Same as card" leaves its own range stored for next time and follows the card.
+  if(def.type==='hgraph') def.ownRange=kind!=='card';
+  if(kind!=='card') def.range=Object.assign({kind},extra||{});
   _cardsDirty(); render();
 }
-// The range picker, opened from a card's date caption with the current choice selected.
+// The range picker, opened from a card's or a graph's date caption with the current choice
+// selected. A graph that follows a Habits card has one more choice: the card's own days.
 const _HC_KINDS=[['week','This week'],['month','This month'],['last','Last N days'],['next','Next N days'],['custom','Custom']];
 function _hcRangeDlg(id,kind){
   const def=cardDef(id); if(!def) return;
   _cardMenuClose();
   document.getElementById('hc-range-overlay')?.remove();
-  const r=hcRange(def),ds=hcDates(r);
-  kind=kind||r.kind;
+  const r=hcRange(def),ds=hcDates(r),follow=def.type==='hgraph'&&!!_hgSrcCard(def);
+  kind=kind||(follow&&!def.ownRange?'card':r.kind);
   const n=(r.kind==='last'||r.kind==='next')?Math.max(1,Math.round(+r.n)||7):7;
   const ov=document.createElement('div'); ov.id='hc-range-overlay'; ov.dataset.kind=kind; ov.dataset.card=id;
   ov.innerHTML=`<div class="tmpl-ed-box" onmousedown="event.stopPropagation()">
     <div class="tmpl-ed-hd">Show these days</div>
-    <div class="hc-rg-ks">${_HC_KINDS.map(([k,l])=>`<button class="hc-rg-k" data-k="${k}" onclick="_hcRgKind('${k}')">${l}</button>`).join('')}</div>
+    <div class="hc-rg-ks">${(follow?[['card','Same as card']]:[]).concat(_HC_KINDS).map(([k,l])=>`<button class="hc-rg-k" data-k="${k}" onclick="_hcRgKind('${k}')">${l}</button>`).join('')}</div>
     <label class="hc-rg-row hc-rg-n"><span class="hc-rg-nl">Last</span> <input class="tmpl-ed-name" id="hc-rg-n" type="number" min="1" max="366" value="${n}"> <span class="hc-rg-nt">days, ending on the selected day</span></label>
     <div class="hc-rg-c">
       <label class="hc-rg-row">From <input class="tmpl-ed-name" id="hc-rg-s" type="date" value="${r.kind==='custom'&&r.start?r.start:_isoD(ds[0])}"></label>
@@ -5202,32 +5205,42 @@ function buildHabitGraph(def){
   const cv=document.getElementById(`hg-${def.id}`);
   if(!cv){ if(_hgCharts[def.id]){ _hgCharts[def.id].destroy(); delete _hgCharts[def.id]; } return; }
   const srcCard=_hgSrcCard(def);
-  // With no Habits card to follow, the levers over the graph's own range stand in.
-  const model=hcModel(srcCard||{type:'hgraph',range:hcRange(def)});
+  // The card's habits, over the card's days or the graph's own. With no Habits card to
+  // follow, the levers over the graph's own range stand in.
+  const rdef=srcCard&&!def.ownRange?srcCard:def;
+  const model=hcModel(srcCard?(rdef===def?Object.assign({},srcCard,{range:hcRange(def)}):srcCard):{type:'hgraph',range:hcRange(def)});
   const ds=model.dates,N=ds.length;
-  const rdef=srcCard||def,range=hcRange(rdef),wk=hcWeeks(range,ds);
+  const range=hcRange(rdef),wk=hcWeeks(range,ds);
   const note=document.getElementById(`hgn-${def.id}`);
   if(note){
     note.innerHTML=hcCaption(range,ds)+(srcCard?'':' <em>— add a Habits card to chart it</em>');
-    note.onclick=()=>_hcRangeDlg(rdef.id);
-    note.title=srcCard?'Change the days shown — on the Habits card this follows':'Change the days shown';
+    note.onclick=()=>_hcRangeDlg(def.id);
+    note.title=rdef===def?'Change the days shown':'Change the days shown — now the same as the Habits card';
   }
   const S=hgSeries(model),cc=chartConf();
+  const overall=def.totalColor||cc.overall,fill=_rgbaFromColor(overall,darkMode?0.12:0.08);
+  const hidden=Array.isArray(def.hiddenLines)?def.hiddenLines:[];
   const spans=N&&(ds[0].getMonth()!==ds[N-1].getMonth()||ds[0].getFullYear()!==ds[N-1].getFullYear());
   const lab=i=>{ const d=ds[i-1]; return d?(spans?`${d.getMonth()+1}/${d.getDate()}`:N<=10?`${'SMTWTFS'[d.getDay()]} ${d.getDate()}`:`${d.getDate()}`):''; };
   const datasets=[
     {label:'Perfection',data:S.perf,borderColor:cc.ref,borderWidth:1.5,borderDash:[5,5],tension:0,fill:false,pointRadius:0,pointHoverRadius:0},
     {label:'Trajectory',data:S.traj,borderColor:cc.cumul,backgroundColor:'transparent',borderWidth:1,borderDash:[4,3],tension:0,fill:false,pointRadius:0,pointHoverRadius:3},
-    {label:'Total',data:S.total,borderColor:cc.overall,backgroundColor:cc.fill,borderWidth:2.5,tension:.4,fill:true,spanGaps:true,pointRadius:N<=14?2:0,pointHoverRadius:5},
+    {label:'Total',data:S.total,borderColor:overall,backgroundColor:fill,pointBackgroundColor:overall,borderWidth:2.5,tension:.4,fill:true,spanGaps:true,pointRadius:N<=14?2:0,pointHoverRadius:5},
   ].concat(S.lines.map(l=>({label:l.name,data:l.data,borderColor:l.color,backgroundColor:'transparent',borderWidth:1.5,tension:.4,fill:false,spanGaps:true,pointRadius:0,pointHoverRadius:4})));
+  // Lines hidden from the legend stay hidden, through every redraw, until shown again there.
+  datasets.forEach(d=>{ d.hidden=hidden.includes(d.label); });
   // A tick or a skip updates the open chart in place, so it eases rather than redraws.
   const old=_hgCharts[def.id];
   if(old&&old.canvas===cv&&old.data.datasets.length===datasets.length&&old.options.scales.x.max===Math.max(2,N)
      &&old.data.datasets.every((d,i)=>d.label===datasets[i].label)){
-    old.data.datasets.forEach((d,i)=>{ d.data=datasets[i].data; });
+    old.data.datasets.forEach((d,i)=>{ const n=datasets[i];
+      d.data=n.data; d.borderColor=n.borderColor; d.backgroundColor=n.backgroundColor; if(n.pointBackgroundColor) d.pointBackgroundColor=n.pointBackgroundColor;
+      old.setDatasetVisibility(i,!n.hidden); });
     old.options.animation={duration:400,easing:'easeOutQuart'};
     old.update(); return;
   }
+  _hgCtxMenu(cv,def.id);
+  cv.title='Click a legend item to hide or show it · right-click Total to change its color';
   if(old){ old.destroy(); delete _hgCharts[def.id]; }
   const step=N<=10?1:N<=31?(spans?3:5):Math.ceil(N/8);
   _hgCharts[def.id]=new Chart(cv,{
@@ -5237,12 +5250,18 @@ function buildHabitGraph(def){
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
       plugins:{
-        legend:{position:'top',align:'end',labels:{boxWidth:20,boxHeight:2,font:{size:10,family:"'Inter',system-ui"},color:cc.legend,padding:10}},
+        legend:{position:'top',align:'end',labels:{boxWidth:20,boxHeight:2,font:{size:10,family:"'Inter',system-ui"},color:cc.legend,padding:10},
+          onClick(e,item,legend){
+            Chart.defaults.plugins.legend.onClick.call(this,e,item,legend);
+            const c=cardDef(def.id); if(!c) return;
+            c.hiddenLines=legend.chart.data.datasets.filter((d,i)=>!legend.chart.isDatasetVisible(i)).map(d=>d.label);
+            _cardsDirty();
+          }},
         tooltip:{
           backgroundColor:cc.tipBg,titleColor:'#fff',bodyColor:cc.tipBdy,
           borderColor:cc.tipBdr,borderWidth:1,padding:9,
           titleFont:{size:11},bodyFont:{size:10},
-          callbacks:{title:c=>{ const i=c[0].parsed.x-1,d=ds[i]; return d?`${d.toDateString().slice(0,10)} · Week ${wk[i].w}`:''; },label:c=>` ${c.dataset.label}: ${c.parsed.y}%`}
+          callbacks:{title:c=>{ const i=c[0].parsed.x-1,d=ds[i]; return d?`${d.toDateString().slice(0,10)} · Week ${wk[i].w}`:''; },label:c=>` ${c.dataset.label}: ${c.parsed.y==null?'—':c.parsed.y+'%'}`}
         }
       },
       scales:{
@@ -5250,6 +5269,22 @@ function buildHabitGraph(def){
         y:{min:0,max:100,ticks:{stepSize:25,font:{size:10,family:"'Inter',system-ui"},color:cc.ticks,callback:v=>v+'%'},grid:{color:cc.grid},border:{display:false}}
       }
     }
+  });
+}
+// Right-click Total in the legend to recolor it; its shading follows. Left-click still hides it.
+function _hgCtxMenu(cv,id){
+  if(cv._hgCtx) return; cv._hgCtx=true;
+  cv.addEventListener('contextmenu',e=>{
+    const ch=_hgCharts[id],lg=ch&&ch.legend; if(!lg||!lg.legendHitBoxes) return;
+    const i=lg.legendHitBoxes.findIndex(b=>e.offsetX>=b.left&&e.offsetX<=b.left+b.width&&e.offsetY>=b.top&&e.offsetY<=b.top+b.height);
+    if(i<0||lg.legendItems[i].text!=='Total') return;
+    e.preventDefault();
+    const b=lg.legendHitBoxes[i],cr=cv.getBoundingClientRect();
+    const at={getBoundingClientRect:()=>({left:cr.left+b.left,top:cr.top+b.top,right:cr.left+b.left+b.width,bottom:cr.top+b.top+b.height})};
+    const paint=c=>{ const ch=_hgCharts[id]; if(!ch) return; const d=ch.data.datasets.find(d=>d.label==='Total'); if(!d) return;
+      d.borderColor=d.pointBackgroundColor=c; d.backgroundColor=_rgbaFromColor(c,darkMode?0.12:0.08); ch.update('none'); };
+    openColorPop({stopPropagation(){},currentTarget:at,target:at},'hgt_'+id,(cardDef(id)||{}).totalColor||chartConf().overall,
+      c=>{ const def=cardDef(id); if(!def) return; def.totalColor=c; _cardsDirty(); buildHabitGraph(def); },paint);
   });
 }
 // removePlannerCard renders when it removes something, but it also has a confirm you can
