@@ -10565,6 +10565,31 @@ function rtGuardBlocks(host){
   host.querySelectorAll('.rt-tog-b').forEach(b=>fill(b,'<p><br></p>'));
   // A summary is one line, not a block context — a bare <br> is what it ships with.
   host.querySelectorAll('.rt-tog-s').forEach(s=>fill(s,'<br>'));
+  host.querySelectorAll('.rt-table td').forEach(td=>{ if(_rtStrayBr(td)) dirty=true; });
+  return dirty;
+}
+// A bare <br> at the top or bottom of a cell, against a list or paragraph. A new cell holds a
+// <br> so it has a line to type on, and a paste goes in beside it rather than over it -- next
+// to text that <br> is nothing, but next to a block it is a whole blank line, and not one the
+// caret can sit on, so it could not be deleted. The cell's own blank lines (<div><br></div>,
+// what Enter makes) are left alone, and so is a <br> the caret is at.
+const _RT_BLK=/^(UL|OL|P|DIV|H[1-6]|BLOCKQUOTE|PRE)$/;
+function _rtStrayBr(td){
+  const sel=window.getSelection(),at=sel&&sel.rangeCount?sel.getRangeAt(0):null;
+  const real=n=>!(n.nodeType===Node.TEXT_NODE&&!n.textContent.trim());
+  const busy=br=>at&&(at.startContainer===br||(at.startContainer===td&&
+    (td.childNodes[at.startOffset]===br||td.childNodes[at.startOffset-1]===br)));
+  const blk=n=>n&&n.nodeType===1&&_RT_BLK.test(n.tagName);
+  const kids=[...td.childNodes].filter(real);
+  let dirty=false;
+  // Below: the whole run of them after the last block, each one another blank line.
+  let i=kids.length;
+  while(i>0&&kids[i-1].tagName==='BR') i--;
+  if(i<kids.length&&blk(kids[i-1])&&!kids.slice(i).some(busy)){
+    kids.slice(i).forEach(n=>n.remove()); dirty=true; }
+  // Above: the one a paste went in after.
+  if(kids[0]&&kids[0].tagName==='BR'&&blk(kids[1])&&kids[0].isConnected&&!busy(kids[0])){
+    kids[0].remove(); dirty=true; }
   return dirty;
 }
 // Whether a node contributes nothing but height at the top of a card. A bare <br> counts:
@@ -13711,6 +13736,11 @@ document.addEventListener('paste',e=>{
   if(rtPasteIntoItem(clean,sel,host)){ rtFire(host); return; }
   const r=sel.getRangeAt(0);
   r.deleteContents();
+  // An empty cell's placeholder <br> goes, so the paste takes the cell rather than sitting
+  // above or below a blank line nothing can delete.
+  const td=inCell&&rtAnchorCell();
+  if(td&&!td.textContent.trim()&&!td.querySelector('img,table')&&td.querySelector('br')){
+    td.innerHTML=''; r.setStart(td,0); r.collapse(true); }
   const frag=document.createRange().createContextualFragment(clean);
   const last=frag.lastChild;
   r.insertNode(frag);
