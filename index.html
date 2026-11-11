@@ -1968,9 +1968,29 @@ function migrateSchedLabel(){
   if(dirty) saveLocal(); // boot migration: local only, never a push -- as migrateCardCols
   return dirty;
 }
+// The Daily Outline was the last card kept per day: each new day opened on a blank copy of the
+// table, so what you wrote seemed to vanish at midnight. It now keeps one entry, like every other
+// card. The one carried over is today's if there is one, else the latest day before it -- what
+// you last saw. Days ahead are only used when nothing else was written. The other days stay in
+// the data, unused, as migrateCardsToOneEntry leaves them.
+function migrateSchedOneEntry(){
+  let dirty=false;
+  cardDefs().forEach(def=>{
+    if(def.cadence==='none'||!_isSchedCard(def)) return;
+    def.cadence='none'; dirty=true;
+    const bag=(D.cards.data||{})[def.id];
+    if(!bag||bag['_']) return;
+    const today=cardPeriodKey('day',new Date());
+    const ks=Object.keys(bag).filter(k=>k!=='_'&&bag[k]).sort();
+    const k=ks.filter(x=>x<=today).pop()||ks.pop();
+    if(k) bag['_']=bag[k];
+  });
+  if(dirty) saveLocal(); // boot migration: local only, never a push -- as migrateCardCols
+  return dirty;
+}
 function migrateAll(){
   repairJulySkips(); migrateCardsToGlobal(); migrateCardsToPeriods(); migrateClockToCard();
-  migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateCardModes(); migrateSchedLabel();
+  migrateCardsToOneEntry(); migrateCardGrid(); migrateCardCols(); migrateCardModes(); migrateSchedLabel(); migrateSchedOneEntry();
   migrateJournalNotebooks();
   // Last: it rewrites card HTML, so every migration that moves cards between shapes runs first.
   migrateTableWidths();
@@ -2862,8 +2882,9 @@ function _isSchedCard(def){
   const bag=(D.cards.data||{})[def.id];
   return !!bag&&Object.values(bag).some(h=>typeof h==='string'&&h.includes('rt-timeline'));
 }
-// A day with nothing typed yet starts from the latest earlier day's table with its tasks
-// cleared, so slots you renamed or resized carry forward. Shown, not saved: typing saves it.
+// An outline with nothing typed in it yet starts from the latest table written under the old
+// per-day storage, with its tasks cleared, so slots you renamed or resized carry forward. Every
+// day key sorts below '_'. Shown, not saved: typing saves it.
 function schedSeedHTML(def){
   const bag=(D.cards.data||{})[def.id]||{};
   const cur=cardPeriodKey(def.cadence,PD);
@@ -5381,7 +5402,7 @@ function addPlannerCard(type,at){
   : type==='canvas' ? {id,type:'canvas',label:'CANVAS',span:2*PGRID_SUB,minH:320,cadence:'none'}
   : type==='journal' ? {id,type:'journal',label:'JOURNAL',span:2*PGRID_SUB,minH:420,cadence:'none'}
   : type==='weekly' ? {id,type:'text',label:'WEEKLY OUTLINE',span:3*PGRID_SUB,minH:0,cadence:'none'}
-  : type==='schedule' ? {id,type:'text',label:'DAILY OUTLINE',span:2*PGRID_SUB,minH:0,cadence:'day',sched:true}
+  : type==='schedule' ? {id,type:'text',label:'DAILY OUTLINE',span:2*PGRID_SUB,minH:0,cadence:'none',sched:true}
   // zoom is px per hour in the scrolling layout; fitStart/fitEnd are the minutes the fit-to-width
   // layout spans. Both kept on the def so each calendar card remembers its own.
   : type==='dcal' ? {id,type:'dcal',label:'DAILY CALENDAR',span:2*PGRID_SUB,minH:0,cadence:'none',
