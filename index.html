@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="1126-224332">
+<meta name="build" content="1126-231852">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1453,6 +1453,29 @@ button,.btn,.nav-btn,.chk-c,.hz-chk-c,.mo-card{
   #sel-bar{bottom:max(20px,env(safe-area-inset-bottom,20px))}
   #edit-bar{bottom:max(20px,env(safe-area-inset-bottom,20px));right:16px}
   #arch-toast{bottom:max(20px,env(safe-area-inset-bottom,20px))}
+
+  /* Text-card tables on a phone. On desktop the colgroup percentages share the card out between
+     the columns; at phone width that gave a six-column table 55px a column, so words broke in
+     the middle (MILLIO/N), row labels stacked a letter to a line and nested bullets were one
+     character wide. Here the content decides instead: auto layout, every column at least 120px
+     and never narrower than its longest word, and the table swipes sideways inside its card
+     (.rt-tw already scrolls). Only CSS — the colgroup, the inline min-width and the saved HTML
+     are exactly what the desktop wrote, so widening the screen gives the desktop layout back.
+     The Daily Outline timeline is left alone: its now-line is painted from cell rects and it
+     has two or three columns, which already fit. */
+  .rt-table.rt-fixed:not(.rt-timeline){table-layout:auto;width:auto;min-width:100%!important}
+  .rt-table.rt-fixed:not(.rt-timeline) col{width:auto!important}
+  .rt-table.rt-fixed:not(.rt-timeline) td{min-width:120px;overflow-wrap:normal;word-break:normal}
+  /* The label column is as wide as its longest word and stays put while the rest scrolls.
+     Background and edge go through :where() so they carry no weight: header shading, selection
+     and the week tables' today/past washes all still win over them. */
+  .rt-table.rt-fixed:not(.rt-timeline) td:first-child{min-width:0;position:sticky;left:0;z-index:1}
+  :where(.rt-table.rt-fixed:not(.rt-timeline) td:first-child){background:var(--surface);box-shadow:inset -1px 0 0 var(--border)}
+  /* ~40px of indent per list level is a third of a phone column. */
+  .rt-table td :is(ul,ol){padding-left:1.1em}
+  /* Column handles are 7px hover targets; a stray touch would save phone-measured widths into
+     the desktop's columns. */
+  #rt-ctl .rt-rz{display:none}
 }
 
 /* ── Small phones (≤480px) ── */
@@ -1609,7 +1632,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '1126-224332';
+const RT_BUILD = '1126-231852';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
