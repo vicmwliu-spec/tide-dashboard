@@ -1803,7 +1803,7 @@ async function _liveBuild(){
   try{
     const r=await fetch(location.href.split('#')[0],{cache:'no-store',headers:{Range:'bytes=0-1023'}});
     if(!r.ok) return null;
-    const m=(await r.text()).match(/<meta name="build" content="1126-2146"]+)"/);
+    const m=(await r.text()).match(/<meta name="build" content=['"]([^'"]+)/);
     return m?m[1]:null;
   }catch(e){ return null; }
 }
