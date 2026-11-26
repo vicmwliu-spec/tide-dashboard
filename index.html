@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="0827-a18">
+<meta name="build" content="1126-2146">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1609,7 +1609,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '0827-a18';
+const RT_BUILD = '1126-2146';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -1774,9 +1774,71 @@ document.addEventListener('visibilitychange',()=>{
   // clobber: by the time you type, this tab is current.
   // Never while this device owes a push, or the pull would overwrite the very work that has
   // not gone up yet — which is the failure this whole change is about.
-  if(_syncTimer||_hasUnpushed()) return;
-  loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); });
+  // A newer build is checked for first: reloading pulls from the cloud at boot anyway, so
+  // there is no point pulling into code that is about to be replaced.
+  _checkForUpdate().then(reloading=>{
+    if(reloading||_syncTimer||_hasUnpushed()) return;
+    loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); });
+  });
 });
+
+// Picking up a new build. The phone's home-screen shortcut opens without an address bar, so it
+// has no reload button, and Chrome keeps the page alive in the background for days — the
+// phone went on running whatever code it last loaded while every fix landed on the desktop,
+// and on top of that pulled the cloud into old migrations. Nothing ever told it a new build
+// existed. Now: on boot, on coming back to the app, and every 15 minutes while it is open,
+// fetch the first 1KB of the live page (a Range request — not the whole 850KB) and compare
+// its <meta name="build"> with RT_BUILD. Different means reload — but only once nothing is
+// owed to the cloud, because a boot with unpushed work and a moved cloud row takes the cloud
+// copy and that work would be gone. A pending push is flushed first; if it fails (offline),
+// no reload, and the next check tries again.
+// The fetch with cache:'reload' before location.reload() is what makes the reload actually get
+// the new page: GitHub Pages sends max-age=600, so a plain reload inside those ten minutes can
+// be served the old copy from the HTTP cache, find itself still out of date and go round
+// again. The sessionStorage note is the second guard against that loop: one attempt per
+// build per tab session.
+let _updReloading=false, _updLast=0;
+async function _liveBuild(){
+  if(!/^https?:$/.test(location.protocol)) return null; // file:// tests have nothing to compare to
+  try{
+    const r=await fetch(location.href.split('#')[0],{cache:'no-store',headers:{Range:'bytes=0-1023'}});
+    if(!r.ok) return null;
+    const m=(await r.text()).match(/<meta name="build" content="1126-2146"]+)"/);
+    return m?m[1]:null;
+  }catch(e){ return null; }
+}
+async function _checkForUpdate(){
+  if(_updReloading) return true;
+  if(Date.now()-_updLast<60000) return false; // a quick app switch is not worth a fetch
+  _updLast=Date.now();
+  const live=await _liveBuild();
+  if(!live||live===RT_BUILD) return false;
+  let tried=null; try{ tried=sessionStorage.getItem('tide_upd_try'); }catch(e){}
+  if(tried===live) return false;
+  return _reloadForUpdate(live);
+}
+async function _reloadForUpdate(live){
+  if(_syncTimer){ clearTimeout(_syncTimer); _syncTimer=null; await _pushToCloud(); }
+  else if(_hasUnpushed()) await _pushToCloud();
+  if(_hasUnpushed()) return false; // still owed — offline; keep the work, try next time
+  _updReloading=true;
+  try{ if(live) sessionStorage.setItem('tide_upd_try',live); }catch(e){}
+  try{ await fetch(location.href.split('#')[0],{cache:'reload'}); }catch(e){}
+  location.reload();
+  return true;
+}
+// Tapping the sync badge is the manual version: push anything owed, then reload fresh.
+function syncBadgeReload(){
+  if(_updReloading) return;
+  _syncStatus='syncing'; updateSyncBadge();
+  _reloadForUpdate(null).then(ok=>{ if(!ok){ _syncStatus='offline'; updateSyncBadge(); } });
+}
+setInterval(()=>{
+  if(document.visibilityState!=='visible') return;
+  const a=document.activeElement; // never pull the page out from under someone typing
+  if(a&&(a.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+  _checkForUpdate();
+},15*60*1000);
 
 // One-time repair: the July 2026 recovery left every habit's skips corrupted
 // (marked skipped on days 11-12, i.e. on/after their start date), which zeroed
@@ -2786,7 +2848,7 @@ function mkHeader(){
       ):''}
     </div>
     <div class="hdr-r">
-      <span id="sync-badge" style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
+      <span id="sync-badge" onclick="syncBadgeReload()" title="Tap to sync and reload the latest version" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500;color:var(--text3);padding:0 4px"></span>
       <button class="btn" onclick="event.stopPropagation();openWeekStartMenu(this)" title="Settings" style="padding:4px 8px;line-height:0;color:var(--text2)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
       <button class="btn" onclick="toggleDark()" title="${darkMode?'Day Mode':'Night Mode'}" style="padding:4px 8px;line-height:0;color:var(--text2)">${darkMode?`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`:`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}</button>
     </div>`;
@@ -15395,7 +15457,7 @@ document.addEventListener('click',e=>{
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); });
+loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); setTimeout(()=>_checkForUpdate(),3000); });
 </script>
 </body>
 </html>
