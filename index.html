@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="build" content="1126-2146">
+<meta name="build" content="1126-224332">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1609,7 +1609,7 @@ const _sb = supabase.createClient(SB_URL, SB_KEY);
 // times now meant a stale bundle rather than a bug. There is no build step to inject a
 // hash, so this is bumped by hand at commit time; it is shown in the sync badge and
 // mirrored into <meta name="build"> so curl can answer the same question without a browser.
-const RT_BUILD = '1126-2146';
+const RT_BUILD = '1126-224332';
 // This has now been diagnosed from reading twice and the second reading was wrong about which
 // window mattered. ?rtdebug=1 makes the one conversion that can go wrong observable instead.
 const RT_DEBUG = /[?&]rtdebug=1/.test(location.search);
@@ -1707,6 +1707,11 @@ async function loadFromCloud(){
     if(cloudHasData&&unpushed&&!cloudMoved){
       await _pushToCloud();
     } else if(cloudHasData){
+      // Local work the cloud never got, about to be replaced by a cloud copy that moved on
+      // without it. That is the rule, but it is also exactly what happens to whichever device
+      // comes second after an outage — so keep what is being thrown away. ?restore=backup
+      // puts it back.
+      if(unpushed) _backupLocal('replaced by the cloud copy');
       D=data.data;
       if(!D.aarTemplates) D.aarTemplates=[];
       localStorage.setItem(SK,JSON.stringify(D));
@@ -1721,6 +1726,30 @@ async function loadFromCloud(){
     _syncStatus='offline';
   }
   updateSyncBadge();
+}
+
+// One backup slot per device: the last local copy that sync replaced. Best effort — a full
+// localStorage must not stop the sync itself.
+const SK_BAK = SK+':backup';
+function _backupLocal(reason){
+  try{ localStorage.setItem(SK_BAK,JSON.stringify({at:new Date().toISOString(),reason,data:D})); }
+  catch(e){ console.warn('Backup failed:',e); }
+}
+// Opening the app with ?restore=backup offers to put that copy back. Restoring is an edit
+// made on this device, so it is pushed with force: it has to beat the cloud copy that
+// replaced it, which is the whole point.
+function _restoreBackupFromUrl(){
+  if(!/[?&]restore=backup\b/.test(location.search)) return false;
+  history.replaceState(null,'',location.pathname+location.hash);
+  let b=null; try{ b=JSON.parse(localStorage.getItem(SK_BAK)); }catch(e){}
+  if(!b||!b.data){ alert('There is no backup on this device.'); return false; }
+  if(!confirm('Replace what is on screen with the backup from '+new Date(b.at).toLocaleString()+'?\n\nThis will also replace the cloud copy on your other devices.')) return false;
+  _backupLocal('replaced by restoring a backup'); // so the restore itself can be undone
+  D=b.data;
+  localStorage.setItem(SK,JSON.stringify(D));
+  localStorage.setItem(SK_AT,new Date().toISOString());
+  _pushToCloud(true);
+  return true;
 }
 
 // Does this device hold work the cloud has not seen? Both stamps come from this device's own
@@ -2609,6 +2638,10 @@ function render(){
   app.style.minHeight=app.offsetHeight+'px';
   app.innerHTML='';
   app.appendChild(mkHeader());
+  // The header is rebuilt empty on every render and the badge was only filled when the sync
+  // status changed — so after the first render it went blank and stayed blank, and a device
+  // that had been offline for weeks never once said "Offline".
+  updateSyncBadge();
   if(view==='today'){
     // The card grid is the whole page. The clock is a card in it like anything
     // else, so there is nothing on this view that sits outside the grid.
@@ -15457,7 +15490,7 @@ document.addEventListener('click',e=>{
 // ─────────────────────────────────────────
 render();
 updateSyncBadge();
-loadFromCloud().then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); setTimeout(()=>_checkForUpdate(),3000); });
+(_restoreBackupFromUrl()?Promise.resolve():loadFromCloud()).then(()=>{ migrateAll(); render(); rtStartQuarantine(); startDayRollover(); setTimeout(()=>_checkForUpdate(),3000); });
 </script>
 </body>
 </html>
